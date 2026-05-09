@@ -1,6 +1,7 @@
 // ignore_for_file: deprecated_member_use
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:confianza_admin/core/theme/app_colors.dart';
 
 class VistaSesion extends StatefulWidget {
   const VistaSesion({super.key});
@@ -10,20 +11,10 @@ class VistaSesion extends StatefulWidget {
 }
 
 class _VistaSesionState extends State<VistaSesion> {
-  // Paleta de colores exacta según el diseño de Tailwind CSS provisto
-  static const Color colorPrimary = Color(0xFF006397);
-  static const Color colorSecondary = Color(0xFF4E6073);
-  static const Color colorBackground = Color(0xFFF7F9FF);
-  static const Color colorOnSurface = Color(0xFF181C20);
-  static const Color colorOnSurfaceVariant = Color(0xFF3F4850);
-  static const Color colorInverseSurface = Color(0xFF2D3135);
-  static const Color colorOutlineVariant = Color(0xFFBFC7D2);
-  static const Color colorSurfaceContainerLowest = Color(0xFFFFFFFF);
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: colorBackground,
+      backgroundColor: AppColors.background,
       body: LayoutBuilder(
         builder: (context, constraints) {
           // Si el ancho es mayor o igual a 800px, mostramos diseño de escritorio de doble columna
@@ -38,7 +29,7 @@ class _VistaSesionState extends State<VistaSesion> {
                   child: Container(
                     constraints: const BoxConstraints(maxWidth: 1000),
                     decoration: BoxDecoration(
-                      color: colorSurfaceContainerLowest,
+                      color: AppColors.surfaceContainerLowest,
                       borderRadius: BorderRadius.circular(12),
                       boxShadow: [
                         BoxShadow(
@@ -47,7 +38,7 @@ class _VistaSesionState extends State<VistaSesion> {
                           offset: const Offset(0, 4),
                         ),
                       ],
-                      border: Border.all(color: colorOutlineVariant.withOpacity(0.5)),
+                      border: Border.all(color: AppColors.outlineVariant.withOpacity(0.5)),
                     ),
                     clipBehavior: Clip.antiAlias,
                     child: IntrinsicHeight(
@@ -58,7 +49,7 @@ class _VistaSesionState extends State<VistaSesion> {
                           if (isDesktop)
                             Expanded(
                               child: Container(
-                                color: colorInverseSurface,
+                                color: AppColors.inverseSurface,
                                 padding: const EdgeInsets.all(48.0),
                                 child: const _SeccionIzquierda(),
                               ),
@@ -162,14 +153,14 @@ class _SeccionIzquierda extends StatelessWidget {
                   icon: Icons.qr_code_scanner,
                   title: "Escaneo Seguro",
                   subtitle: "Encriptación de punto a punto",
-                  iconBgColor: _VistaSesionState.colorPrimary,
+                  iconBgColor: AppColors.primary,
                 ),
                 const SizedBox(height: 24),
                 _buildSecurityFeature(
                   icon: Icons.verified_user,
                   title: "Validación Biométrica",
                   subtitle: "Requiere FaceID o Huella en el móvil",
-                  iconBgColor: _VistaSesionState.colorSecondary,
+                  iconBgColor: AppColors.secondary,
                 ),
               ],
             ),
@@ -239,7 +230,7 @@ class _SeccionDerecha extends StatelessWidget {
           "Vincular Dispositivo",
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: _VistaSesionState.colorOnSurface,
+            color: AppColors.onSurface,
             fontSize: 20,
             fontWeight: FontWeight.bold,
           ),
@@ -249,7 +240,7 @@ class _SeccionDerecha extends StatelessWidget {
           "Abre la app móvil y escanea el código para iniciar sesión",
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: _VistaSesionState.colorOnSurfaceVariant,
+            color: AppColors.onSurfaceVariant,
             fontSize: 14,
             height: 1.4,
           ),
@@ -262,7 +253,7 @@ class _SeccionDerecha extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _VistaSesionState.colorOutlineVariant.withOpacity(0.5)),
+            border: Border.all(color: AppColors.outlineVariant.withOpacity(0.5)),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.02),
@@ -279,7 +270,7 @@ class _SeccionDerecha extends StatelessWidget {
                 child: Container(
                   width: 200,
                   height: 200,
-                  color: _VistaSesionState.colorBackground,
+                  color: AppColors.background,
                   child: Image.network(
                     'https://lh3.googleusercontent.com/aida/ADBb0uhavFE_cdN_MH6UxaJ-YPDlv4eh33h9JYk6e2KNmCBzQNPuhZtiOoIhdsHI-q1wHAr6-Xl5Gd0quGqRYPONfHwjLJmWY4isWJj5LKRhI8peJyGlvQHvam4_TYbUwWYWevidMqtgPAhzsoZcVDqQakp7ADvTlLNZdLTZYm9UgBA37QPxV-AJglIFeIR8-S4qCS5rhWR-TdqMgvOwx6jfICPRc24XlXU9Zf-lu_dm_37CtwO9appUDY-lbS8O_IyXRvewqo6LIgESWQ',
                     fit: BoxFit.cover,
@@ -287,7 +278,7 @@ class _SeccionDerecha extends StatelessWidget {
                       if (loadingProgress == null) return child;
                       return const Center(
                         child: CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(_VistaSesionState.colorPrimary),
+                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
                         ),
                       );
                     },
@@ -297,7 +288,7 @@ class _SeccionDerecha extends StatelessWidget {
                         child: Icon(
                           Icons.qr_code,
                           size: 120,
-                          color: _VistaSesionState.colorSecondary,
+                          color: AppColors.secondary,
                         ),
                       );
                     },
@@ -321,7 +312,7 @@ class _SeccionDerecha extends StatelessWidget {
             Text(
               "ESPERANDO ESCANEO...",
               style: TextStyle(
-                color: _VistaSesionState.colorOnSurfaceVariant,
+                color: AppColors.onSurfaceVariant,
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 1.5,
@@ -334,20 +325,20 @@ class _SeccionDerecha extends StatelessWidget {
         // Línea Divisoria "O BIEN"
         Row(
           children: [
-            Expanded(child: Divider(color: _VistaSesionState.colorOutlineVariant.withOpacity(0.5))),
+            Expanded(child: Divider(color: AppColors.outlineVariant.withOpacity(0.5))),
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16.0),
               child: Text(
                 "O BIEN",
                 style: TextStyle(
-                  color: _VistaSesionState.colorSecondary,
+                  color: AppColors.secondary,
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 1.0,
                 ),
               ),
             ),
-            Expanded(child: Divider(color: _VistaSesionState.colorOutlineVariant.withOpacity(0.5))),
+            Expanded(child: Divider(color: AppColors.outlineVariant.withOpacity(0.5))),
           ],
         ),
         const SizedBox(height: 24),
@@ -358,10 +349,10 @@ class _SeccionDerecha extends StatelessWidget {
           height: 48,
           child: OutlinedButton.icon(
             style: OutlinedButton.styleFrom(
-              side: BorderSide(color: _VistaSesionState.colorOutlineVariant.withOpacity(0.8)),
+              side: BorderSide(color: AppColors.outlineVariant.withOpacity(0.8)),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              foregroundColor: _VistaSesionState.colorOnSurfaceVariant,
-              backgroundColor: _VistaSesionState.colorSurfaceContainerLowest,
+              foregroundColor: AppColors.onSurfaceVariant,
+              backgroundColor: AppColors.surfaceContainerLowest,
             ),
             onPressed: () {
               Navigator.pushReplacementNamed(context, '/inicio');
@@ -378,7 +369,7 @@ class _SeccionDerecha extends StatelessWidget {
         // Enlace de ayuda
         TextButton.icon(
           style: TextButton.styleFrom(
-            foregroundColor: _VistaSesionState.colorPrimary,
+            foregroundColor: AppColors.primary,
           ),
           onPressed: () {
             // Acción de ayuda
@@ -397,7 +388,7 @@ class _SeccionDerecha extends StatelessWidget {
   List<Widget> _buildFocusCorners() {
     const double cornerSize = 24.0;
     const double borderThickness = 4.0;
-    const Color cornerColor = _VistaSesionState.colorPrimary;
+    const Color cornerColor = AppColors.primary;
 
     return [
       // Arriba Izquierda
@@ -513,7 +504,7 @@ class _BouncingDotsState extends State<BouncingDots> with SingleTickerProviderSt
             height: 7,
             margin: const EdgeInsets.symmetric(horizontal: 2),
             decoration: const BoxDecoration(
-              color: _VistaSesionState.colorPrimary,
+              color: AppColors.primary,
               shape: BoxShape.circle,
             ),
           ),
@@ -546,12 +537,12 @@ class _FooterSecurityBadges extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 16, color: _VistaSesionState.colorSecondary),
+        Icon(icon, size: 16, color: AppColors.secondary),
         const SizedBox(width: 6),
         Text(
           label,
           style: const TextStyle(
-            color: _VistaSesionState.colorSecondary,
+            color: AppColors.secondary,
             fontSize: 10,
             fontWeight: FontWeight.bold,
             letterSpacing: 1.5,

@@ -1,28 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:confianza_admin/main.dart';
 
-/// Modelo de datos para representar un artículo del inventario de manera interactiva
-class ProductItem {
-  String name;
-  String subtitle;
-  String sku;
-  String category;
-  int stock;
-  int maxStock;
-  double price;
-  String imageUrl;
-
-  ProductItem({
-    required this.name,
-    required this.subtitle,
-    required this.sku,
-    required this.category,
-    required this.stock,
-    required this.maxStock,
-    required this.price,
-    required this.imageUrl,
-  });
-}
+import 'package:confianza_admin/core/widgets/admin_layout.dart';
+import 'package:confianza_admin/core/theme/app_colors.dart';
+import 'package:confianza_admin/modulos/inventario/viewmodel_inventario.dart';
 
 class VistaInventario extends StatefulWidget {
   const VistaInventario({super.key});
@@ -32,20 +12,6 @@ class VistaInventario extends StatefulWidget {
 }
 
 class _VistaInventarioState extends State<VistaInventario> {
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-
-  // Paleta de colores consistente de la marca
-  static const Color colorPrimary = Color(0xFF006397);
-  static const Color colorPrimaryContainer = Color(0xFF3498db);
-  static const Color colorBackground = Color(0xFFF7F9FF);
-  static const Color colorOnSurface = Color(0xFF181C20);
-  static const Color colorOnSurfaceVariant = Color(0xFF3F4850);
-  static const Color colorInverseSurface = Color(0xFF2D3135);
-  static const Color colorOutlineVariant = Color(0xFFBFC7D2);
-  static const Color colorSurfaceContainerLowest = Color(0xFFFFFFFF);
-  static const Color colorSurfaceContainerLow = Color(0xFFF1F4FA);
-  static const Color colorSurfaceContainerHigh = Color(0xFFE5E8EE);
-
   // Controladores y estados reactivos
   final TextEditingController _searchController = TextEditingController();
   String _selectedCategory = "Todas las Categorías";
@@ -125,85 +91,35 @@ class _VistaInventarioState extends State<VistaInventario> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      key: _scaffoldKey,
-      backgroundColor: colorBackground,
-      drawer: Drawer(
-        child: Container(
-          color: colorInverseSurface,
-          child: const _SidebarContent(isDrawer: true),
-        ),
-      ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final isDesktop = constraints.maxWidth >= 1024;
-
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Barra Lateral (Sidebar) fija en pantallas grandes
-              if (isDesktop)
-                SizedBox(
-                  width: SidebarState.isCollapsed ? 76 : 260,
-                  child: Container(
-                    color: colorInverseSurface,
-                    child: _SidebarContent(
-                      isDrawer: false,
-                      onToggleCollapse: () {
-                        setState(() {
-                          SidebarState.isCollapsed = !SidebarState.isCollapsed;
-                        });
-                      },
-                    ),
-                  ),
-                ),
-
-              // Área de Contenido Principal
-              Expanded(
-                child: Column(
-                  children: [
-                    // Cabecera superior
-                    _Header(
-                      scaffoldKey: _scaffoldKey,
-                      isDesktop: isDesktop,
-                      searchController: _searchController,
-                      onSearchChanged: (val) {
-                        setState(() {});
-                      },
-                    ),
-
-                    // Cuerpo de Inventario con Scroll
-                    Expanded(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(24),
+    return AdminLayout(
+      activeRoute: '/inventario',
+      title: 'Inventario',
+      searchController: _searchController,
+      onSearchChanged: (val) {
+        setState(() {});
+      },
+      child: SingleChildScrollView(
+        padding: EdgeInsets.all(24),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             // Bento-Grid de Tarjetas KPI
                             _buildBentoGrid(context),
-                            const SizedBox(height: 28),
+                            SizedBox(height: 28),
 
                             // Controles de Filtrado e Inserción de Artículos
                             _buildTableControls(context),
-                            const SizedBox(height: 20),
+                            SizedBox(height: 20),
 
                             // Tabla Robust de Inventario
                             _buildInventoryTableCard(context),
-                            const SizedBox(height: 24),
+                            SizedBox(height: 24),
 
                             // Banner contextual de Ayuda / Estado
                             _buildHelpBanner(context),
                           ],
                         ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          );
-        },
-      ),
+                        ),
     );
   }
 
@@ -231,12 +147,12 @@ class _VistaInventarioState extends State<VistaInventario> {
           title: "Stock Total",
           value: _totalStock.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => "${m[1]},"),
           trailing: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: const Color(0xFFECFDF5),
+              color: Color(0xFFECFDF5),
               borderRadius: BorderRadius.circular(99),
             ),
-            child: const Text(
+            child: Text(
               "+2.4%",
               style: TextStyle(color: Color(0xFF10B981), fontSize: 11, fontWeight: FontWeight.bold),
             ),
@@ -245,18 +161,18 @@ class _VistaInventarioState extends State<VistaInventario> {
         _buildKpiCard(
           title: "Bajo Stock",
           value: _lowStockCount.toString(),
-          valueColor: const Color(0xFFBA1A1A),
-          trailing: const Icon(Icons.warning_amber_rounded, color: Color(0xFFBA1A1A), size: 24),
+          valueColor: Color(0xFFBA1A1A),
+          trailing: Icon(Icons.warning_amber_rounded, color: Color(0xFFBA1A1A), size: 24),
         ),
         _buildKpiCard(
           title: "Valor Inventario",
           value: "\$${(_totalValue / 1000).toStringAsFixed(1)}k",
-          trailing: const Icon(Icons.payments_outlined, color: colorOnSurfaceVariant, size: 24),
+          trailing: Icon(Icons.payments_outlined, color: AppColors.onSurfaceVariant, size: 24),
         ),
         _buildKpiCard(
           title: "Categorías",
           value: _uniqueCategories.toString(),
-          trailing: const Icon(Icons.category_outlined, color: colorOnSurfaceVariant, size: 24),
+          trailing: Icon(Icons.category_outlined, color: AppColors.onSurfaceVariant, size: 24),
         ),
       ],
     );
@@ -265,15 +181,15 @@ class _VistaInventarioState extends State<VistaInventario> {
   Widget _buildKpiCard({
     required String title,
     required String value,
-    Color valueColor = colorOnSurface,
+    Color valueColor = AppColors.onSurface,
     required Widget trailing,
   }) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: colorSurfaceContainerLowest,
+        color: AppColors.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colorOutlineVariant.withValues(alpha: 0.5)),
+        border: Border.all(color: AppColors.outlineVariant.withValues(alpha: 0.5)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.02),
@@ -288,7 +204,7 @@ class _VistaInventarioState extends State<VistaInventario> {
         children: [
           Text(
             title,
-            style: const TextStyle(color: colorOnSurfaceVariant, fontSize: 12, fontWeight: FontWeight.bold),
+            style: TextStyle(color: AppColors.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.bold),
           ),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -319,17 +235,17 @@ class _VistaInventarioState extends State<VistaInventario> {
           children: [
             // Dropdown Categorías
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: colorSurfaceContainerLowest,
+                color: AppColors.surfaceContainerLowest,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: colorOutlineVariant),
+                border: Border.all(color: AppColors.outlineVariant),
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
                   value: _selectedCategory,
-                  icon: const Icon(Icons.expand_more, color: colorOnSurfaceVariant),
-                  style: const TextStyle(color: colorOnSurface, fontWeight: FontWeight.w500, fontSize: 14),
+                  icon: Icon(Icons.expand_more, color: AppColors.onSurfaceVariant),
+                  style: TextStyle(color: AppColors.onSurface, fontWeight: FontWeight.w500, fontSize: 14),
                   onChanged: (String? newValue) {
                     if (newValue != null) {
                       setState(() {
@@ -352,20 +268,20 @@ class _VistaInventarioState extends State<VistaInventario> {
                 ),
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             // Dropdown Proveedores
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: colorSurfaceContainerLowest,
+                color: AppColors.surfaceContainerLowest,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: colorOutlineVariant),
+                border: Border.all(color: AppColors.outlineVariant),
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
                   value: _selectedProvider,
-                  icon: const Icon(Icons.expand_more, color: colorOnSurfaceVariant),
-                  style: const TextStyle(color: colorOnSurface, fontWeight: FontWeight.w500, fontSize: 14),
+                  icon: Icon(Icons.expand_more, color: AppColors.onSurfaceVariant),
+                  style: TextStyle(color: AppColors.onSurface, fontWeight: FontWeight.w500, fontSize: 14),
                   onChanged: (String? newValue) {
                     if (newValue != null) {
                       setState(() {
@@ -393,14 +309,14 @@ class _VistaInventarioState extends State<VistaInventario> {
         ElevatedButton.icon(
           onPressed: () => _showProductDialog(context),
           style: ElevatedButton.styleFrom(
-            backgroundColor: colorPrimary,
+            backgroundColor: AppColors.primary,
             foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             elevation: 1,
           ),
-          icon: const Icon(Icons.add, size: 18),
-          label: const Text("Nuevo Item", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          icon: Icon(Icons.add, size: 18),
+          label: Text("Nuevo Item", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
         ),
       ],
     );
@@ -412,9 +328,9 @@ class _VistaInventarioState extends State<VistaInventario> {
 
     return Container(
       decoration: BoxDecoration(
-        color: colorSurfaceContainerLowest,
+        color: AppColors.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colorOutlineVariant.withValues(alpha: 0.7)),
+        border: Border.all(color: AppColors.outlineVariant.withValues(alpha: 0.7)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.01),
@@ -444,9 +360,9 @@ class _VistaInventarioState extends State<VistaInventario> {
                 },
                 children: [
                   TableRow(
-                    decoration: const BoxDecoration(
-                      color: colorSurfaceContainerLow,
-                      border: Border(bottom: BorderSide(color: colorOutlineVariant, width: 1)),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceContainerLow,
+                      border: Border(bottom: BorderSide(color: AppColors.outlineVariant, width: 1)),
                     ),
                     children: [
                       _buildTableHeaderCell("IMAGEN"),
@@ -461,29 +377,29 @@ class _VistaInventarioState extends State<VistaInventario> {
                   if (filtered.isEmpty)
                     TableRow(
                       children: [
-                        const SizedBox(),
+                        SizedBox(),
                         TableCell(
                           child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 48),
+                            padding: EdgeInsets.symmetric(vertical: 48),
                             alignment: Alignment.center,
                             child: const Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.inventory_2_outlined, size: 48, color: colorOutlineVariant),
+                                Icon(Icons.inventory_2_outlined, size: 48, color: AppColors.outlineVariant),
                                 SizedBox(height: 12),
                                 Text(
                                   "No se encontraron productos coincidentes",
-                                  style: TextStyle(color: colorOnSurfaceVariant, fontSize: 14, fontWeight: FontWeight.w500),
+                                  style: TextStyle(color: AppColors.onSurfaceVariant, fontSize: 14, fontWeight: FontWeight.w500),
                                 ),
                               ],
                             ),
                           ),
                         ),
-                        const SizedBox(),
-                        const SizedBox(),
-                        const SizedBox(),
-                        const SizedBox(),
-                        const SizedBox(),
+                        SizedBox(),
+                        SizedBox(),
+                        SizedBox(),
+                        SizedBox(),
+                        SizedBox(),
                       ],
                     )
                   else
@@ -491,29 +407,29 @@ class _VistaInventarioState extends State<VistaInventario> {
                       final isLowStock = item.stock < 20;
 
                       return TableRow(
-                        decoration: const BoxDecoration(
-                          border: Border(bottom: BorderSide(color: colorOutlineVariant, width: 0.5)),
+                        decoration: BoxDecoration(
+                          border: Border(bottom: BorderSide(color: AppColors.outlineVariant, width: 0.5)),
                         ),
                         children: [
                           // Imagen Thumbnail
                           TableCell(
                             verticalAlignment: TableCellVerticalAlignment.middle,
                             child: Padding(
-                              padding: const EdgeInsets.all(12.0),
+                              padding: EdgeInsets.all(12.0),
                               child: Container(
                                 width: 44,
                                 height: 44,
                                 decoration: BoxDecoration(
-                                  color: colorSurfaceContainerLow,
+                                  color: AppColors.surfaceContainerLow,
                                   borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: colorOutlineVariant.withValues(alpha: 0.5)),
+                                  border: Border.all(color: AppColors.outlineVariant.withValues(alpha: 0.5)),
                                 ),
                                 clipBehavior: Clip.antiAlias,
                                 child: Image.network(
                                   item.imageUrl,
                                   fit: BoxFit.cover,
                                   errorBuilder: (context, error, stackTrace) {
-                                    return const Icon(Icons.image, size: 20, color: colorOutlineVariant);
+                                    return Icon(Icons.image, size: 20, color: AppColors.outlineVariant);
                                   },
                                 ),
                               ),
@@ -523,18 +439,18 @@ class _VistaInventarioState extends State<VistaInventario> {
                           TableCell(
                             verticalAlignment: TableCellVerticalAlignment.middle,
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                              padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
                                     item.name,
-                                    style: const TextStyle(color: colorOnSurface, fontSize: 15, fontWeight: FontWeight.bold),
+                                    style: TextStyle(color: AppColors.onSurface, fontSize: 15, fontWeight: FontWeight.bold),
                                   ),
-                                  const SizedBox(height: 2),
+                                  SizedBox(height: 2),
                                   Text(
                                     item.subtitle,
-                                    style: const TextStyle(color: colorOnSurfaceVariant, fontSize: 12),
+                                    style: TextStyle(color: AppColors.onSurfaceVariant, fontSize: 12),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -546,10 +462,10 @@ class _VistaInventarioState extends State<VistaInventario> {
                           TableCell(
                             verticalAlignment: TableCellVerticalAlignment.middle,
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                              padding: EdgeInsets.symmetric(horizontal: 16.0),
                               child: Text(
                                 item.sku,
-                                style: const TextStyle(fontFamily: 'monospace', color: colorOnSurfaceVariant, fontSize: 13),
+                                style: TextStyle(fontFamily: 'monospace', color: AppColors.onSurfaceVariant, fontSize: 13),
                               ),
                             ),
                           ),
@@ -557,17 +473,17 @@ class _VistaInventarioState extends State<VistaInventario> {
                           TableCell(
                             verticalAlignment: TableCellVerticalAlignment.middle,
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                              padding: EdgeInsets.symmetric(horizontal: 16.0),
                               child: IntrinsicWidth(
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: colorPrimary.withValues(alpha: 0.08),
+                                    color: AppColors.primary.withValues(alpha: 0.08),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: Text(
                                     item.category.toUpperCase(),
-                                    style: const TextStyle(color: colorPrimary, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                                    style: TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5),
                                   ),
                                 ),
                               ),
@@ -577,7 +493,7 @@ class _VistaInventarioState extends State<VistaInventario> {
                           TableCell(
                             verticalAlignment: TableCellVerticalAlignment.middle,
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                              padding: EdgeInsets.symmetric(horizontal: 16.0),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -585,7 +501,7 @@ class _VistaInventarioState extends State<VistaInventario> {
                                     width: 64,
                                     height: 6,
                                     decoration: BoxDecoration(
-                                      color: colorSurfaceContainerHigh,
+                                      color: AppColors.surfaceContainerLow,
                                       borderRadius: BorderRadius.circular(99),
                                     ),
                                     clipBehavior: Clip.antiAlias,
@@ -593,15 +509,15 @@ class _VistaInventarioState extends State<VistaInventario> {
                                       alignment: Alignment.centerLeft,
                                       widthFactor: (item.stock / item.maxStock).clamp(0.0, 1.0),
                                       child: Container(
-                                        color: isLowStock ? const Color(0xFFBA1A1A) : colorPrimary,
+                                        color: isLowStock ? Color(0xFFBA1A1A) : AppColors.primary,
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
+                                  SizedBox(width: 8),
                                   Text(
                                     "${item.stock} units",
                                     style: TextStyle(
-                                      color: isLowStock ? const Color(0xFFBA1A1A) : colorOnSurface,
+                                      color: isLowStock ? Color(0xFFBA1A1A) : AppColors.onSurface,
                                       fontSize: 13,
                                       fontWeight: isLowStock ? FontWeight.bold : FontWeight.normal,
                                     ),
@@ -614,10 +530,10 @@ class _VistaInventarioState extends State<VistaInventario> {
                           TableCell(
                             verticalAlignment: TableCellVerticalAlignment.middle,
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                              padding: EdgeInsets.symmetric(horizontal: 16.0),
                               child: Text(
                                 "\$${item.price.toStringAsFixed(2)}",
-                                style: const TextStyle(color: colorPrimary, fontSize: 15, fontWeight: FontWeight.bold),
+                                style: TextStyle(color: AppColors.primary, fontSize: 15, fontWeight: FontWeight.bold),
                               ),
                             ),
                           ),
@@ -625,19 +541,19 @@ class _VistaInventarioState extends State<VistaInventario> {
                           TableCell(
                             verticalAlignment: TableCellVerticalAlignment.middle,
                             child: Padding(
-                              padding: const EdgeInsets.only(right: 12.0),
+                              padding: EdgeInsets.only(right: 12.0),
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
                                   IconButton(
-                                    icon: const Icon(Icons.edit, size: 18, color: colorPrimary),
-                                    hoverColor: colorPrimary.withValues(alpha: 0.08),
+                                    icon: Icon(Icons.edit, size: 18, color: AppColors.primary),
+                                    hoverColor: AppColors.primary.withValues(alpha: 0.08),
                                     onPressed: () => _showProductDialog(context, item: item),
                                     tooltip: "Modificar",
                                   ),
                                   IconButton(
-                                    icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFBA1A1A)),
-                                    hoverColor: const Color(0xFFBA1A1A).withValues(alpha: 0.08),
+                                    icon: Icon(Icons.delete_outline, size: 18, color: Color(0xFFBA1A1A)),
+                                    hoverColor: Color(0xFFBA1A1A).withValues(alpha: 0.08),
                                     onPressed: () => _deleteProduct(item),
                                     tooltip: "Eliminar",
                                   ),
@@ -655,26 +571,26 @@ class _VistaInventarioState extends State<VistaInventario> {
 
           // Paginador
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            color: colorSurfaceContainerLow,
+            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            color: AppColors.surfaceContainerLow,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   "Mostrando 1 a ${filtered.length} de ${_products.length} productos",
-                  style: const TextStyle(color: colorOnSurfaceVariant, fontSize: 13),
+                  style: TextStyle(color: AppColors.onSurfaceVariant, fontSize: 13),
                 ),
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     _buildPageButton(Icons.chevron_left, isEnabled: false),
-                    const SizedBox(width: 4),
+                    SizedBox(width: 4),
                     _buildPageButtonNumber("1", isActive: true),
-                    const SizedBox(width: 4),
+                    SizedBox(width: 4),
                     _buildPageButtonNumber("2"),
-                    const SizedBox(width: 4),
+                    SizedBox(width: 4),
                     _buildPageButtonNumber("3"),
-                    const SizedBox(width: 4),
+                    SizedBox(width: 4),
                     _buildPageButton(Icons.chevron_right),
                   ],
                 ),
@@ -688,12 +604,12 @@ class _VistaInventarioState extends State<VistaInventario> {
 
   Widget _buildTableHeaderCell(String label, {bool alignRight = false}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+      padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
       child: Text(
         label,
         textAlign: alignRight ? TextAlign.right : TextAlign.left,
-        style: const TextStyle(
-          color: colorOnSurfaceVariant,
+        style: TextStyle(
+          color: AppColors.onSurfaceVariant,
           fontSize: 11,
           fontWeight: FontWeight.bold,
           letterSpacing: 0.5,
@@ -707,12 +623,12 @@ class _VistaInventarioState extends State<VistaInventario> {
       width: 32,
       height: 32,
       decoration: BoxDecoration(
-        color: isEnabled ? colorSurfaceContainerLowest : Colors.transparent,
-        border: Border.all(color: colorOutlineVariant.withValues(alpha: 0.5)),
+        color: isEnabled ? AppColors.surfaceContainerLowest : Colors.transparent,
+        border: Border.all(color: AppColors.outlineVariant.withValues(alpha: 0.5)),
         borderRadius: BorderRadius.circular(4),
       ),
       alignment: Alignment.center,
-      child: Icon(icon, size: 18, color: isEnabled ? colorOnSurface : colorOutlineVariant),
+      child: Icon(icon, size: 18, color: isEnabled ? AppColors.onSurface : AppColors.outlineVariant),
     );
   }
 
@@ -721,14 +637,14 @@ class _VistaInventarioState extends State<VistaInventario> {
       width: 32,
       height: 32,
       decoration: BoxDecoration(
-        color: isActive ? colorPrimary : Colors.transparent,
+        color: isActive ? AppColors.primary : Colors.transparent,
         borderRadius: BorderRadius.circular(4),
       ),
       alignment: Alignment.center,
       child: Text(
         label,
         style: TextStyle(
-          color: isActive ? Colors.white : colorOnSurface,
+          color: isActive ? Colors.white : AppColors.onSurface,
           fontWeight: FontWeight.bold,
           fontSize: 13,
         ),
@@ -739,10 +655,10 @@ class _VistaInventarioState extends State<VistaInventario> {
   /// 4. Banner Contextual de Ayuda
   Widget _buildHelpBanner(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: colorPrimary.withValues(alpha: 0.05),
-        border: Border.all(color: colorPrimary.withValues(alpha: 0.15)),
+        color: AppColors.primary.withValues(alpha: 0.05),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -750,19 +666,19 @@ class _VistaInventarioState extends State<VistaInventario> {
         children: [
           const Row(
             children: [
-              Icon(Icons.info_outline, color: colorPrimary, size: 20),
+              Icon(Icons.info_outline, color: AppColors.primary, size: 20),
               SizedBox(width: 12),
               Text(
                 "Los niveles de stock se actualizan automáticamente cada 5 minutos.",
-                style: TextStyle(color: colorOnSurfaceVariant, fontSize: 13, fontWeight: FontWeight.w500),
+                style: TextStyle(color: AppColors.onSurfaceVariant, fontSize: 13, fontWeight: FontWeight.w500),
               ),
             ],
           ),
           TextButton(
             onPressed: () {},
-            child: const Text(
+            child: Text(
               "Ver reporte completo",
-              style: TextStyle(color: colorPrimary, fontWeight: FontWeight.bold, fontSize: 13),
+              style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 13),
             ),
           ),
         ],
@@ -787,11 +703,11 @@ class _VistaInventarioState extends State<VistaInventario> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              backgroundColor: colorSurfaceContainerLowest,
+              backgroundColor: AppColors.surfaceContainerLowest,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               title: Text(
                 isEdit ? "Modificar Artículo" : "Agregar Nuevo Artículo",
-                style: const TextStyle(color: colorOnSurface, fontWeight: FontWeight.bold, fontSize: 18),
+                style: TextStyle(color: AppColors.onSurface, fontWeight: FontWeight.bold, fontSize: 18),
               ),
               content: SingleChildScrollView(
                 child: SizedBox(
@@ -804,36 +720,36 @@ class _VistaInventarioState extends State<VistaInventario> {
                         controller: nameController,
                         decoration: const InputDecoration(
                           labelText: "Nombre del Producto",
-                          labelStyle: TextStyle(color: colorOnSurfaceVariant),
-                          focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: colorPrimary)),
+                          labelStyle: TextStyle(color: AppColors.onSurfaceVariant),
+                          focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.primary)),
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12),
                       // Subtítulo
                       TextField(
                         controller: subtitleController,
                         decoration: const InputDecoration(
                           labelText: "Especificación/Subtítulo",
-                          labelStyle: TextStyle(color: colorOnSurfaceVariant),
-                          focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: colorPrimary)),
+                          labelStyle: TextStyle(color: AppColors.onSurfaceVariant),
+                          focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.primary)),
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12),
                       // SKU
                       TextField(
                         controller: skuController,
                         decoration: const InputDecoration(
                           labelText: "SKU / Barcode",
-                          labelStyle: TextStyle(color: colorOnSurfaceVariant),
-                          focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: colorPrimary)),
+                          labelStyle: TextStyle(color: AppColors.onSurfaceVariant),
+                          focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.primary)),
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12),
                       // Dropdown Categoría
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text("Categoría:", style: TextStyle(color: colorOnSurfaceVariant, fontWeight: FontWeight.w500)),
+                          Text("Categoría:", style: TextStyle(color: AppColors.onSurfaceVariant, fontWeight: FontWeight.w500)),
                           DropdownButton<String>(
                             value: cat,
                             onChanged: (val) {
@@ -849,7 +765,7 @@ class _VistaInventarioState extends State<VistaInventario> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12),
                       Row(
                         children: [
                           Expanded(
@@ -858,30 +774,30 @@ class _VistaInventarioState extends State<VistaInventario> {
                               keyboardType: TextInputType.number,
                               decoration: const InputDecoration(
                                 labelText: "Stock actual",
-                                labelStyle: TextStyle(color: colorOnSurfaceVariant),
+                                labelStyle: TextStyle(color: AppColors.onSurfaceVariant),
                               ),
                             ),
                           ),
-                          const SizedBox(width: 16),
+                          SizedBox(width: 16),
                           Expanded(
                             child: TextField(
                               controller: maxStockController,
                               keyboardType: TextInputType.number,
                               decoration: const InputDecoration(
                                 labelText: "Stock máximo",
-                                labelStyle: TextStyle(color: colorOnSurfaceVariant),
+                                labelStyle: TextStyle(color: AppColors.onSurfaceVariant),
                               ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12),
                       TextField(
                         controller: priceController,
                         keyboardType: TextInputType.number,
                         decoration: const InputDecoration(
                           labelText: "Precio de Venta (\$)",
-                          labelStyle: TextStyle(color: colorOnSurfaceVariant),
+                          labelStyle: TextStyle(color: AppColors.onSurfaceVariant),
                         ),
                       ),
                     ],
@@ -891,7 +807,7 @@ class _VistaInventarioState extends State<VistaInventario> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text("Cancelar", style: TextStyle(color: colorOnSurfaceVariant)),
+                  child: Text("Cancelar", style: TextStyle(color: AppColors.onSurfaceVariant)),
                 ),
                 ElevatedButton(
                   onPressed: () {
@@ -929,7 +845,7 @@ class _VistaInventarioState extends State<VistaInventario> {
                     }
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: colorPrimary,
+                    backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
                   ),
                   child: Text(isEdit ? "Guardar" : "Agregar"),
@@ -947,13 +863,13 @@ class _VistaInventarioState extends State<VistaInventario> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: colorSurfaceContainerLowest,
-          title: const Text("Eliminar Artículo"),
+          backgroundColor: AppColors.surfaceContainerLowest,
+          title: Text("Eliminar Artículo"),
           content: Text("¿Está seguro de que desea eliminar el producto '${item.name}'?"),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text("Cancelar"),
+              child: Text("Cancelar"),
             ),
             ElevatedButton(
               onPressed: () {
@@ -962,8 +878,8 @@ class _VistaInventarioState extends State<VistaInventario> {
                 });
                 Navigator.pop(context);
               },
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFBA1A1A), foregroundColor: Colors.white),
-              child: const Text("Eliminar"),
+              style: ElevatedButton.styleFrom(backgroundColor: Color(0xFFBA1A1A), foregroundColor: Colors.white),
+              child: Text("Eliminar"),
             ),
           ],
         );
@@ -972,294 +888,3 @@ class _VistaInventarioState extends State<VistaInventario> {
   }
 }
 
-/// 6. Cabecera superior (Búsqueda, perfil y acciones)
-class _Header extends StatelessWidget {
-  final GlobalKey<ScaffoldState> scaffoldKey;
-  final bool isDesktop;
-  final TextEditingController searchController;
-  final ValueChanged<String> onSearchChanged;
-
-  const _Header({
-    required this.scaffoldKey,
-    required this.isDesktop,
-    required this.searchController,
-    required this.onSearchChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 64,
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      decoration: const BoxDecoration(
-        color: _VistaInventarioState.colorSurfaceContainerLowest,
-        border: Border(bottom: BorderSide(color: _VistaInventarioState.colorOutlineVariant, width: 1)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              if (!isDesktop) ...[
-                IconButton(
-                  icon: const Icon(Icons.menu, color: _VistaInventarioState.colorOnSurface),
-                  onPressed: () => scaffoldKey.currentState?.openDrawer(),
-                ),
-                const SizedBox(width: 8),
-              ],
-              const Text(
-                "RetailAdmin Pro",
-                style: TextStyle(color: _VistaInventarioState.colorPrimary, fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(width: 32),
-              if (isDesktop)
-                Container(
-                  width: 320,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: _VistaInventarioState.colorSurfaceContainerLow,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: TextField(
-                    controller: searchController,
-                    onChanged: onSearchChanged,
-                    decoration: const InputDecoration(
-                      hintText: "Buscar productos por nombre o SKU...",
-                      hintStyle: TextStyle(color: _VistaInventarioState.colorOnSurfaceVariant, fontSize: 13),
-                      prefixIcon: Icon(Icons.search, size: 18, color: _VistaInventarioState.colorOnSurfaceVariant),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(vertical: 10),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.notifications_none, size: 22, color: _VistaInventarioState.colorOnSurfaceVariant),
-                onPressed: () {},
-              ),
-              IconButton(
-                icon: const Icon(Icons.settings_outlined, size: 22, color: _VistaInventarioState.colorOnSurfaceVariant),
-                onPressed: () {},
-              ),
-              const SizedBox(width: 8),
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: _VistaInventarioState.colorPrimaryContainer, width: 2),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: Image.network(
-                  'https://lh3.googleusercontent.com/aida/ADBb0uj8I9f53CpSj40cca_fxt6KDo57B4z5FBtDqrwX6YOaNbbsU1WX7mEhu5cunyifZXLih2dswdROV7dw0Js73dJ6-qs5F2VgSeZBUVN4YFIaVu_oLsBL2c-rstYiGoQhE-uY0TM2gcuR09ryDxDAHAGOxRwKRDsshuF-3NnsAIx7hHyVwi16RaRRLlSy9jG1gnABu5nQv53OELiPWAR5XPkb_VxkSsTmeuvRyhFfaZfhzRVU6MflDLaPguo-x9gcLMgro1_ligRf5Q',
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      color: _VistaInventarioState.colorPrimary,
-                      child: const Icon(Icons.person, color: Colors.white, size: 18),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 7. Contenido de la Barra Lateral (Sidebar)
-class _SidebarContent extends StatelessWidget {
-  final bool isDrawer;
-  final VoidCallback? onToggleCollapse;
-
-  const _SidebarContent({required this.isDrawer, this.onToggleCollapse});
-
-  static const Color colorPrimary = Color(0xFF006397);
-  static const Color colorOutlineVariant = Color(0xFFBFC7D2);
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Cabecera del Sidebar
-        Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: SidebarState.isCollapsed && !isDrawer ? 12.0 : 24.0,
-            vertical: 24.0,
-          ),
-          child: Column(
-            crossAxisAlignment: SidebarState.isCollapsed && !isDrawer ? CrossAxisAlignment.center : CrossAxisAlignment.start,
-            children: [
-              Text(
-                SidebarState.isCollapsed && !isDrawer ? "LC" : "La Confianza admin",
-                style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              if (!(SidebarState.isCollapsed && !isDrawer)) ...[
-                const SizedBox(height: 4),
-                const Text(
-                  "PANEL DE CONTROL",
-                  style: TextStyle(color: colorOutlineVariant, fontSize: 11),
-                ),
-              ],
-            ],
-          ),
-        ),
-
-        // Items de Navegación del Sidebar
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 12.0),
-            children: [
-              _buildNavItem(
-                icon: Icons.dashboard,
-                label: "Inicio",
-                isActive: false,
-                onTap: () {
-                  if (isDrawer) Navigator.pop(context);
-                  Navigator.pushReplacementNamed(context, '/inicio');
-                },
-                isCollapsed: SidebarState.isCollapsed && !isDrawer,
-              ),
-              _buildNavItem(
-                icon: Icons.group,
-                label: "Usuarios",
-                isActive: false,
-                onTap: () {
-                  if (isDrawer) Navigator.pop(context);
-                  Navigator.pushReplacementNamed(context, '/usuarios');
-                },
-                isCollapsed: SidebarState.isCollapsed && !isDrawer,
-              ),
-              _buildNavItem(
-                icon: Icons.inventory_2,
-                label: "Inventario",
-                isActive: true,
-                onTap: () {
-                  if (isDrawer) Navigator.pop(context);
-                },
-                isCollapsed: SidebarState.isCollapsed && !isDrawer,
-              ),
-              _buildNavItem(
-                icon: Icons.point_of_sale,
-                label: "Cierre de Caja",
-                isActive: false,
-                onTap: () {
-                  if (isDrawer) Navigator.pop(context);
-                  Navigator.pushReplacementNamed(context, '/cierre');
-                },
-                isCollapsed: SidebarState.isCollapsed && !isDrawer,
-              ),
-              _buildNavItem(
-                icon: Icons.storage,
-                label: "Datos",
-                isActive: false,
-                onTap: () {},
-                isCollapsed: SidebarState.isCollapsed && !isDrawer,
-              ),
-              _buildNavItem(
-                icon: Icons.view_week,
-                label: "Códigos de Barras",
-                isActive: false,
-                onTap: () {
-                  if (isDrawer) Navigator.pop(context);
-                  Navigator.pushReplacementNamed(context, '/generador');
-                },
-                isCollapsed: SidebarState.isCollapsed && !isDrawer,
-              ),
-            ],
-          ),
-        ),
-
-        const Divider(color: Color(0xFF4E6073), height: 1),
-        Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: 12.0,
-            vertical: SidebarState.isCollapsed && !isDrawer ? 8.0 : 16.0,
-          ),
-          child: Column(
-            children: [
-              if (!isDrawer && onToggleCollapse != null)
-                _buildNavItem(
-                  icon: SidebarState.isCollapsed ? Icons.chevron_right : Icons.chevron_left,
-                  label: "Retraer",
-                  isActive: false,
-                  onTap: onToggleCollapse!,
-                  isCollapsed: SidebarState.isCollapsed,
-                ),
-              _buildNavItem(
-                icon: Icons.help_outline,
-                label: "Soporte",
-                isActive: false,
-                onTap: () {},
-                isCollapsed: SidebarState.isCollapsed && !isDrawer,
-              ),
-              _buildNavItem(
-                icon: Icons.logout,
-                label: "Cerrar Sesión",
-                isActive: false,
-                onTap: () {
-                  if (isDrawer) Navigator.pop(context);
-                  Navigator.pushReplacementNamed(context, '/');
-                },
-                isCollapsed: SidebarState.isCollapsed && !isDrawer,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildNavItem({
-    required IconData icon,
-    required String label,
-    required bool isActive,
-    required VoidCallback onTap,
-    bool isCollapsed = false,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Material(
-        color: isActive ? colorPrimary : Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          hoverColor: Colors.white.withValues(alpha: 0.08),
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: isCollapsed ? 8.0 : 16.0,
-              vertical: 12.0,
-            ),
-            child: Row(
-              mainAxisAlignment: isCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
-              children: [
-                Icon(
-                  icon,
-                  color: isActive ? Colors.white : colorOutlineVariant,
-                  size: 20,
-                ),
-                if (!isCollapsed) ...[
-                  const SizedBox(width: 16),
-                  Text(
-                    label,
-                    style: TextStyle(
-                      color: isActive ? Colors.white : colorOutlineVariant,
-                      fontSize: 13,
-                      fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
