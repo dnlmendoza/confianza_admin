@@ -115,7 +115,7 @@ class Sidebar extends StatelessWidget {
                 isCollapsed: SidebarState.isCollapsed && !isDrawer,
               ),
               _buildNavItem(
-                icon: Icons.view_week,
+                icon: Icons.calendar_view_week_outlined,
                 label: "Códigos de Barras",
                 isActive: activeRoute == '/generador',
                 onTap: () {

@@ -173,7 +173,7 @@ class _VistaCierreState extends State<VistaCierre> {
       children: [
         _buildBentoCard(
           title: "Ventas del Día",
-          value: "\$4,852.50",
+          value: "L. 4,852.50",
           subtitle: "12% vs ayer",
           icon: Icons.trending_up,
           iconColor: Color(0xFF10B981),
@@ -181,7 +181,7 @@ class _VistaCierreState extends State<VistaCierre> {
         ),
         _buildBentoCard(
           title: "Egresos / Gastos",
-          value: "\$342.20",
+          value: "L. 342.20",
           subtitle: "8 comprobantes",
           icon: Icons.receipt_long,
           iconColor: Color(0xFFBA1A1A),
@@ -189,7 +189,7 @@ class _VistaCierreState extends State<VistaCierre> {
         ),
         _buildBentoCard(
           title: "Balance Neto",
-          value: "\$4,510.30",
+          value: "L. 4,510.30",
           subtitle: "Efectivo esperado",
           icon: Icons.account_balance_wallet,
           iconColor: AppColors.primary,
@@ -418,7 +418,7 @@ class _VistaCierreState extends State<VistaCierre> {
                             child: Padding(
                               padding: EdgeInsets.symmetric(horizontal: 16.0),
                               child: Text(
-                                "${item.isIngreso ? '' : '-'}\$${item.amount.toStringAsFixed(2)}",
+                                "${item.isIngreso ? '' : '-'}L. ${item.amount.toStringAsFixed(2)}",
                                 textAlign: TextAlign.right,
                                 style: TextStyle(
                                   color: item.isIngreso ? AppColors.onSurface : Color(0xFFBA1A1A),
@@ -507,11 +507,11 @@ class _VistaCierreState extends State<VistaCierre> {
                   child: SingleChildScrollView(
                     child: Column(
                       children: [
-                        _buildDenominationRow(label: "100", title: "Billetes de \$100", subtitle: "Denominación Alta", controller: _cnt100Controller, factor: 100),
-                        _buildDenominationRow(label: "50", title: "Billetes de \$50", controller: _cnt50Controller, factor: 50),
-                        _buildDenominationRow(label: "20", title: "Billetes de \$20", controller: _cnt20Controller, factor: 20),
-                        _buildDenominationRow(label: "10", title: "Billetes de \$10", controller: _cnt10Controller, factor: 10),
-                        _buildDenominationRow(label: "5", title: "Billetes de \$5", controller: _cnt5Controller, factor: 5),
+                        _buildDenominationRow(label: "100", title: "Billetes de L. 100", subtitle: "Denominación Alta", controller: _cnt100Controller, factor: 100),
+                        _buildDenominationRow(label: "50", title: "Billetes de L. 50", controller: _cnt50Controller, factor: 50),
+                        _buildDenominationRow(label: "20", title: "Billetes de L. 20", controller: _cnt20Controller, factor: 20),
+                        _buildDenominationRow(label: "10", title: "Billetes de L. 10", controller: _cnt10Controller, factor: 10),
+                        _buildDenominationRow(label: "5", title: "Billetes de L. 5", controller: _cnt5Controller, factor: 5),
                         _buildCoinRow(controller: _coinsController),
                       ],
                     ),
@@ -612,7 +612,7 @@ class _VistaCierreState extends State<VistaCierre> {
               SizedBox(
                 width: 76,
                 child: Text(
-                  "\$${computedVal.toStringAsFixed(2)}",
+                  "L. ${computedVal.toStringAsFixed(2)}",
                   textAlign: TextAlign.right,
                   style: TextStyle(color: AppColors.outlineVariant, fontWeight: FontWeight.bold, fontSize: 13),
                 ),
@@ -677,7 +677,7 @@ class _VistaCierreState extends State<VistaCierre> {
               SizedBox(
                 width: 76,
                 child: Text(
-                  "\$${computedVal.toStringAsFixed(2)}",
+                  "L. ${computedVal.toStringAsFixed(2)}",
                   textAlign: TextAlign.right,
                   style: TextStyle(color: AppColors.outlineVariant, fontWeight: FontWeight.bold, fontSize: 13),
                 ),
@@ -710,7 +710,7 @@ class _VistaCierreState extends State<VistaCierre> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      "\$${_totalCounted.toStringAsFixed(2).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}",
+                      "L. ${_totalCounted.toStringAsFixed(2).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}",
                       style: TextStyle(color: AppColors.primaryContainer, fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: -1),
                     ),
                     SizedBox(width: 8),
@@ -732,7 +732,7 @@ class _VistaCierreState extends State<VistaCierre> {
                 ),
                 SizedBox(height: 2),
                 Text(
-                  "\$${_difference.toStringAsFixed(2)}",
+                  "L. ${_difference.toStringAsFixed(2)}",
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: isMatched ? Color(0xFF10B981) : Color(0xFFFBBF24),
@@ -928,12 +928,12 @@ class _VistaCierreState extends State<VistaCierre> {
                 style: TextStyle(color: AppColors.onSurfaceVariant, fontSize: 13),
               ),
               SizedBox(height: 16),
-              _buildDialogSummaryRow("Efectivo Esperado:", "\$${_expectedBalance.toStringAsFixed(2)}"),
-              _buildDialogSummaryRow("Total Contado:", "\$${_totalCounted.toStringAsFixed(2)}"),
+              _buildDialogSummaryRow("Efectivo Esperado:", "L. ${_expectedBalance.toStringAsFixed(2)}"),
+              _buildDialogSummaryRow("Total Contado:", "L. ${_totalCounted.toStringAsFixed(2)}"),
               Divider(height: 16),
               _buildDialogSummaryRow(
                 "Diferencia:",
-                "\$${_difference.toStringAsFixed(2)}",
+                "L. ${_difference.toStringAsFixed(2)}",
                 valueColor: isMatched ? Color(0xFF10B981) : Color(0xFFBA1A1A),
                 isBold: true,
               ),

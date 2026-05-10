@@ -98,7 +98,7 @@ class _KpiCardsSection extends StatelessWidget {
           children: const [
             _KpiCard(
               title: "VENTAS TOTALES",
-              value: "\$45,231.89",
+              value: "L. 45,231.89",
               icon: Icons.payments,
               iconColor: AppColors.primary,
               trendText: "+12.5%",
@@ -107,7 +107,7 @@ class _KpiCardsSection extends StatelessWidget {
             ),
             _KpiCard(
               title: "COMPRAS TOTALES",
-              value: "\$12,840.00",
+              value: "L. 12,840.00",
               icon: Icons.shopping_cart,
               iconColor: AppColors.secondary,
               trendText: "-3.2%",
@@ -116,7 +116,7 @@ class _KpiCardsSection extends StatelessWidget {
             ),
             _KpiCard(
               title: "VALOR DE INVENTARIO",
-              value: "\$128,450.00",
+              value: "L. 128,450.00",
               icon: Icons.warehouse,
               iconColor: AppColors.secondary,
               trendText: "8,420 Items",
@@ -126,7 +126,7 @@ class _KpiCardsSection extends StatelessWidget {
             ),
             _KpiCard(
               title: "POSICIÓN DE CAJA",
-              value: "\$8,211.50",
+              value: "L. 8,211.50",
               icon: Icons.account_balance_wallet,
               iconColor: AppColors.secondary,
               trendText: "Actualizado: 14:30",
@@ -421,35 +421,35 @@ class _SalesChartCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        "\$50k",
+                        "L. 50k",
                         style: TextStyle(
                           fontSize: 10,
                           color: AppColors.onSurfaceVariant,
                         ),
                       ),
                       Text(
-                        "\$40k",
+                        "L. 40k",
                         style: TextStyle(
                           fontSize: 10,
                           color: AppColors.onSurfaceVariant,
                         ),
                       ),
                       Text(
-                        "\$30k",
+                        "L. 30k",
                         style: TextStyle(
                           fontSize: 10,
                           color: AppColors.onSurfaceVariant,
                         ),
                       ),
                       Text(
-                        "\$20k",
+                        "L. 20k",
                         style: TextStyle(
                           fontSize: 10,
                           color: AppColors.onSurfaceVariant,
                         ),
                       ),
                       Text(
-                        "\$10k",
+                        "L. 10k",
                         style: TextStyle(
                           fontSize: 10,
                           color: AppColors.onSurfaceVariant,
@@ -507,7 +507,7 @@ class _SalesChartCard extends StatelessWidget {
                             label: "Sem 4",
                             heightPercent: 0.85,
                             isActive: true,
-                            tooltipValue: "\$42,300",
+                            tooltipValue: "L. 42,300",
                           ),
                         ],
                       ),

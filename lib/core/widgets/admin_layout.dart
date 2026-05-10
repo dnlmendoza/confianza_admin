@@ -10,6 +10,7 @@ class AdminLayout extends StatefulWidget {
   final String activeRoute;
   final TextEditingController? searchController;
   final ValueChanged<String>? onSearchChanged;
+  final Widget? centerWidget;
 
   const AdminLayout({
     super.key,
@@ -18,6 +19,7 @@ class AdminLayout extends StatefulWidget {
     required this.activeRoute,
     this.searchController,
     this.onSearchChanged,
+    this.centerWidget,
   });
 
   @override
@@ -78,6 +80,7 @@ class _AdminLayoutState extends State<AdminLayout> {
                       title: widget.title,
                       searchController: widget.searchController,
                       onSearchChanged: widget.onSearchChanged,
+                      centerWidget: widget.centerWidget,
                     ),
 
                     // Cuerpo de la Vista

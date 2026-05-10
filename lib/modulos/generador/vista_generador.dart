@@ -1,47 +1,239 @@
 import 'package:flutter/material.dart';
-
 import 'package:confianza_admin/core/widgets/admin_layout.dart';
 import 'package:confianza_admin/core/theme/app_colors.dart';
+
+class BarcodeEntry {
+  final String id;
+  final String name;
+  final String barcode;
+  final String price;
+  final DateTime createdAt;
+  final bool hasOriginalCode;
+  bool selectedForPrint;
+  BarcodeEntry({
+    required this.id,
+    required this.name,
+    required this.barcode,
+    this.price = "0.00",
+    required this.createdAt,
+    this.hasOriginalCode = false,
+    this.selectedForPrint = false,
+  });
+}
+
 class VistaGenerador extends StatefulWidget {
   const VistaGenerador({super.key});
-
   @override
   State<VistaGenerador> createState() => _VistaGeneradorState();
 }
 
-class _VistaGeneradorState extends State<VistaGenerador> {
-  
-
-  // Controladores y variables de estado interactivos para la previsualización en vivo
-  late final TextEditingController _productNameController;
-  late final TextEditingController _skuController;
+class _VistaGeneradorState extends State<VistaGenerador>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  late final TextEditingController _nameController;
   late final TextEditingController _priceController;
-
-  String _labelSize = "Estándar (50mm x 30mm)";
-  int _quantity = 15;
-  bool _includeLogo = true;
+  String _currentBarcode = '';
   bool _showPrice = true;
+  int _idCounter = 1;
+  String _selectedFilter = 'Todos';
+  String _creationMode = 'Generado';
+  late final TextEditingController _barcodeController;
+  late final TextEditingController _searchQueryController;
+
+  final List<BarcodeEntry> _generatedCodes = [];
+  final List<BarcodeEntry> _reprintCodes = [];
+  final List<BarcodeEntry> _printQueue = [];
 
   @override
   void initState() {
     super.initState();
-    _productNameController = TextEditingController(
-      text: "Smartphone Ultra X12 - Negro Medianoche",
-    );
-    _skuController = TextEditingController(text: "IPH-14-PRO-BK");
-    _priceController = TextEditingController(text: "1,299.00");
-
-    // Reconstruir la vista al escribir en los inputs
-    _productNameController.addListener(() => setState(() {}));
-    _skuController.addListener(() => setState(() {}));
+    _tabController = TabController(length: 2, vsync: this);
+    _nameController = TextEditingController();
+    _priceController = TextEditingController(text: "0.00");
+    _barcodeController = TextEditingController();
+    _searchQueryController = TextEditingController();
+    _tabController.addListener(() {
+      if (!mounted) return;
+      setState(() {});
+    });
+    _searchQueryController.addListener(() {
+      setState(() {});
+    });
+    _nameController.addListener(_onNameChanged);
     _priceController.addListener(() => setState(() {}));
+    _barcodeController.addListener(() {
+      if (_creationMode == 'Original') {
+        setState(() {
+          _currentBarcode = _barcodeController.text.trim();
+        });
+      }
+    });
+  }
+
+  void _onNameChanged() {
+    if (_creationMode != 'Generado') return;
+    final name = _nameController.text.trim();
+    if (name.isNotEmpty) {
+      _currentBarcode = _generateUniqueBarcode(name);
+    } else {
+      _currentBarcode = '';
+    }
+    setState(() {});
+  }
+
+  String _generateUniqueBarcode(String name) {
+    int attempt = 0;
+    while (attempt < 100) {
+      final hash = (name.toLowerCase().hashCode.abs() + attempt * 7919);
+      final body = (hash % 1000000000).toString().padLeft(9, '0');
+      final raw = "750$body";
+      int sum = 0;
+      for (int i = 0; i < 12; i++) {
+        final digit = int.parse(raw[i]);
+        sum += (i % 2 == 0) ? digit : digit * 3;
+      }
+      final check = (10 - (sum % 10)) % 10;
+      final barcode = "$raw$check";
+      if (!_generatedCodes.any((e) => e.barcode == barcode)) return barcode;
+      attempt++;
+    }
+    return "750${DateTime.now().millisecondsSinceEpoch.toString().substring(0, 9)}0";
+  }
+
+  void _saveNewBarcode() {
+    final name = _nameController.text.trim();
+    final barcode = _currentBarcode.trim();
+    
+    if (name.isEmpty) return;
+    if (barcode.isEmpty) return;
+    
+    final allExisting = [..._generatedCodes, ..._reprintCodes];
+
+    // Verificación de Nombre Único
+    if (allExisting.any((e) => e.name.trim().toLowerCase() == name.toLowerCase())) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(24),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          content: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.white),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  "Ya existe un registro con este NOMBRE.",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+      return;
+    }
+
+    // Verificación de Código de Barras Único
+    if (allExisting.any((e) => e.barcode.trim() == barcode)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(24),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          content: Row(
+            children: [
+              const Icon(Icons.qr_code_scanner, color: Colors.white),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  "El CÓDIGO '$barcode' ya está registrado.",
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+      return;
+    }
+
+    final isOriginal = _creationMode == 'Original';
+    _idCounter++;
+    final newEntry = BarcodeEntry(
+      id: "${isOriginal ? 'r_' : ''}$_idCounter",
+      name: name,
+      barcode: _currentBarcode,
+      price: _priceController.text,
+      createdAt: DateTime.now(),
+      hasOriginalCode: isOriginal,
+    );
+
+    if (isOriginal) {
+      _reprintCodes.insert(0, newEntry);
+    } else {
+      _generatedCodes.insert(0, newEntry);
+    }
+
+    _nameController.clear();
+    _barcodeController.clear();
+    _priceController.text = "0.00";
+    _currentBarcode = '';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: const Color(0xFF10B981),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 12),
+            Text(
+              "Código generado para '$name'",
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      ),
+    );
+    setState(() {});
+  }
+
+  void _addSelectedToPrintQueue() {
+    final selected = [
+      ..._generatedCodes.where((e) => e.selectedForPrint),
+      ..._reprintCodes.where((e) => e.selectedForPrint),
+    ];
+    if (selected.isEmpty) return;
+    for (final entry in selected) {
+      if (!_printQueue.any((e) => e.barcode == entry.barcode)) {
+        _printQueue.add(
+          BarcodeEntry(
+            id: entry.id,
+            name: entry.name,
+            barcode: entry.barcode,
+            price: entry.price,
+            createdAt: entry.createdAt,
+            hasOriginalCode: entry.hasOriginalCode,
+          ),
+        );
+      }
+      entry.selectedForPrint = false;
+    }
+
+    _tabController.animateTo(1);
+    setState(() {});
   }
 
   @override
   void dispose() {
-    _productNameController.dispose();
-    _skuController.dispose();
+    _tabController.dispose();
+    _nameController.dispose();
     _priceController.dispose();
+    _barcodeController.dispose();
+    _searchQueryController.dispose();
     super.dispose();
   }
 
@@ -50,275 +242,135 @@ class _VistaGeneradorState extends State<VistaGenerador> {
     return AdminLayout(
       activeRoute: '/generador',
       title: 'Códigos de Barras',
-      child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(24.0),
-                        child: Center(
-                          child: Container(
-                            constraints: const BoxConstraints(maxWidth: 1400),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Título e Información de Pantalla
-                                Text(
-                                  "Generador de Código de Barras",
-                                  style: TextStyle(
-                                    color: AppColors.onSurface,
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: -0.5,
-                                  ),
-                                ),
-                                SizedBox(height: 4),
-                                Text(
-                                  "Genera y previsualiza etiquetas de articulos para impresión.",
-                                  style: TextStyle(
-                                    color: AppColors.onSurfaceVariant,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                SizedBox(height: 32),
-
-                                // Layout Bento principal: Formulario + Previsualización
-                                LayoutBuilder(
-                                  builder: (context, workspaceConstraints) {
-                                    final useHorizontalSplit =
-                                        workspaceConstraints.maxWidth >= 950;
-                                    if (useHorizontalSplit) {
-                                      return Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Expanded(
-                                            flex: 4,
-                                            child: _buildConfigForm(),
-                                          ),
-                                          SizedBox(width: 24),
-                                          Expanded(
-                                            flex: 7,
-                                            child: _buildLivePreviewCanvas(),
-                                          ),
-                                        ],
-                                      );
-                                    } else {
-                                      return Column(
-                                        children: [
-                                          _buildLivePreviewCanvas(),
-                                          SizedBox(height: 24),
-                                          _buildConfigForm(),
-                                        ],
-                                      );
-                                    }
-                                  },
-                                ),
-                                SizedBox(height: 24),
-
-                                // Tarjetas de Estadísticas Inferiores
-                                const _StatsSection(),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
+      searchController: _searchQueryController,
+      onSearchChanged: (v) => setState(() {}),
+      centerWidget: SegmentedButton<int>(
+        segments: [
+          ButtonSegment<int>(
+            value: 0,
+            icon: const Icon(Icons.calendar_view_week_outlined, size: 18),
+            label: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  "Generar Código",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: Text(
+                    "${_generatedCodes.length + _reprintCodes.length}",
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ButtonSegment<int>(
+            value: 1,
+            icon: const Icon(Icons.print, size: 18),
+            label: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  "Cola de Impresión",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+                if (_printQueue.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.error,
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: Text(
+                      "${_printQueue.length}",
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+        selected: {_tabController.index},
+        onSelectionChanged: (v) {
+          _tabController.animateTo(v.first);
+        },
+        showSelectedIcon: false,
+        style: const ButtonStyle(visualDensity: VisualDensity.compact),
+      ),
+      child: TabBarView(
+        controller: _tabController,
+        children: [_buildGenerateTab(), _buildPrintQueueTab()],
+      ),
     );
   }
 
-  /// Construye la columna izquierda de formularios de configuración
-  Widget _buildConfigForm() {
-    return Column(
-      children: [
-        // Card de Datos del Item
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceContainerLowest,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: AppColors.outlineVariant.withValues(alpha: 0.5),
-            ),
-          ),
+  // ─── TAB 1: GENERAR CÓDIGO ─────────────────────────────────
+  Widget _buildGenerateTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 1400),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
-                children: [
-                  Icon(Icons.edit_note, color: AppColors.primary, size: 20),
-                  SizedBox(width: 8),
-                  Text(
-                    "Datos del Item",
-                    style: TextStyle(
-                      color: AppColors.onSurface,
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 20),
-
-              // Buscador de inventario
-              Text(
-                "Buscar Item en Inventario",
-                style: TextStyle(
-                  color: AppColors.onSurfaceVariant,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              SizedBox(height: 6),
-              SizedBox(
-                height: 40,
-                child: TextField(
-                  style: TextStyle(fontSize: 13),
-                  decoration: InputDecoration(
-                    hintText: "SKU o Nombre del producto",
-                    hintStyle: TextStyle(color: AppColors.onSurfaceVariant),
-                    suffixIcon: Icon(
-                      Icons.search,
-                      size: 18,
-                      color: AppColors.onSurfaceVariant,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                    filled: true,
-                    fillColor: AppColors.surfaceContainerLow,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(height: 16),
-
-              // Nombre del Producto
-              Text(
-                "Nombre del Producto",
-                style: TextStyle(
-                  color: AppColors.onSurfaceVariant,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              SizedBox(height: 6),
-              SizedBox(
-                height: 40,
-                child: TextField(
-                  controller: _productNameController,
-                  style: TextStyle(fontSize: 13),
-                  decoration: InputDecoration(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: AppColors.outlineVariant),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: AppColors.primary),
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(height: 16),
-
-              // Grid de SKU y Precio
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
+              LayoutBuilder(
+                builder: (context, c) {
+                  if (c.maxWidth >= 950) {
+                    return Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          "SKU / ID",
-                          style: TextStyle(
-                            color: AppColors.onSurfaceVariant,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(height: 6),
-                        SizedBox(
-                          height: 40,
-                          child: TextField(
-                            controller: _skuController,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontFamily: 'monospace',
-                            ),
-                            decoration: InputDecoration(
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide(
-                                  color: AppColors.outlineVariant,
-                                ),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide(
-                                  color: AppColors.primary,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
+                        Expanded(flex: 4, child: _buildConfigForm()),
+                        const SizedBox(width: 24),
+                        Expanded(flex: 7, child: _buildLivePreviewCanvas()),
                       ],
-                    ),
-                  ),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Precio Unitario",
-                          style: TextStyle(
-                            color: AppColors.onSurfaceVariant,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(height: 6),
-                        SizedBox(
-                          height: 40,
-                          child: TextField(
-                            controller: _priceController,
-                            style: TextStyle(fontSize: 13),
-                            decoration: InputDecoration(
-                              prefixIcon: Icon(
-                                Icons.attach_money,
-                                size: 16,
-                                color: AppColors.onSurfaceVariant,
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide(
-                                  color: AppColors.outlineVariant,
-                                ),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide(
-                                  color: AppColors.primary,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                    );
+                  }
+                  return Column(
+                    children: [
+                      _buildLivePreviewCanvas(),
+                      const SizedBox(height: 24),
+                      _buildConfigForm(),
+                    ],
+                  );
+                },
               ),
+              const SizedBox(height: 28),
+              _buildGeneratedCodesSection(),
             ],
           ),
         ),
-        SizedBox(height: 20),
+      ),
+    );
+  }
 
-        // Card de Parámetros de Impresión
+  Widget _buildConfigForm() {
+    return Column(
+      children: [
+        // Card Nuevo Código
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -334,13 +386,13 @@ class _VistaGeneradorState extends State<VistaGenerador> {
               const Row(
                 children: [
                   Icon(
-                    Icons.settings_applications,
+                    Icons.calendar_view_week_outlined,
                     color: AppColors.primary,
                     size: 20,
                   ),
                   SizedBox(width: 8),
                   Text(
-                    "Parámetros de Impresión",
+                    "Nuevo Código de Barras",
                     style: TextStyle(
                       color: AppColors.onSurface,
                       fontSize: 14,
@@ -349,157 +401,233 @@ class _VistaGeneradorState extends State<VistaGenerador> {
                   ),
                 ],
               ),
-              SizedBox(height: 20),
-
-              // Selector tamaño etiqueta
-              Text(
-                "Tamaño de Etiqueta (Ajuste Térmico)",
+              const SizedBox(height: 20),
+              const Text(
+                "Tipo de Código",
                 style: TextStyle(
                   color: AppColors.onSurfaceVariant,
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              SizedBox(height: 6),
-              Container(
-                height: 40,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.outlineVariant),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value:
-                        const [
-                          "Estándar (50mm x 30mm)",
-                          "Grande (100mm x 50mm)",
-                          "Joyas Pequeñas (25mm x 15mm)",
-                        ].contains(_labelSize)
-                        ? _labelSize
-                        : "Estándar (50mm x 30mm)",
-                    isExpanded: true,
-                    style: TextStyle(color: AppColors.onSurface, fontSize: 13),
-                    icon: Icon(
-                      Icons.arrow_drop_down,
-                      color: AppColors.onSurface,
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment<String>(
+                      value: 'Generado',
+                      label: Text('Generado'),
+                      icon: Icon(Icons.add_box, size: 16),
                     ),
-                    items:
-                        <String>[
-                          "Estándar (50mm x 30mm)",
-                          "Grande (100mm x 50mm)",
-                          "Joyas Pequeñas (25mm x 15mm)",
-                        ].map((String value) {
-                          return DropdownMenuItem<String>(
-                            value: value,
-                            child: Text(value),
-                          );
-                        }).toList(),
-                    onChanged: (newValue) {
-                      if (newValue != null) {
-                        setState(() {
-                          _labelSize = newValue;
-                        });
+                    ButtonSegment<String>(
+                      value: 'Original',
+                      label: Text('Original'),
+                      icon: Icon(Icons.verified_user, size: 16),
+                    ),
+                  ],
+                  selected: {_creationMode},
+                  onSelectionChanged: (v) {
+                    setState(() {
+                      _creationMode = v.first;
+                      if (_creationMode == 'Generado') {
+                        _onNameChanged();
+                      } else {
+                        _currentBarcode = _barcodeController.text.trim();
                       }
-                    },
+                    });
+                  },
+                  style: const ButtonStyle(
+                    visualDensity: VisualDensity.compact,
                   ),
+                  showSelectedIcon: false,
                 ),
               ),
-              SizedBox(height: 16),
-
-              // Contador de cantidad
-              Text(
-                "Cantidad a Imprimir",
+              const SizedBox(height: 20),
+              const Text(
+                "Nombre del Producto",
                 style: TextStyle(
                   color: AppColors.onSurfaceVariant,
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              SizedBox(height: 6),
-              Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      height: 40,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: AppColors.outlineVariant),
-                        borderRadius: BorderRadius.circular(8),
+              const SizedBox(height: 6),
+              SizedBox(
+                height: 40,
+                child: TextField(
+                  controller: _nameController,
+                  style: const TextStyle(fontSize: 13),
+                  decoration: InputDecoration(
+                    hintText: "Ingrese el nombre del producto",
+                    hintStyle: const TextStyle(
+                      color: AppColors.onSurfaceVariant,
+                      fontSize: 12,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(
+                        color: AppColors.outlineVariant,
                       ),
-                      clipBehavior: Clip.antiAlias,
-                      child: Row(
-                        children: [
-                          IconButton(
-                            icon: Icon(
-                              Icons.remove,
-                              size: 16,
-                              color: AppColors.onSurfaceVariant,
-                            ),
-                            onPressed: () {
-                              if (_quantity > 1) {
-                                setState(() => _quantity--);
-                              }
-                            },
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: AppColors.primary),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                _creationMode == 'Generado'
+                    ? "Código Generado"
+                    : "Ingresar Código de Barras",
+                style: const TextStyle(
+                  color: AppColors.onSurfaceVariant,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 6),
+              if (_creationMode == 'Generado')
+                Container(
+                  height: 40,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceContainerLow,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: AppColors.outlineVariant.withValues(alpha: 0.5),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _currentBarcode.isNotEmpty ? _currentBarcode : "—",
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontFamily: 'monospace',
+                            fontWeight: FontWeight.bold,
+                            color: _currentBarcode.isNotEmpty
+                                ? AppColors.onSurface
+                                : AppColors.outlineVariant,
+                            letterSpacing: 2,
                           ),
-                          Expanded(
-                            child: Text(
-                              _quantity.toString(),
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.onSurface,
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            icon: Icon(
-                              Icons.add,
-                              size: 16,
-                              color: AppColors.onSurfaceVariant,
-                            ),
-                            onPressed: () {
-                              setState(() => _quantity++);
-                            },
-                          ),
-                        ],
+                        ),
+                      ),
+                      if (_currentBarcode.isNotEmpty)
+                        const Icon(
+                          Icons.verified,
+                          size: 16,
+                          color: Color(0xFF10B981),
+                        ),
+                    ],
+                  ),
+                )
+              else
+                SizedBox(
+                  height: 40,
+                  child: TextField(
+                    controller: _barcodeController,
+                    keyboardType: TextInputType.text,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontFamily: 'monospace',
+                    ),
+                    decoration: InputDecoration(
+                      hintText: "Escanee o digite el código",
+                      hintStyle: const TextStyle(
+                        fontSize: 12,
+                        fontFamily: 'sans-serif',
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(
+                          color: AppColors.outlineVariant,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: AppColors.primary),
                       ),
                     ),
                   ),
-                ],
+                ),
+              const SizedBox(height: 16),
+              const Text(
+                "Precio (L.)",
+                style: TextStyle(
+                  color: AppColors.onSurfaceVariant,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              SizedBox(height: 20),
-
-              // Checkboxes
-              Row(
-                children: [
-                  Checkbox(
-                    value: _includeLogo,
-                    activeColor: AppColors.primary,
-                    onChanged: (val) {
-                      setState(() => _includeLogo = val ?? true);
-                    },
+              const SizedBox(height: 6),
+              SizedBox(
+                height: 40,
+                child: TextField(
+                  controller: _priceController,
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(fontSize: 13),
+                  decoration: InputDecoration(
+                    prefixIcon: const Padding(
+                      padding: EdgeInsets.only(left: 12, right: 4),
+                      child: Text(
+                        "L.",
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                    prefixIconConstraints: const BoxConstraints(
+                      minWidth: 0,
+                      minHeight: 0,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(
+                        color: AppColors.outlineVariant,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: AppColors.primary),
+                    ),
                   ),
-                  Text(
-                    "Incluir logo de la empresa",
-                    style: TextStyle(color: AppColors.onSurface, fontSize: 13),
-                  ),
-                ],
+                ),
               ),
-              Row(
-                children: [
-                  Checkbox(
-                    value: _showPrice,
-                    activeColor: AppColors.primary,
-                    onChanged: (val) {
-                      setState(() => _showPrice = val ?? true);
-                    },
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: ElevatedButton.icon(
+                  onPressed: _currentBarcode.isNotEmpty
+                      ? _saveNewBarcode
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: AppColors.outlineVariant
+                        .withValues(alpha: 0.3),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    elevation: 1,
                   ),
-                  Text(
-                    "Mostrar precio en etiqueta",
-                    style: TextStyle(color: AppColors.onSurface, fontSize: 13),
+                  icon: const Icon(Icons.save_alt, size: 18),
+                  label: const Text(
+                    "Guardar y Listar",
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                   ),
-                ],
+                ),
               ),
             ],
           ),
@@ -508,526 +636,1223 @@ class _VistaGeneradorState extends State<VistaGenerador> {
     );
   }
 
-  /// Construye el lienzo de previsualización en vivo (derecha)
   Widget _buildLivePreviewCanvas() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.outlineVariant.withValues(alpha: 0.5)),
-      ),
-      child: Column(
-        children: [
-          // Banner cabecera de previsualización en vivo
-          Row(
+    final displayName = _nameController.text.isNotEmpty
+        ? _nameController.text
+        : "Nombre del Producto";
+    final displayCode = _currentBarcode.isNotEmpty
+        ? _currentBarcode
+        : "0000000000000";
+    final now = DateTime.now();
+    final dateStr =
+        "${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}";
+    final displayPrice = _priceController.text.isNotEmpty
+        ? _priceController.text
+        : "0.00";
+
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: AppColors.outlineVariant.withValues(alpha: 0.5),
+            ),
+          ),
+          child: Column(
             children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  shape: BoxShape.circle,
-                ),
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: AppColors.primary,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    "PREVISUALIZACIÓN EN VIVO (ESCALA 1:1)",
+                    style: TextStyle(
+                      color: AppColors.primary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                ],
               ),
-              SizedBox(width: 8),
-              Text(
-                "PREVISUALIZACIÓN EN VIVO (ESCALA 1:1)",
-                style: TextStyle(
-                  color: AppColors.primary,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.0,
+              const SizedBox(height: 48),
+              Center(
+                child: Container(
+                  width: 440,
+                  height: 264,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(6),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 16,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                    border: Border.all(color: Colors.black, width: 1.5),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  displayName.split(" - ").first,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.black,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: -0.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (_showPrice) ...[
+                            const SizedBox(width: 8),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  "L. $displayPrice",
+                                  style: const TextStyle(
+                                    color: Colors.black,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Expanded(
+                                child: Container(
+                                  width: double.infinity,
+                                  color: Colors.white,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: _buildBarcodeLinesFromCode(
+                                      displayCode,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                displayCode,
+                                style: const TextStyle(
+                                  color: Colors.black,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 8.0,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.only(top: 12),
+                        decoration: const BoxDecoration(
+                          border: Border(
+                            top: BorderSide(color: Colors.black, width: 1),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  "SISTEMA LA CONFIANZA\nCÓDIGO ${_creationMode.toUpperCase()}",
+                                  style: const TextStyle(
+                                    color: Colors.black,
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Text(
+                              dateStr,
+                              style: const TextStyle(
+                                color: Colors.black,
+                                fontSize: 8,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
           ),
-          SizedBox(height: 48),
-
-          // Tarjeta de la Etiqueta Térmica Real (Aspecto 5:3)
-          Center(
-            child: Container(
-              width: 440,
-              height: 264, // Proporción áurea de 5:3
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(6),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-                border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Cabecera de Etiqueta (Nombre de Producto e Info + Precio)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _productNameController.text.isNotEmpty
-                                  ? _productNameController.text
-                                        .split(" - ")
-                                        .first
-                                  : "Teléfono Inteligente",
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: Color(0xFF0F172A),
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: -0.5,
-                              ),
-                            ),
-                            SizedBox(height: 2),
-                            Text(
-                              _productNameController.text.contains(" - ")
-                                  ? _productNameController.text
-                                        .split(" - ")
-                                        .sublist(1)
-                                        .join(" - ")
-                                  : "Negro Medianoche • 256GB",
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: Color(0xFF64748B),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (_showPrice) ...[
-                        SizedBox(width: 8),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              "PRECIO AL DETALLE",
-                              style: TextStyle(
-                                color: Color(0xFF94A3B8),
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: -0.2,
-                              ),
-                            ),
-                            SizedBox(height: 2),
-                            Text(
-                              _priceController.text.isNotEmpty
-                                  ? "\$${_priceController.text}"
-                                  : "\$0.00",
-                              style: TextStyle(
-                                color: AppColors.primary,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ],
-                  ),
-
-                  // Sección del Código de Barras Vectorial Nativo
-                  Column(
-                    children: [
-                      Container(
-                        height: 64,
-                        width: double.infinity,
-                        color: const Color(0xFFF8FAFC).withValues(alpha: 0.5),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: _buildBarcodeLines(),
-                        ),
-                      ),
-                      SizedBox(height: 6),
-                      Text(
-                        _skuController.text.isNotEmpty
-                            ? _skuController.text
-                            : "IPH14PROBK2024",
-                        style: TextStyle(
-                          color: Color(0xFF1E293B),
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 6.0,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  // Sección Inferior (Logo corporativo e info de certificación)
-                  Container(
-                    padding: const EdgeInsets.only(top: 12),
-                    decoration: BoxDecoration(
-                      border: Border(
-                        top: BorderSide(color: Color(0xFFF1F5F9), width: 1),
+        ),
+        const SizedBox(height: 20),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: AppColors.outlineVariant.withValues(alpha: 0.5),
+            ),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.tune, color: AppColors.primary, size: 20),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Opciones de Visualización",
+                      style: TextStyle(
+                        color: AppColors.onSurface,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
+                    Text(
+                      "Define qué campos se muestran en la etiqueta",
+                      style: TextStyle(
+                        color: AppColors.onSurfaceVariant,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: _showPrice,
+
+                onChanged: (val) {
+                  setState(() {
+                    _showPrice = val;
+                  });
+                },
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                "Mostrar Precio",
+                style: TextStyle(
+                  color: AppColors.onSurface,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _buildBarcodeLinesFromCode(String code) {
+    final List<int> pattern = [];
+    for (int i = 0; i < code.length && i < 13; i++) {
+      final d = int.tryParse(code[i]) ?? 0;
+      pattern.addAll([(d % 3) + 1, 0]);
+      if (d % 4 == 0 && i < 12) pattern.addAll([(d % 2) + 1, 0]);
+    }
+    return pattern
+        .map(
+          (w) => w == 0
+              ? const SizedBox(width: 4)
+              : Container(width: w.toDouble() * 4, color: Colors.black),
+        )
+        .toList();
+  }
+
+  // ─── SECCIÓN: LISTADO UNIFICADO DE CÓDIGOS ──────────────────
+  Widget _buildGeneratedCodesSection() {
+    final allCodesRaw = [..._generatedCodes, ..._reprintCodes];
+    final query = _searchQueryController.text.toLowerCase().trim();
+    final filteredCodes = allCodesRaw.where((e) {
+      final matchesType = _selectedFilter == 'Todos'
+          ? true
+          : (_selectedFilter == 'Original'
+                ? e.hasOriginalCode
+                : !e.hasOriginalCode);
+      final matchesText =
+          query.isEmpty ||
+          e.name.toLowerCase().contains(query) ||
+          e.barcode.toLowerCase().contains(query);
+      return matchesType && matchesText;
+    }).toList();
+
+    final totalSelected = filteredCodes.where((e) => e.selectedForPrint).length;
+    final allSelected =
+        filteredCodes.isNotEmpty &&
+        filteredCodes.every((e) => e.selectedForPrint);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Listado de Códigos de Barras",
+                  style: TextStyle(
+                    color: AppColors.onSurface,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  "${filteredCodes.length} códigos mostrados (${allCodesRaw.length} total)",
+                  style: const TextStyle(
+                    color: AppColors.onSurfaceVariant,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment<String>(
+                      value: 'Todos',
+                      label: Text('Todos'),
+                      icon: Icon(Icons.all_inclusive, size: 16),
+                    ),
+                    ButtonSegment<String>(
+                      value: 'Original',
+                      label: Text('Original'),
+                      icon: Icon(Icons.verified_user, size: 16),
+                    ),
+                    ButtonSegment<String>(
+                      value: 'Generado',
+                      label: Text('Generado'),
+                      icon: Icon(Icons.add_box, size: 16),
+                    ),
+                  ],
+                  selected: {_selectedFilter},
+                  onSelectionChanged: (newSelection) {
+                    setState(() {
+                      _selectedFilter = newSelection.first;
+                    });
+                  },
+                  style: const ButtonStyle(
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  showSelectedIcon: false,
+                ),
+                const SizedBox(width: 20),
+                if (totalSelected > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: Text(
+                      "$totalSelected seleccionados",
+                      style: const TextStyle(
+                        color: AppColors.primary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                const SizedBox(width: 12),
+                ElevatedButton.icon(
+                  onPressed: totalSelected > 0
+                      ? _addSelectedToPrintQueue
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: AppColors.outlineVariant
+                        .withValues(alpha: 0.3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    elevation: 1,
+                  ),
+                  icon: const Icon(Icons.print, size: 16),
+                  label: const Text(
+                    "Agregar a Cola de Impresión",
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        _buildCodesTable(
+          filteredCodes,
+          allSelected,
+          (v) {
+            setState(() {
+              for (final e in filteredCodes) {
+                e.selectedForPrint = v;
+              }
+            });
+          },
+          (entry, v) {
+            setState(() {
+              entry.selectedForPrint = v;
+            });
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCodesTable(
+    List<BarcodeEntry> entries,
+    bool selectAllValue,
+    ValueChanged<bool> onSelectAll,
+    void Function(BarcodeEntry, bool) onSelectEntry,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppColors.outlineVariant.withValues(alpha: 0.7),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.01),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minWidth: constraints.maxWidth > 900
+                        ? constraints.maxWidth
+                        : 900,
+                  ),
+                  child: Table(
+                    columnWidths: const {
+                      0: FixedColumnWidth(56),
+                      1: FlexColumnWidth(3.5),
+                      2: FlexColumnWidth(2.2),
+                      3: FlexColumnWidth(1.3),
+                      4: FlexColumnWidth(1.3),
+                      5: FlexColumnWidth(1.3),
+                    },
+                    children: [
+                      TableRow(
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceContainerLow,
+                          border: const Border(
+                            bottom: BorderSide(
+                              color: AppColors.outlineVariant,
+                              width: 1,
+                            ),
+                          ),
+                        ),
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 12,
+                            ),
+                            child: Checkbox(
+                              value: selectAllValue,
+                              activeColor: AppColors.primary,
+                              onChanged: (v) => onSelectAll(v ?? false),
+                            ),
+                          ),
+                          _tHeader("NOMBRE"),
+                          _tHeader("CÓDIGO DE BARRAS"),
+                          _tHeader("PRECIO", align: TextAlign.center),
+                          _tHeader("FECHA", align: TextAlign.center),
+                          _tHeader("TIPO", align: TextAlign.center),
+                        ],
+                      ),
+                      ...entries.map(
+                        (entry) => TableRow(
+                          decoration: BoxDecoration(
+                            color: entry.selectedForPrint
+                                ? AppColors.primary.withValues(alpha: 0.04)
+                                : null,
+                            border: const Border(
+                              bottom: BorderSide(
+                                color: AppColors.outlineVariant,
+                                width: 0.5,
+                              ),
+                            ),
+                          ),
                           children: [
-                            if (_includeLogo) ...[
-                              Container(
-                                width: 28,
-                                height: 28,
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary,
-                                  borderRadius: BorderRadius.circular(4),
+                            TableCell(
+                              verticalAlignment:
+                                  TableCellVerticalAlignment.middle,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
                                 ),
-                                alignment: Alignment.center,
+                                child: Checkbox(
+                                  value: entry.selectedForPrint,
+                                  activeColor: AppColors.primary,
+                                  onChanged: (v) =>
+                                      onSelectEntry(entry, v ?? false),
+                                ),
+                              ),
+                            ),
+                            TableCell(
+                              verticalAlignment:
+                                  TableCellVerticalAlignment.middle,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
                                 child: Text(
-                                  "LC",
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
+                                  entry.name,
+                                  style: const TextStyle(
+                                    color: AppColors.onSurface,
+                                    fontSize: 14,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
                               ),
-                              SizedBox(width: 8),
-                            ],
-                            Text(
-                              "SISTEMA CONFIANZA\nARTÍCULO CERTIFICADO",
-                              style: TextStyle(
-                                color: Color(0xFF94A3B8),
-                                fontSize: 8,
-                                fontWeight: FontWeight.bold,
+                            ),
+                            TableCell(
+                              verticalAlignment:
+                                  TableCellVerticalAlignment.middle,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.surfaceContainerLow,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    entry.barcode,
+                                    style: const TextStyle(
+                                      fontFamily: 'monospace',
+                                      color: AppColors.onSurfaceVariant,
+                                      fontSize: 12,
+                                      letterSpacing: 1,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            TableCell(
+                              verticalAlignment:
+                                  TableCellVerticalAlignment.middle,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
+                                child: Text(
+                                  "L. ${entry.price}",
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: AppColors.primary,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            TableCell(
+                              verticalAlignment:
+                                  TableCellVerticalAlignment.middle,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
+                                child: Text(
+                                  "${entry.createdAt.day.toString().padLeft(2, '0')}/${entry.createdAt.month.toString().padLeft(2, '0')}/${entry.createdAt.year}",
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: AppColors.onSurfaceVariant,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            TableCell(
+                              verticalAlignment:
+                                  TableCellVerticalAlignment.middle,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
+                                child: Center(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 3,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: entry.hasOriginalCode
+                                          ? const Color(0xFFFFF7ED)
+                                          : const Color(0xFFECFDF5),
+                                      borderRadius: BorderRadius.circular(99),
+                                    ),
+                                    child: Text(
+                                      entry.hasOriginalCode
+                                          ? "Original"
+                                          : "Generado",
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: entry.hasOriginalCode
+                                            ? const Color(0xFFEA580C)
+                                            : const Color(0xFF10B981),
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
                           ],
                         ),
-                        Text(
-                          "Impreso: 24/05/2024",
-                          style: TextStyle(
-                            color: Color(0xFFCBD5E1),
-                            fontSize: 8,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
+              );
+            },
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            color: AppColors.surfaceContainerLow,
+            child: Text(
+              "Mostrando ${entries.length} de ${entries.length} códigos",
+              style: const TextStyle(
+                color: AppColors.onSurfaceVariant,
+                fontSize: 12,
               ),
             ),
-          ),
-          SizedBox(height: 48),
-
-          // Botones de acción "Print Now" y "Download for Print"
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  elevation: 4,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 16,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                onPressed: () {},
-                icon: Icon(Icons.print, size: 18),
-                label: Text(
-                  "Imprimir Ahora",
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                ),
-              ),
-              SizedBox(width: 16),
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.primary,
-                  side: BorderSide(color: AppColors.primary),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 16,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  backgroundColor: AppColors.surfaceContainerLowest,
-                ),
-                onPressed: () {},
-                icon: Icon(Icons.download, size: 18),
-                label: Text(
-                  "Descargar para Impresión",
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
           ),
         ],
       ),
     );
   }
 
-  /// Dibuja líneas de código de barras realistas con grosores variados de manera vectorial
-  List<Widget> _buildBarcodeLines() {
-    final List<int> linePatterns = [
-      1,
-      2,
-      0,
-      1,
-      0,
-      3,
-      0,
-      1,
-      2,
-      0,
-      2,
-      3,
-      0,
-      1,
-      4,
-      0,
-      1,
-      2,
-      0,
-      2,
-      0,
-      3,
-      1,
-      0,
-      4,
-      0,
-      1,
-      2,
-    ];
-
-    return linePatterns.map((weight) {
-      if (weight == 0) {
-        return SizedBox(width: 4);
-      }
-      return Container(width: weight.toDouble() * 2, color: Colors.black);
-    }).toList();
+  Padding _tHeader(String label, {TextAlign align = TextAlign.left}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Text(
+        label,
+        textAlign: align,
+        style: const TextStyle(
+          color: AppColors.onSurfaceVariant,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 0.5,
+        ),
+      ),
+    );
   }
-}
 
-/// Tarjetas de Estadísticas Inferiores (Fila de 3)
-class _StatsSection extends StatelessWidget {
-  const _StatsSection();
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        int crossAxisCount = 1;
-        if (constraints.maxWidth >= 900) {
-          crossAxisCount = 3;
-        } else if (constraints.maxWidth >= 550) {
-          crossAxisCount = 2;
-        }
-
-        return GridView.count(
-          crossAxisCount: crossAxisCount,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 20,
-          crossAxisSpacing: 20,
-          childAspectRatio: 2.2,
-          children: [
-            // Total Impreso Hoy
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceContainerLowest,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppColors.outlineVariant.withValues(
-                    alpha: 0.5,
-                  ),
-                ),
-              ),
-              child: Column(
+  // ─── TAB 3: COLA DE IMPRESIÓN ──────────────────────────────
+  Widget _buildPrintQueueTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 1400),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    "TOTAL IMPRESO HOY",
-                    style: TextStyle(
-                      color: AppColors.onSurfaceVariant,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  Row(
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        "1,248",
+                      const Text(
+                        "Cola de Impresión",
                         style: TextStyle(
                           color: AppColors.onSurface,
-                          fontSize: 24,
+                          fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      SizedBox(width: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
+                      const SizedBox(height: 4),
+                      Text(
+                        _printQueue.isEmpty
+                            ? "No hay etiquetas en cola"
+                            : "${_printQueue.length} etiquetas listas para imprimir",
+                        style: const TextStyle(
+                          color: AppColors.onSurfaceVariant,
+                          fontSize: 13,
                         ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFECFDF5),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(
-                              Icons.trending_up,
-                              color: Color(0xFF10B981),
-                              size: 12,
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      if (_printQueue.isNotEmpty) ...[
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            setState(() => _printQueue.clear());
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.error,
+                            side: const BorderSide(color: AppColors.error),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
                             ),
-                            SizedBox(width: 2),
-                            Text(
-                              "+12%",
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          icon: const Icon(Icons.delete_sweep, size: 16),
+                          label: const Text(
+                            "Limpiar Cola",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.check_circle,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                    SizedBox(width: 12),
+                                    Text("Iniciando descarga del PDF..."),
+                                  ],
+                                ),
+                                backgroundColor: Colors.green,
+                                behavior: SnackBarBehavior.floating,
+                                duration: Duration(seconds: 2),
+                              ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(
+                              0xFF0F172A,
+                            ), // Dark Slate
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          icon: const Icon(Icons.file_download, size: 16),
+                          label: const Text(
+                            "Descargar PDF",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        ElevatedButton.icon(
+                          onPressed: () => _showPdfPreviewDialog(),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 14,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            elevation: 1,
+                          ),
+                          icon: const Icon(Icons.picture_as_pdf, size: 16),
+                          label: const Text(
+                            "Previsualizar PDF",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              if (_printQueue.isEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 80),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceContainerLowest,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppColors.outlineVariant.withValues(alpha: 0.5),
+                    ),
+                  ),
+                  child: const Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.print_disabled,
+                          size: 56,
+                          color: AppColors.outlineVariant,
+                        ),
+                        SizedBox(height: 16),
+                        Text(
+                          "Cola de impresión vacía",
+                          style: TextStyle(
+                            color: AppColors.onSurfaceVariant,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(height: 6),
+                        Text(
+                          "Seleccione códigos en la pestaña \"Códigos Generados\" para agregar aquí",
+                          style: TextStyle(
+                            color: AppColors.outlineVariant,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                ...List.generate(_printQueue.length, (i) {
+                  final entry = _printQueue[i];
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceContainerLowest,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: AppColors.outlineVariant.withValues(alpha: 0.5),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            "${i + 1}",
+                            style: const TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                entry.name,
+                                style: const TextStyle(
+                                  color: AppColors.onSurface,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                entry.barcode,
+                                style: const TextStyle(
+                                  fontFamily: 'monospace',
+                                  color: AppColors.onSurfaceVariant,
+                                  fontSize: 11,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          "L. ${entry.price}",
+                          style: const TextStyle(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.close,
+                            size: 18,
+                            color: AppColors.error,
+                          ),
+                          tooltip: "Quitar de cola",
+                          onPressed: () {
+                            setState(() => _printQueue.removeAt(i));
+                          },
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─── DIÁLOGO PREVISUALIZACIÓN PDF ──────────────────────────
+  void _showPdfPreviewDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.all(24),
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 750, maxHeight: 900),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceContainerLowest,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              children: [
+                // Header del diálogo
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
+                  decoration: const BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: AppColors.outlineVariant,
+                        width: 0.5,
+                      ),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(
+                            Icons.picture_as_pdf,
+                            color: AppColors.primary,
+                            size: 22,
+                          ),
+                          SizedBox(width: 12),
+                          Text(
+                            "Previsualización de Impresión",
+                            style: TextStyle(
+                              color: AppColors.onSurface,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 10,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            icon: const Icon(Icons.print, size: 16),
+                            label: const Text(
+                              "Imprimir",
                               style: TextStyle(
-                                color: Color(0xFF10B981),
-                                fontSize: 10,
                                 fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            icon: const Icon(
+                              Icons.close,
+                              color: AppColors.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                // Página PDF
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
+                    child: Center(
+                      child: Container(
+                        width: 595,
+                        height: 842,
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(4),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.15),
+                              blurRadius: 20,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Column(
+                          children: [
+                            // Cabecera de página
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  "CONFIANZA - Etiquetas de Códigos de Barras",
+                                  style: TextStyle(
+                                    color: Color(0xFF64748B),
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  "Página 1 de 1  •  ${_printQueue.length} etiquetas",
+                                  style: const TextStyle(
+                                    color: Color(0xFF94A3B8),
+                                    fontSize: 9,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              height: 1,
+                              color: const Color(0xFFE2E8F0),
+                            ),
+                            const SizedBox(height: 12),
+                            // Grid de etiquetas: 4 columnas x 6 filas = 24 máx
+                            Expanded(
+                              child: GridView.builder(
+                                physics: const NeverScrollableScrollPhysics(),
+                                gridDelegate:
+                                    const SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: 4,
+                                      mainAxisSpacing: 8,
+                                      crossAxisSpacing: 8,
+                                      childAspectRatio: 440 / 264,
+                                    ),
+                                itemCount: _printQueue.length > 24
+                                    ? 24
+                                    : _printQueue.length,
+                                itemBuilder: (ctx, i) =>
+                                    _buildMiniLabel(_printQueue[i]),
                               ),
                             ),
                           ],
                         ),
                       ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            // Printer Status
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceContainerLowest,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppColors.outlineVariant.withValues(
-                    alpha: 0.5,
+                    ),
                   ),
                 ),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "ESTADO DE LA IMPRESORA",
-                    style: TextStyle(
-                      color: AppColors.onSurfaceVariant,
-                      fontSize: 10,
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMiniLabel(BarcodeEntry entry) {
+    final now = entry.createdAt;
+    final dateStr =
+        "${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}";
+    final modeStr = entry.hasOriginalCode ? 'ORIGINAL' : 'GENERADO';
+    final pVal = double.tryParse(entry.price.replaceAll(',', '')) ?? 0;
+    final hasPrice = pVal > 0;
+
+    return FittedBox(
+      fit: BoxFit.contain,
+      child: Container(
+        width: 440,
+        height: 264,
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: Colors.black, width: 1.5),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    entry.name.split(" - ").first,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
+                      letterSpacing: -0.5,
                     ),
                   ),
-                  SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: Color(0xFF10B981),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      SizedBox(width: 8),
-                      Text(
-                        "En Línea",
-                        style: TextStyle(
-                          color: AppColors.onSurface,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 4),
+                ),
+                if (_showPrice && hasPrice) ...[
+                  const SizedBox(width: 8),
                   Text(
-                    "Zebra ZT411 - Bandeja 1",
-                    style: TextStyle(
-                      color: AppColors.onSurfaceVariant,
-                      fontSize: 12,
+                    "L. ${entry.price}",
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ],
-              ),
+              ],
             ),
-
-            // Media Left
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceContainerLowest,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppColors.outlineVariant.withValues(
-                    alpha: 0.5,
-                  ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Container(
+                        width: double.infinity,
+                        color: Colors.white,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: _buildBarcodeLinesFromCode(entry.barcode),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      entry.barcode,
+                      style: const TextStyle(
+                        color: Colors.black,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 8.0,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              child: Column(
+            ),
+            Container(
+              padding: const EdgeInsets.only(top: 12),
+              decoration: const BoxDecoration(
+                border: Border(top: BorderSide(color: Colors.black, width: 1)),
+              ),
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    "MATERIAL RESTANTE",
-                    style: TextStyle(
-                      color: AppColors.onSurfaceVariant,
-                      fontSize: 10,
+                    "SISTEMA LA CONFIANZA\nCÓDIGO $modeStr",
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontSize: 8,
                       fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
                     ),
                   ),
-                  SizedBox(height: 8),
-                  // Progress bar
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(99),
-                    child: SizedBox(
-                      height: 8,
-                      child: LinearProgressIndicator(
-                        value: 0.65,
-                        backgroundColor:
-                            AppColors.surfaceContainerLow,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          AppColors.primary,
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 4),
                   Text(
-                    "650 etiquetas restantes",
-                    style: TextStyle(
-                      color: AppColors.onSurface,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    dateStr,
+                    style: const TextStyle(color: Colors.black, fontSize: 8),
                   ),
                 ],
               ),
             ),
           ],
-        );
-      },
+        ),
+      ),
     );
   }
 }

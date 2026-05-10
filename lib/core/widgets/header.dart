@@ -7,6 +7,7 @@ class Header extends StatelessWidget {
   final String title;
   final TextEditingController? searchController;
   final ValueChanged<String>? onSearchChanged;
+  final Widget? centerWidget;
 
   const Header({
     super.key,
@@ -15,6 +16,7 @@ class Header extends StatelessWidget {
     required this.title,
     this.searchController,
     this.onSearchChanged,
+    this.centerWidget,
   });
 
   @override
@@ -34,15 +36,13 @@ class Header extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Sección de Búsqueda y Título
+          // IZQUIERDA: Título
           Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               if (!isDesktop) ...[
                 IconButton(
-                  icon: const Icon(
-                    Icons.menu,
-                    color: AppColors.onSurface,
-                  ),
+                  icon: const Icon(Icons.menu, color: AppColors.onSurface),
                   onPressed: () => scaffoldKey.currentState?.openDrawer(),
                 ),
                 const SizedBox(width: 8),
@@ -55,52 +55,65 @@ class Header extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              if (isDesktop) ...[
-                const SizedBox(width: 16),
-                Container(
-                  width: 1,
-                  height: 32,
-                  color: AppColors.outlineVariant.withValues(
-                    alpha: 0.5,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                // Barra de Búsqueda
-                SizedBox(
-                  width: 280,
-                  height: 36,
-                  child: TextField(
-                    controller: searchController,
-                    onChanged: onSearchChanged,
-                    style: const TextStyle(fontSize: 13),
-                    decoration: InputDecoration(
-                      hintText: "Buscar reportes o productos...",
-                      hintStyle: const TextStyle(
-                        color: AppColors.onSurfaceVariant,
-                      ),
-                      prefixIcon: const Icon(
-                        Icons.search,
-                        size: 18,
-                        color: AppColors.onSurfaceVariant,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                      filled: true,
-                      fillColor: AppColors.surfaceContainerLow,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
             ],
           ),
 
-          // Sección de Perfil y Notificaciones
+          // CENTRO: Opciones Dinámicas + Buscador (Flexible y escalable)
+          if (isDesktop)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Center(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (centerWidget != null) ...[
+                          centerWidget!,
+                          const SizedBox(width: 20),
+                        ],
+                        if (searchController != null)
+                          SizedBox(
+                            width: 280,
+                            height: 38,
+                            child: TextField(
+                              controller: searchController,
+                              onChanged: onSearchChanged,
+                              style: const TextStyle(fontSize: 13),
+                              decoration: InputDecoration(
+                                hintText: "Buscar...",
+                                hintStyle: const TextStyle(
+                                  color: AppColors.onSurfaceVariant,
+                                  fontSize: 12,
+                                ),
+                                prefixIcon: const Icon(
+                                  Icons.search,
+                                  size: 18,
+                                  color: AppColors.onSurfaceVariant,
+                                ),
+                                contentPadding:
+                                    const EdgeInsets.symmetric(vertical: 0),
+                                filled: true,
+                                fillColor: AppColors.surfaceContainerLow,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide.none,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+          // DERECHA: Perfil y Notificaciones
           Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              // Iconos de acciones rápidas
               IconButton(
                 icon: const Icon(
                   Icons.notifications_none,
@@ -121,13 +134,9 @@ class Header extends StatelessWidget {
               Container(
                 width: 1,
                 height: 32,
-                color: AppColors.outlineVariant.withValues(
-                  alpha: 0.5,
-                ),
+                color: AppColors.outlineVariant.withValues(alpha: 0.5),
               ),
               const SizedBox(width: 16),
-
-              // Información del Perfil
               Row(
                 children: [
                   if (isDesktop)
@@ -155,7 +164,6 @@ class Header extends StatelessWidget {
                       ],
                     ),
                   const SizedBox(width: 12),
-                  // Avatar de perfil de red con fallback local
                   Container(
                     width: 36,
                     height: 36,

@@ -166,7 +166,7 @@ class _VistaInventarioState extends State<VistaInventario> {
         ),
         _buildKpiCard(
           title: "Valor Inventario",
-          value: "\$${(_totalValue / 1000).toStringAsFixed(1)}k",
+          value: "L. ${(_totalValue / 1000).toStringAsFixed(1)}k",
           trailing: Icon(Icons.payments_outlined, color: AppColors.onSurfaceVariant, size: 24),
         ),
         _buildKpiCard(
@@ -532,7 +532,7 @@ class _VistaInventarioState extends State<VistaInventario> {
                             child: Padding(
                               padding: EdgeInsets.symmetric(horizontal: 16.0),
                               child: Text(
-                                "\$${item.price.toStringAsFixed(2)}",
+                                "L. ${item.price.toStringAsFixed(2)}",
                                 style: TextStyle(color: AppColors.primary, fontSize: 15, fontWeight: FontWeight.bold),
                               ),
                             ),
@@ -796,7 +796,7 @@ class _VistaInventarioState extends State<VistaInventario> {
                         controller: priceController,
                         keyboardType: TextInputType.number,
                         decoration: const InputDecoration(
-                          labelText: "Precio de Venta (\$)",
+                          labelText: "Precio de Venta (L.)",
                           labelStyle: TextStyle(color: AppColors.onSurfaceVariant),
                         ),
                       ),
