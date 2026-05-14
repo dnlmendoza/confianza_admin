@@ -8,6 +8,7 @@ class Header extends StatelessWidget {
   final TextEditingController? searchController;
   final ValueChanged<String>? onSearchChanged;
   final Widget? centerWidget;
+  final List<String>? notifications;
 
   const Header({
     super.key,
@@ -17,6 +18,7 @@ class Header extends StatelessWidget {
     this.searchController,
     this.onSearchChanged,
     this.centerWidget,
+    this.notifications,
   });
 
   @override
@@ -114,22 +116,56 @@ class Header extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              IconButton(
-                icon: const Icon(
-                  Icons.notifications_none,
-                  size: 22,
-                  color: AppColors.onSurfaceVariant,
+              if (notifications == null || notifications!.isEmpty)
+                IconButton(
+                  icon: const Icon(
+                    Icons.notifications_none,
+                    size: 22,
+                    color: AppColors.onSurfaceVariant,
+                  ),
+                  onPressed: () {},
+                )
+              else
+                PopupMenuButton<String>(
+                  offset: const Offset(0, 45),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  icon: Badge(
+                    backgroundColor: AppColors.error,
+                    smallSize: 10,
+                    child: const Icon(
+                      Icons.notifications_none,
+                      size: 22,
+                      color: AppColors.onSurfaceVariant,
+                    ),
+                  ),
+                  tooltip: "Notificaciones",
+                  itemBuilder: (BuildContext context) {
+                    return notifications!.map((n) {
+                      return PopupMenuItem<String>(
+                        value: n,
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.info_outline,
+                              size: 18,
+                              color: AppColors.primary,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                n,
+                                style: const TextStyle(fontSize: 13),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList();
+                  },
                 ),
-                onPressed: () {},
-              ),
-              IconButton(
-                icon: const Icon(
-                  Icons.settings_outlined,
-                  size: 22,
-                  color: AppColors.onSurfaceVariant,
-                ),
-                onPressed: () {},
-              ),
+
               const SizedBox(width: 8),
               Container(
                 width: 1,
