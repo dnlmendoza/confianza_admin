@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:confianza_admin/core/widgets/admin_layout.dart';
 
 /// Modelo de datos para un Usuario
@@ -39,6 +41,38 @@ class UserModel {
       imageUrl: imageUrl ?? this.imageUrl,
     );
   }
+
+  factory UserModel.fromFirestore(Map<String, dynamic> json, String id, {required bool isRequest}) {
+    final String nombres = json['Nombres'] as String? ?? '';
+    final String apellidos = json['Apellidos'] as String? ?? '';
+    final String name = '$nombres $apellidos'.trim();
+    
+    // Imprimir llaves del documento para depuración del desarrollador
+    debugPrint("Firestore Keys for user '$name': ${json.keys.toList()}");
+    if (json.containsKey('FotoUrl') || json.containsKey('fotoUrl')) {
+      debugPrint("Image URL value detected: ${json['FotoUrl'] ?? json['fotoUrl']}");
+    }
+
+    // Buscar el primer valor que no sea nulo entre variantes comunes de nombres de campo
+    final Object? possibleUrl = json['FotoUrl'] ?? 
+                                json['fotoUrl'] ?? 
+                                json['fotourl'] ?? 
+                                json['Foto'] ?? 
+                                json['foto'] ?? 
+                                json['Imagen'];
+                                
+    final String rawUrl = possibleUrl?.toString().trim() ?? '';
+    
+    return UserModel(
+      id: id,
+      name: name.isEmpty ? 'Sin nombre' : name,
+      email: json['Idcorreo'] as String? ?? json['Correo'] as String? ?? '',
+      role: json['Rol'] as String? ?? (isRequest ? 'Pendiente' : 'Sin Rol'),
+      status: isRequest ? 'pendiente' : (json['Estado'] as String? ?? 'Activo'),
+      lastAccess: json['Fecha'] as String? ?? '',
+      imageUrl: rawUrl,
+    );
+  }
 }
 
 /// Modelo de datos para un Registro de Auditoría
@@ -77,7 +111,6 @@ class VistaUsuarios extends StatefulWidget {
 class _VistaUsuariosState extends State<VistaUsuarios> {
   // Paleta de colores consistente de la marca
   static const Color colorPrimary = Color(0xFF006397);
-  static const Color colorPrimaryContainer = Color(0xFF3498db);
   static const Color colorOnSurface = Color(0xFF181C20);
   static const Color colorOnSurfaceVariant = Color(0xFF3F4850);
   static const Color colorOutlineVariant = Color(0xFFBFC7D2);
@@ -96,24 +129,63 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
   int _selectedProfileIndex = 0;
   final List<UserProfileConfig> _profiles = [];
 
-  // Lista mutable de usuarios
-  final List<UserModel> _users = [
-    UserModel(
-      id: "101",
-      name: "María Rodríguez",
-      email: "m.rodriguez@email.com",
-      role: "Cajero Central",
-      status: "Solicitud",
-      lastAccess: "Hoy, 14:30",
-      imageUrl: "https://i.pravatar.cc/150?u=maria",
-    ),
-  ];
+  // Lista mutable de usuarios que se alimenta de Firestore
+  final List<UserModel> _users = [];
+  List<UserModel> _dbUsers = [];
+  List<UserModel> _dbPendingUsers = [];
+
+  StreamSubscription? _usuariosSub;
+  StreamSubscription? _registroSub;
 
   // Lista estática de logs de auditoría para el diálogo
   final List<AuditLog> _auditLogs = [];
 
   @override
+  void initState() {
+    super.initState();
+    _listenToUsers();
+  }
+
+  void _listenToUsers() {
+    _usuariosSub = FirebaseFirestore.instance.collection('Usuarios').snapshots().listen((snapshot) {
+      final usersList = snapshot.docs.map((doc) {
+        final data = doc.data();
+        return UserModel.fromFirestore(data, doc.id, isRequest: false);
+      }).toList();
+      
+      if (mounted) {
+        setState(() {
+          _dbUsers = usersList;
+          _updateCombinedUsers();
+        });
+      }
+    });
+
+    _registroSub = FirebaseFirestore.instance.collection('Usuarios_registro').snapshots().listen((snapshot) {
+      final pendingList = snapshot.docs.map((doc) {
+        final data = doc.data();
+        return UserModel.fromFirestore(data, doc.id, isRequest: true);
+      }).toList();
+      
+      if (mounted) {
+        setState(() {
+          _dbPendingUsers = pendingList;
+          _updateCombinedUsers();
+        });
+      }
+    });
+  }
+
+  void _updateCombinedUsers() {
+    _users.clear();
+    _users.addAll(_dbUsers);
+    _users.addAll(_dbPendingUsers);
+  }
+
+  @override
   void dispose() {
+    _usuariosSub?.cancel();
+    _registroSub?.cancel();
     _searchController.dispose();
     _profileNameController.dispose();
     super.dispose();
@@ -124,7 +196,7 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
     final query = _searchController.text.trim().toLowerCase();
     return _users.where((item) {
       // Filtrado por el modo de vista de la tabla (Activos vs Solicitudes)
-      final bool isRequest = item.status == "Solicitud";
+      final bool isRequest = item.status == "pendiente";
       final bool matchesViewMode =
           (_selectedViewMode == 1) ? isRequest : !isRequest;
 
@@ -144,7 +216,7 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
   @override
   Widget build(BuildContext context) {
     final pendingCount =
-        _users.where((u) => u.status == "Solicitud").length;
+        _users.where((u) => u.status == "pendiente").length;
     final notifications =
         pendingCount > 0
             ? [
@@ -224,7 +296,7 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
         ),
         _buildBentoStatCard(
           title: "Solicitudes",
-          value: "${_users.where((u) => u.status == 'Solicitud').length}",
+          value: "${_users.where((u) => u.status == 'pendiente').length}",
           subtitle: "Pendientes de aprobación",
           icon: Icons.person_add_alt_1,
           iconColor: const Color(0xFF8E6A00), // Amber/Gold for pending state
@@ -382,12 +454,12 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
                 _buildTableTabItem(
                   "Usuarios Activos",
                   0,
-                  _users.where((u) => u.status != 'Solicitud').length,
+                  _users.where((u) => u.status != 'pendiente').length,
                 ),
                 _buildTableTabItem(
                   "Solicitudes de Acceso",
                   1,
-                  _users.where((u) => u.status == 'Solicitud').length,
+                  _users.where((u) => u.status == 'pendiente').length,
                 ),
               ],
             ),
@@ -560,28 +632,34 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
                                             height: 38,
                                             decoration: const BoxDecoration(
                                               shape: BoxShape.circle,
-                                              color: colorPrimaryContainer,
+                                              color: colorPrimary,
                                             ),
                                             clipBehavior: Clip.antiAlias,
-                                            child: Image.network(
-                                              item.imageUrl,
-                                              fit: BoxFit.cover,
-                                              errorBuilder:
-                                                  (context, error, stackTrace) {
-                                                return Center(
-                                                  child: Text(
-                                                    item.name
-                                                        .substring(0, 1)
-                                                        .toUpperCase(),
-                                                    style: const TextStyle(
-                                                      color: Colors.white,
-                                                      fontWeight:
-                                                          FontWeight.bold,
+                                            child: item.imageUrl.isNotEmpty
+                                                ? Image.network(
+                                                    item.imageUrl,
+                                                    fit: BoxFit.cover,
+                                                    errorBuilder: (context, error, stackTrace) {
+                                                      return Center(
+                                                        child: Text(
+                                                          item.name.substring(0, 1).toUpperCase(),
+                                                          style: const TextStyle(
+                                                            color: Colors.white,
+                                                            fontWeight: FontWeight.bold,
+                                                          ),
+                                                        ),
+                                                      );
+                                                    },
+                                                  )
+                                                : Center(
+                                                    child: Text(
+                                                      item.name.substring(0, 1).toUpperCase(),
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontWeight: FontWeight.bold,
+                                                      ),
                                                     ),
                                                   ),
-                                                );
-                                              },
-                                            ),
                                           ),
                                           const SizedBox(width: 12),
                                           Column(
@@ -665,7 +743,7 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
                                           Text(
                                             item.status,
                                             style: TextStyle(
-                                              color: item.status == "Suspendido"
+                                              color: item.status == "Eliminado"
                                                   ? const Color(0xFFBA1A1A)
                                                   : colorOnSurface,
                                               fontSize: 13,
@@ -720,12 +798,16 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
                                                         size: 20,
                                                       ),
                                                       tooltip: "Rechazar",
-                                                      onPressed: () {
-                                                        setState(() {
-                                                          _users.removeWhere(
-                                                            (u) => u.id == item.id,
-                                                          );
-                                                        });
+                                                      onPressed: () async {
+                                                        try {
+                                                          await FirebaseFirestore.instance.collection('Usuarios_registro').doc(item.id).delete();
+                                                        } catch (e) {
+                                                          if (context.mounted) {
+                                                            ScaffoldMessenger.of(context).showSnackBar(
+                                                              SnackBar(content: Text("Error al rechazar: $e")),
+                                                            );
+                                                          }
+                                                        }
                                                       },
                                                       splashRadius: 20,
                                                       padding: EdgeInsets.zero,
@@ -1531,12 +1613,12 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
     switch (status) {
       case "Activo":
         return const Color(0xFF10B981);
-      case "Solicitud":
-        return const Color(0xFFF2994A); // Orange for requests
-      case "Inactivo":
-        return colorOutlineVariant;
+      case "pendiente":
+        return const Color(0xFFF2994A); // Orange for pending
+      case "Eliminado":
+        return const Color(0xFFBA1A1A); // Red for deleted
       default:
-        return const Color(0xFFBA1A1A);
+        return colorOutlineVariant;
     }
   }
   // METODOS DE APOYO PARA GESTION DE FLUJO DE SOLICITUDES
@@ -1792,19 +1874,29 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
                   onPressed:
                       selectedProf == null
                           ? null
-                          : () {
-                            setState(() {
-                              final idx = _users.indexWhere(
-                                (u) => u.id == user.id,
-                              );
-                              if (idx != -1) {
-                                _users[idx] = user.copyWith(
-                                  status: "Activo",
-                                  role: selectedProf!.name,
-                                  lastAccess: "Recién activado",
+                          : () async {
+                            try {
+                              final docRef = FirebaseFirestore.instance.collection('Usuarios_registro').doc(user.id);
+                              final docSnapshot = await docRef.get();
+                              
+                              if (docSnapshot.exists) {
+                                final data = docSnapshot.data() ?? {};
+                                data['Estado'] = "Activo";
+                                data['Rol'] = selectedProf!.name;
+                                
+                                // Persistir en Usuarios y borrar de registro
+                                await FirebaseFirestore.instance.collection('Usuarios').doc(user.id).set(data);
+                                await docRef.delete();
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text("Error al aprobar usuario: $e")),
                                 );
                               }
-                            });
+                              return;
+                            }
+                            if (!context.mounted) return;
                             Navigator.pop(context);
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
@@ -1883,11 +1975,17 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
                         children: [
                           CircleAvatar(
                             radius: 20,
-                            backgroundColor: colorPrimary.withValues(
-                              alpha: 0.1,
+                            backgroundColor: colorPrimary,
+                            foregroundImage: user.imageUrl.isNotEmpty
+                                ? NetworkImage(user.imageUrl)
+                                : null,
+                            child: Text(
+                              user.name[0].toUpperCase(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                            foregroundImage: NetworkImage(user.imageUrl),
-                            child: Text(user.name[0].toUpperCase()),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
@@ -1946,12 +2044,12 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
                           child: Text("Activo"),
                         ),
                         DropdownMenuItem(
-                          value: "Inactivo",
-                          child: Text("Inactivo"),
+                          value: "pendiente",
+                          child: Text("pendiente"),
                         ),
                         DropdownMenuItem(
-                          value: "Suspendido",
-                          child: Text("Suspendido"),
+                          value: "Eliminado",
+                          child: Text("Eliminado"),
                         ),
                       ],
                       onChanged: (val) {
@@ -1975,16 +2073,21 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
                   ),
                 ),
                 ElevatedButton(
-                  onPressed: () {
-                    setState(() {
-                      final idx = _users.indexWhere((u) => u.id == user.id);
-                      if (idx != -1) {
-                        _users[idx] = user.copyWith(
-                          role: selectedRole,
-                          status: selectedStatus,
+                  onPressed: () async {
+                    try {
+                      await FirebaseFirestore.instance.collection('Usuarios').doc(user.id).update({
+                        'Rol': selectedRole,
+                        'Estado': selectedStatus,
+                      });
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text("Error al actualizar perfil: $e")),
                         );
                       }
-                    });
+                      return;
+                    }
+                    if (!context.mounted) return;
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(

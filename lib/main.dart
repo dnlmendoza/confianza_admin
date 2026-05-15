@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:confianza_admin/firebase_options.dart';
 import 'package:confianza_admin/modulos/sesion/vista_sesion.dart';
 import 'package:confianza_admin/modulos/inicio/vista_inicio.dart';
 import 'package:confianza_admin/modulos/generador/vista_generador.dart';
@@ -6,7 +8,11 @@ import 'package:confianza_admin/modulos/inventario/vista_inventario.dart';
 import 'package:confianza_admin/modulos/cierre/vista_cierre.dart';
 import 'package:confianza_admin/modulos/usuarios/vista_usuarios.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(const MyApp());
 }
 
