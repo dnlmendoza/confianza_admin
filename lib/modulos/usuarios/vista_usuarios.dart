@@ -1,105 +1,7 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:confianza_admin/core/widgets/admin_layout.dart';
-
-/// Modelo de datos para un Usuario
-class UserModel {
-  final String id;
-  final String name;
-  final String email;
-  final String role; // "Administrator", "Manager", "Editor", "Viewer"
-  final String status; // "Active", "Offline", "Suspended"
-  final String lastAccess;
-  final String imageUrl;
-
-  const UserModel({
-    required this.id,
-    required this.name,
-    required this.email,
-    required this.role,
-    required this.status,
-    required this.lastAccess,
-    required this.imageUrl,
-  });
-
-  UserModel copyWith({
-    String? name,
-    String? email,
-    String? role,
-    String? status,
-    String? lastAccess,
-    String? imageUrl,
-  }) {
-    return UserModel(
-      id: id,
-      name: name ?? this.name,
-      email: email ?? this.email,
-      role: role ?? this.role,
-      status: status ?? this.status,
-      lastAccess: lastAccess ?? this.lastAccess,
-      imageUrl: imageUrl ?? this.imageUrl,
-    );
-  }
-
-  factory UserModel.fromFirestore(Map<String, dynamic> json, String id, {required bool isRequest}) {
-    final String nombres = json['Nombres'] as String? ?? '';
-    final String apellidos = json['Apellidos'] as String? ?? '';
-    final String name = '$nombres $apellidos'.trim();
-    
-    // Imprimir llaves del documento para depuración del desarrollador
-    debugPrint("Firestore Keys for user '$name': ${json.keys.toList()}");
-    if (json.containsKey('FotoUrl') || json.containsKey('fotoUrl')) {
-      debugPrint("Image URL value detected: ${json['FotoUrl'] ?? json['fotoUrl']}");
-    }
-
-    // Buscar el primer valor que no sea nulo entre variantes comunes de nombres de campo
-    final Object? possibleUrl = json['FotoUrl'] ?? 
-                                json['fotoUrl'] ?? 
-                                json['fotourl'] ?? 
-                                json['Foto'] ?? 
-                                json['foto'] ?? 
-                                json['Imagen'];
-                                
-    final String rawUrl = possibleUrl?.toString().trim() ?? '';
-    
-    return UserModel(
-      id: id,
-      name: name.isEmpty ? 'Sin nombre' : name,
-      email: json['Idcorreo'] as String? ?? json['Correo'] as String? ?? '',
-      role: json['Rol'] as String? ?? (isRequest ? 'Pendiente' : 'Sin Rol'),
-      status: isRequest ? 'pendiente' : (json['Estado'] as String? ?? 'Activo'),
-      lastAccess: json['Fecha'] as String? ?? '',
-      imageUrl: rawUrl,
-    );
-  }
-}
-
-/// Modelo de datos para un Registro de Auditoría
-class AuditLog {
-  final String time;
-  final String user;
-  final String action;
-
-  const AuditLog({
-    required this.time,
-    required this.user,
-    required this.action,
-  });
-}
-
-/// Modelo de datos para la gestión lógica de perfiles de usuario
-class UserProfileConfig {
-  final String id;
-  String name;
-  final Map<String, Set<String>> permissions;
-
-  UserProfileConfig({
-    required this.id,
-    required this.name,
-    required this.permissions,
-  });
-}
+import 'modelos_usuarios.dart';
+import 'viewmodel_usuarios.dart';
 
 class VistaUsuarios extends StatefulWidget {
   const VistaUsuarios({super.key});
@@ -117,150 +19,74 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
   static const Color colorSurfaceContainerLowest = Color(0xFFFFFFFF);
   static const Color colorSurfaceContainerLow = Color(0xFFF1F4FA);
 
-  // Estados interactivos
+  late final ViewModelUsuarios _viewModel;
   final TextEditingController _searchController = TextEditingController();
-  String _selectedRoleFilter = "Todos";
-  int _selectedViewMode = 0; // 0 = Usuarios Activos, 1 = Solicitudes de Acceso
-  int _currentPage = 0;
-  static const int _itemsPerPage = 4;
-
-  // LÓGICA DINÁMICA DE PERFILES
   final TextEditingController _profileNameController = TextEditingController();
-  int _selectedProfileIndex = 0;
-  final List<UserProfileConfig> _profiles = [];
-
-  // Lista mutable de usuarios que se alimenta de Firestore
-  final List<UserModel> _users = [];
-  List<UserModel> _dbUsers = [];
-  List<UserModel> _dbPendingUsers = [];
-
-  StreamSubscription? _usuariosSub;
-  StreamSubscription? _registroSub;
-
-  // Lista estática de logs de auditoría para el diálogo
-  final List<AuditLog> _auditLogs = [];
 
   @override
   void initState() {
     super.initState();
-    _listenToUsers();
-  }
-
-  void _listenToUsers() {
-    _usuariosSub = FirebaseFirestore.instance.collection('Usuarios').snapshots().listen((snapshot) {
-      final usersList = snapshot.docs.map((doc) {
-        final data = doc.data();
-        return UserModel.fromFirestore(data, doc.id, isRequest: false);
-      }).toList();
-      
-      if (mounted) {
-        setState(() {
-          _dbUsers = usersList;
-          _updateCombinedUsers();
-        });
-      }
+    _viewModel = ViewModelUsuarios();
+    _searchController.addListener(() {
+      _viewModel.setSearchQuery(_searchController.text);
     });
-
-    _registroSub = FirebaseFirestore.instance.collection('Usuarios_registro').snapshots().listen((snapshot) {
-      final pendingList = snapshot.docs.map((doc) {
-        final data = doc.data();
-        return UserModel.fromFirestore(data, doc.id, isRequest: true);
-      }).toList();
-      
-      if (mounted) {
-        setState(() {
-          _dbPendingUsers = pendingList;
-          _updateCombinedUsers();
-        });
-      }
-    });
-  }
-
-  void _updateCombinedUsers() {
-    _users.clear();
-    _users.addAll(_dbUsers);
-    _users.addAll(_dbPendingUsers);
   }
 
   @override
   void dispose() {
-    _usuariosSub?.cancel();
-    _registroSub?.cancel();
     _searchController.dispose();
     _profileNameController.dispose();
+    _viewModel.dispose();
     super.dispose();
-  }
-
-  // Filtrado reactivo en vivo
-  List<UserModel> get _filteredUsers {
-    final query = _searchController.text.trim().toLowerCase();
-    return _users.where((item) {
-      // Filtrado por el modo de vista de la tabla (Activos vs Solicitudes)
-      final bool isRequest = item.status == "pendiente";
-      final bool matchesViewMode =
-          (_selectedViewMode == 1) ? isRequest : !isRequest;
-
-      if (!matchesViewMode) return false;
-
-      final matchesSearch =
-          query.isEmpty ||
-          item.name.toLowerCase().contains(query) ||
-          item.email.toLowerCase().contains(query);
-      final matchesRole =
-          _selectedRoleFilter == "Todos" || item.role == _selectedRoleFilter;
-
-      return matchesSearch && matchesRole;
-    }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
-    final pendingCount =
-        _users.where((u) => u.status == "pendiente").length;
-    final notifications =
-        pendingCount > 0
+    return ListenableBuilder(
+      listenable: _viewModel,
+      builder: (context, _) {
+        final pendingCount = _viewModel.users.where((u) => u.status == "Pendiente").length;
+        final notifications = pendingCount > 0
             ? [
-              pendingCount == 1
-                  ? "Nueva solicitud de usuario pendiente"
-                  : "$pendingCount nuevas solicitudes pendientes",
-            ]
-            : null;
+                pendingCount == 1
+                    ? "Nueva solicitud de usuario pendiente"
+                    : "$pendingCount nuevas solicitudes pendientes",
+              ]
+            : <String>[];
 
-    return AdminLayout(
-      activeRoute: '/usuarios',
-      title: 'Usuarios',
-      notifications: notifications ?? [],
-      searchController: _searchController,
-      onSearchChanged: (val) {
-        setState(() {
-          _currentPage = 0;
-        });
+        return AdminLayout(
+          activeRoute: '/usuarios',
+          title: 'Usuarios',
+          notifications: notifications,
+          searchController: _searchController,
+          onSearchChanged: (val) {
+            // Ya se maneja con el listener
+          },
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isDesktop = constraints.maxWidth >= 1024;
+              return SingleChildScrollView(
+                padding: EdgeInsets.all(isDesktop ? 24.0 : 16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Bento Grid de Métricas
+                    _buildBentoStatsGrid(context),
+                    const SizedBox(height: 24),
+
+                    // Tabla de Datos Principal
+                    _buildDataTableCard(context),
+                    const SizedBox(height: 24),
+
+                    // Sección de Roles y Permisos Inferior
+                    _buildPermissionsGuideCard(),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
       },
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isDesktop = constraints.maxWidth >= 1024;
-          return SingleChildScrollView(
-            padding: EdgeInsets.all(isDesktop ? 24.0 : 16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-
-
-                // Bento Grid de Métricas
-                _buildBentoStatsGrid(context),
-                const SizedBox(height: 24),
-
-                // Tabla de Datos Principal
-                _buildDataTableCard(context),
-                const SizedBox(height: 24),
-
-                // Sección de Roles y Permisos Inferior
-                _buildPermissionsGuideCard(),
-              ],
-            ),
-          );
-        },
-      ),
     );
   }
 
@@ -277,7 +103,7 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
       children: [
         _buildBentoStatCard(
           title: "Total Usuarios",
-          value: "${_users.length}",
+          value: "${_viewModel.users.length}",
           subtitle: "Nuevos este mes",
           icon: Icons.group,
           iconColor: colorPrimary,
@@ -296,10 +122,10 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
         ),
         _buildBentoStatCard(
           title: "Solicitudes",
-          value: "${_users.where((u) => u.status == 'pendiente').length}",
+          value: "${_viewModel.users.where((u) => u.status == 'Pendiente').length}",
           subtitle: "Pendientes de aprobación",
           icon: Icons.person_add_alt_1,
-          iconColor: const Color(0xFF8E6A00), // Amber/Gold for pending state
+          iconColor: const Color(0xFF8E6A00),
           iconBgColor: const Color(0xFFFFEDC8),
           subtitleColor: colorOnSurfaceVariant,
         ),
@@ -395,31 +221,12 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
   }
 
   Widget _buildDataTableCard(BuildContext context) {
-    final allFiltered = _filteredUsers;
+    final allFiltered = _viewModel.filteredUsers;
+    final totalPages = (allFiltered.length / _viewModel.itemsPerPage).ceil() == 0 ? 1 : (allFiltered.length / _viewModel.itemsPerPage).ceil();
 
-    // Lógica de paginación dinámica
-    final totalPages =
-        (allFiltered.length / _itemsPerPage).ceil() == 0
-            ? 1
-            : (allFiltered.length / _itemsPerPage).ceil();
-
-    // Validar y corregir el índice actual si se queda fuera de rango tras filtros
-    if (_currentPage >= totalPages) {
-      _currentPage = totalPages - 1;
-    }
-    if (_currentPage < 0) _currentPage = 0;
-
-    final int startIndex = _currentPage * _itemsPerPage;
-    final int endIndex =
-        (startIndex + _itemsPerPage < allFiltered.length)
-            ? startIndex + _itemsPerPage
-            : allFiltered.length;
-
-    // La variable que consume el resto de la tabla
-    final filtered =
-        allFiltered.isEmpty
-            ? <UserModel>[]
-            : allFiltered.sublist(startIndex, endIndex);
+    final int startIndex = _viewModel.currentPage * _viewModel.itemsPerPage;
+    final int endIndex = (startIndex + _viewModel.itemsPerPage < allFiltered.length) ? startIndex + _viewModel.itemsPerPage : allFiltered.length;
+    final filtered = allFiltered.isEmpty ? <UserModel>[] : allFiltered.sublist(startIndex, endIndex);
 
     return Container(
       decoration: BoxDecoration(
@@ -438,7 +245,6 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Tab Switcher Maestro
           Container(
             decoration: BoxDecoration(
               color: colorSurfaceContainerLow.withValues(alpha: 0.3),
@@ -451,20 +257,30 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
             ),
             child: Row(
               children: [
-                _buildTableTabItem(
-                  "Usuarios Activos",
-                  0,
-                  _users.where((u) => u.status != 'pendiente').length,
+                Expanded(
+                  child: _buildTableTabItem(
+                    "Usuarios Activos",
+                    0,
+                    _viewModel.users.where((u) => u.status == 'Activo').length,
+                  ),
                 ),
-                _buildTableTabItem(
-                  "Solicitudes de Acceso",
-                  1,
-                  _users.where((u) => u.status == 'pendiente').length,
+                Expanded(
+                  child: _buildTableTabItem(
+                    "Solicitudes de Acceso",
+                    1,
+                    _viewModel.users.where((u) => u.status == 'Pendiente').length,
+                  ),
+                ),
+                Expanded(
+                  child: _buildTableTabItem(
+                    "Usuarios Suspendidos",
+                    2,
+                    _viewModel.users.where((u) => u.status == 'suspendido').length,
+                  ),
                 ),
               ],
             ),
           ),
-          // Filtros y Exportaciones
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Row(
@@ -478,18 +294,10 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
                     ),
                     child: TextField(
                       controller: _searchController,
-                      onChanged: (val) => setState(() {}),
                       decoration: const InputDecoration(
                         hintText: "Buscar por nombre o correo...",
-                        hintStyle: TextStyle(
-                          color: colorOnSurfaceVariant,
-                          fontSize: 13,
-                        ),
-                        prefixIcon: Icon(
-                          Icons.search,
-                          size: 18,
-                          color: colorOnSurfaceVariant,
-                        ),
+                        hintStyle: TextStyle(color: colorOnSurfaceVariant, fontSize: 13),
+                        prefixIcon: Icon(Icons.search, size: 18, color: colorOnSurfaceVariant),
                         border: InputBorder.none,
                         contentPadding: EdgeInsets.symmetric(vertical: 11),
                       ),
@@ -497,36 +305,15 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                // Botón de Filtrado por Rol
                 PopupMenuButton<String>(
                   tooltip: "Filtrar por Rol",
-                  onSelected: (val) {
-                    setState(() {
-                      _selectedRoleFilter = val;
-                      _currentPage = 0;
-                    });
-                  },
+                  onSelected: (val) => _viewModel.setRoleFilter(val),
                   itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: "Todos",
-                      child: Text("Todos los Roles"),
-                    ),
-                    const PopupMenuItem(
-                      value: "Administrator",
-                      child: Text("Administrator"),
-                    ),
-                    const PopupMenuItem(
-                      value: "Manager",
-                      child: Text("Manager"),
-                    ),
-                    const PopupMenuItem(value: "Editor", child: Text("Editor")),
-                    const PopupMenuItem(value: "Viewer", child: Text("Viewer")),
+                    const PopupMenuItem(value: "Todos", child: Text("Todos los Roles")),
+                    ..._viewModel.profiles.map((p) => PopupMenuItem(value: p.id, child: Text(p.name))),
                   ],
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: colorOutlineVariant),
@@ -534,37 +321,24 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
-                          Icons.filter_list,
-                          size: 16,
-                          color: colorOnSurfaceVariant,
-                        ),
+                        const Icon(Icons.filter_list, size: 16, color: colorOnSurfaceVariant),
                         const SizedBox(width: 8),
                         Text(
-                          _selectedRoleFilter == "Todos"
-                              ? "Filtrar"
-                              : _selectedRoleFilter,
-                          style: const TextStyle(
-                            color: colorOnSurfaceVariant,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                          ),
+                          _viewModel.selectedRoleFilter == "Todos" 
+                              ? "Filtrar" 
+                              : _viewModel.getRoleName(_viewModel.selectedRoleFilter),
+                          style: const TextStyle(color: colorOnSurfaceVariant, fontSize: 13, fontWeight: FontWeight.w500),
                         ),
                       ],
                     ),
                   ),
                 ),
-
               ],
             ),
           ),
-
-          // Tabla de Datos
           LayoutBuilder(
             builder: (context, constraints) {
-              final tableWidth = constraints.maxWidth > 850.0
-                  ? constraints.maxWidth
-                  : 850.0;
+              final tableWidth = constraints.maxWidth > 850.0 ? constraints.maxWidth : 850.0;
               return SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: SizedBox(
@@ -574,445 +348,282 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
                     children: [
                       Table(
                         columnWidths: const {
-                          0: FlexColumnWidth(2.5), // User Info
-                          1: FlexColumnWidth(1.4), // Role
-                          2: FlexColumnWidth(1.2), // Status
-                          3: FlexColumnWidth(1.5), // Last Access
-                          4: FlexColumnWidth(2.1), // Actions
+                          0: FlexColumnWidth(2.5),
+                          1: FlexColumnWidth(1.4),
+                          2: FlexColumnWidth(1.2),
+                          3: FlexColumnWidth(1.5),
+                          4: FlexColumnWidth(2.1),
                         },
                         children: [
                           TableRow(
                             decoration: const BoxDecoration(
                               color: colorSurfaceContainerLow,
-                              border: Border(
-                                bottom: BorderSide(
-                                  color: colorOutlineVariant,
-                                  width: 0.5,
-                                ),
-                              ),
+                              border: Border(bottom: BorderSide(color: colorOutlineVariant, width: 0.5)),
                             ),
                             children: [
                               _buildTableHeaderCell("USUARIO"),
-                              _buildTableHeaderCell(
-                                _selectedViewMode == 1 ? "SOLICITUD" : "ROL",
-                              ),
+                              _buildTableHeaderCell(_viewModel.selectedViewMode == 1 ? "SOLICITUD" : "ROL"),
                               _buildTableHeaderCell("ESTADO"),
                               _buildTableHeaderCell("ÚLTIMO ACCESO"),
-                              _buildTableHeaderCell(
-                                _selectedViewMode == 1 ? "DECISIÓN" : "ACCIONES",
-                                alignRight: true,
-                              ),
+                              _buildTableHeaderCell(_viewModel.selectedViewMode == 1 ? "DECISIÓN" : "ACCIONES", alignRight: true),
                             ],
                           ),
                           if (filtered.isNotEmpty)
-                            ...filtered.map((item) {
-                              return TableRow(
-                                decoration: const BoxDecoration(
-                                  border: Border(
-                                    bottom: BorderSide(
-                                      color: colorOutlineVariant,
-                                      width: 0.5,
-                                    ),
-                                  ),
-                                ),
-                                children: [
-                                  // User Avatar + Name + Email
-                                  TableCell(
-                                    verticalAlignment:
-                                        TableCellVerticalAlignment.middle,
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16.0,
-                                        vertical: 12.0,
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Container(
-                                            width: 38,
-                                            height: 38,
-                                            decoration: const BoxDecoration(
-                                              shape: BoxShape.circle,
-                                              color: colorPrimary,
-                                            ),
-                                            clipBehavior: Clip.antiAlias,
-                                            child: item.imageUrl.isNotEmpty
-                                                ? Image.network(
-                                                    item.imageUrl,
-                                                    fit: BoxFit.cover,
-                                                    errorBuilder: (context, error, stackTrace) {
-                                                      return Center(
-                                                        child: Text(
-                                                          item.name.substring(0, 1).toUpperCase(),
-                                                          style: const TextStyle(
-                                                            color: Colors.white,
-                                                            fontWeight: FontWeight.bold,
-                                                          ),
-                                                        ),
-                                                      );
-                                                    },
-                                                  )
-                                                : Center(
-                                                    child: Text(
-                                                      item.name.substring(0, 1).toUpperCase(),
-                                                      style: const TextStyle(
-                                                        color: Colors.white,
-                                                        fontWeight: FontWeight.bold,
-                                                      ),
-                                                    ),
-                                                  ),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                item.name,
-                                                style: const TextStyle(
-                                                  color: colorOnSurface,
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                item.email,
-                                                style: const TextStyle(
-                                                  color: colorOnSurfaceVariant,
-                                                  fontSize: 12,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-
-                                  // Role Chip
-                                  TableCell(
-                                    verticalAlignment:
-                                        TableCellVerticalAlignment.middle,
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16.0,
-                                      ),
-                                      child: UnconstrainedBox(
-                                        alignment: Alignment.centerLeft,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: _getRoleBgColor(item.role),
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                          child: Text(
-                                            item.role,
-                                            style: TextStyle(
-                                              color: _getRoleTextColor(item.role),
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-
-                                  // Status Dot + Label
-                                  TableCell(
-                                    verticalAlignment:
-                                        TableCellVerticalAlignment.middle,
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16.0,
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Container(
-                                            width: 8,
-                                            height: 8,
-                                            decoration: BoxDecoration(
-                                              shape: BoxShape.circle,
-                                              color: _getStatusColor(item.status),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            item.status,
-                                            style: TextStyle(
-                                              color: item.status == "Eliminado"
-                                                  ? const Color(0xFFBA1A1A)
-                                                  : colorOnSurface,
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-
-                                  // Last Access Time
-                                  TableCell(
-                                    verticalAlignment:
-                                        TableCellVerticalAlignment.middle,
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16.0,
-                                      ),
-                                      child: Text(
-                                        item.lastAccess,
-                                        style: const TextStyle(
-                                          fontFamily: 'monospace',
-                                          color: colorOnSurfaceVariant,
-                                          fontSize: 13,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-
-                                  // Actions Button
-                                  TableCell(
-                                    verticalAlignment:
-                                        TableCellVerticalAlignment.middle,
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16.0,
-                                      ),
-                                      child: Align(
-                                        alignment: Alignment.centerRight,
-                                        child:
-                                            _selectedViewMode == 1
-                                                ? Row(
-                                                  mainAxisSize: MainAxisSize.min,
-                                                  mainAxisAlignment:
-                                                      MainAxisAlignment.end,
-                                                  children: [
-                                                    IconButton(
-                                                      icon: const Icon(
-                                                        Icons.cancel_outlined,
-                                                        color: Color(0xFFBA1A1A),
-                                                        size: 20,
-                                                      ),
-                                                      tooltip: "Rechazar",
-                                                      onPressed: () async {
-                                                        try {
-                                                          await FirebaseFirestore.instance.collection('Usuarios_registro').doc(item.id).delete();
-                                                        } catch (e) {
-                                                          if (context.mounted) {
-                                                            ScaffoldMessenger.of(context).showSnackBar(
-                                                              SnackBar(content: Text("Error al rechazar: $e")),
-                                                            );
-                                                          }
-                                                        }
-                                                      },
-                                                      splashRadius: 20,
-                                                      padding: EdgeInsets.zero,
-                                                      constraints:
-                                                          const BoxConstraints(),
-                                                    ),
-                                                    const SizedBox(width: 8),
-                                                    ElevatedButton.icon(
-                                                      onPressed:
-                                                          () =>
-                                                              _showApproveRequestDialog(
-                                                                context,
-                                                                item,
-                                                              ),
-                                                      icon: const Icon(
-                                                        Icons.check,
-                                                        size: 14,
-                                                      ),
-                                                      label: const Text("Aprobar"),
-                                                      style: ElevatedButton
-                                                          .styleFrom(
-                                                            backgroundColor:
-                                                                const Color(
-                                                                  0xFF10B981,
-                                                                ),
-                                                            foregroundColor:
-                                                                Colors.white,
-                                                            elevation: 0,
-                                                            padding:
-                                                                const EdgeInsets
-                                                                    .symmetric(
-                                                                  horizontal: 12,
-                                                                  vertical: 6,
-                                                                ),
-                                                            minimumSize:
-                                                                const Size(0, 32),
-                                                            shape:
-                                                                RoundedRectangleBorder(
-                                                                  borderRadius:
-                                                                      BorderRadius
-                                                                          .circular(
-                                                                            6,
-                                                                          ),
-                                                                ),
-                                                          ),
-                                                    ),
-                                                  ],
-                                                )
-                                                : ElevatedButton(
-                                                  onPressed:
-                                                      () => _showEditUserDialog(
-                                                        context,
-                                                        item,
-                                                      ),
-                                                  style:
-                                                      ElevatedButton.styleFrom(
-                                                        backgroundColor:
-                                                            const Color(
-                                                              0xFFCFE2F9,
-                                                            ),
-                                                        foregroundColor:
-                                                            const Color(
-                                                              0xFF526478,
-                                                            ),
-                                                        padding:
-                                                            const EdgeInsets
-                                                                .symmetric(
-                                                              horizontal: 16,
-                                                              vertical: 6,
-                                                            ),
-                                                        shape:
-                                                            RoundedRectangleBorder(
-                                                              borderRadius:
-                                                                  BorderRadius
-                                                                      .circular(
-                                                                        4,
-                                                                      ),
-                                                            ),
-                                                        elevation: 0,
-                                                      ),
-                                                  child: const Text(
-                                                    "Editar",
-                                                    style: TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      fontSize: 12,
-                                                    ),
-                                                  ),
-                                                ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              );
-                            }),
+                            ...filtered.map((item) => TableRow(
+                                  decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: colorOutlineVariant, width: 0.5))),
+                                  children: [
+                                    _buildUserCell(item),
+                                    _buildRoleCell(item),
+                                    _buildStatusCell(item),
+                                    _buildLastAccessCell(item),
+                                    _buildActionsCell(item),
+                                  ],
+                                )),
                         ],
                       ),
-                      if (filtered.isEmpty)
-                        Container(
-                          padding: const EdgeInsets.symmetric(vertical: 48),
-                          alignment: Alignment.center,
-                          child: const Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.people_outline,
-                                size: 40,
-                                color: colorOutlineVariant,
-                              ),
-                              SizedBox(height: 8),
-                              Text(
-                                "No se encontraron usuarios",
-                                style: TextStyle(
-                                  color: colorOnSurfaceVariant,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                      if (filtered.isEmpty) _buildEmptyState(),
                     ],
                   ),
                 ),
               );
             },
           ),
+          _buildPaginationFooter(allFiltered.length, totalPages, startIndex, endIndex),
+        ],
+      ),
+    );
+  }
 
-          // Paginación
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _buildUserCell(UserModel item) {
+    return TableCell(
+      verticalAlignment: TableCellVerticalAlignment.middle,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: const BoxDecoration(shape: BoxShape.circle, color: colorPrimary),
+              clipBehavior: Clip.antiAlias,
+              child: item.imageUrl.isNotEmpty
+                  ? Image.network(
+                      item.imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => _buildAvatarPlaceholder(item),
+                    )
+                  : _buildAvatarPlaceholder(item),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  allFiltered.isEmpty
-                      ? "Sin registros"
-                      : "Mostrando ${allFiltered.isEmpty ? 0 : startIndex + 1}-$endIndex de ${allFiltered.length} usuarios",
-                  style: const TextStyle(
-                    color: colorOnSurfaceVariant,
-                    fontSize: 13,
-                  ),
-                ),
-                Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.chevron_left, size: 18),
-                      onPressed:
-                          _currentPage > 0
-                              ? () => setState(() => _currentPage--)
-                              : null,
-                    ),
-                    ...List.generate(totalPages, (index) {
-                      final bool isSelected = index == _currentPage;
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 2),
-                        child:
-                            isSelected
-                                ? Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: colorPrimary,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    "${index + 1}",
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                )
-                                : TextButton(
-                                  style: TextButton.styleFrom(
-                                    minimumSize: const Size(36, 36),
-                                    padding: EdgeInsets.zero,
-                                  ),
-                                  onPressed:
-                                      () => setState(() => _currentPage = index),
-                                  child: Text(
-                                    "${index + 1}",
-                                    style: const TextStyle(
-                                      color: colorOnSurface,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ),
-                      );
-                    }),
-                    IconButton(
-                      icon: const Icon(Icons.chevron_right, size: 18),
-                      onPressed:
-                          _currentPage < totalPages - 1
-                              ? () => setState(() => _currentPage++)
-                              : null,
-                    ),
-                  ],
-                ),
+                Text(item.name, style: const TextStyle(color: colorOnSurface, fontSize: 14, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 2),
+                Text(item.email, style: const TextStyle(color: colorOnSurfaceVariant, fontSize: 12)),
               ],
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAvatarPlaceholder(UserModel item) {
+    return Center(
+      child: Text(
+        item.name.isEmpty ? "?" : item.name.substring(0, 1).toUpperCase(),
+        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  Widget _buildRoleCell(UserModel item) {
+    return TableCell(
+      verticalAlignment: TableCellVerticalAlignment.middle,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        child: UnconstrainedBox(
+          alignment: Alignment.centerLeft,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(color: _getRoleBgColor(item.role), borderRadius: BorderRadius.circular(12)),
+            child: Text(
+              _viewModel.getRoleName(item.role),
+              style: TextStyle(color: _getRoleTextColor(item.role), fontSize: 11, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusCell(UserModel item) {
+    return TableCell(
+      verticalAlignment: TableCellVerticalAlignment.middle,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        child: Row(
+          children: [
+            Container(width: 8, height: 8, decoration: BoxDecoration(shape: BoxShape.circle, color: _getStatusColor(item.status))),
+            const SizedBox(width: 8),
+            Text(
+              item.status,
+              style: TextStyle(color: item.status == "Eliminado" ? const Color(0xFFBA1A1A) : colorOnSurface, fontSize: 13, fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLastAccessCell(UserModel item) {
+    return TableCell(
+      verticalAlignment: TableCellVerticalAlignment.middle,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        child: Text(item.lastAccess, style: const TextStyle(fontFamily: 'monospace', color: colorOnSurfaceVariant, fontSize: 13)),
+      ),
+    );
+  }
+
+  Widget _buildActionsCell(UserModel item) {
+    return TableCell(
+      verticalAlignment: TableCellVerticalAlignment.middle,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        child: Align(
+          alignment: Alignment.centerRight,
+          child: _viewModel.selectedViewMode == 1
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.cancel_outlined, color: Color(0xFFBA1A1A), size: 20),
+                      onPressed: () => _viewModel.rejectUser(item.id),
+                      tooltip: "Rechazar",
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      onPressed: () => _showApproveRequestDialog(context, item),
+                      icon: const Icon(Icons.check, size: 14),
+                      label: const Text("Aprobar"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF10B981),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        minimumSize: const Size(0, 32),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      ),
+                    ),
+                  ],
+                )
+              : ElevatedButton(
+                  onPressed: () => _showEditUserDialog(context, item),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFCFE2F9),
+                    foregroundColor: const Color(0xFF526478),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                  ),
+                  child: const Text("Editar", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 48),
+      alignment: Alignment.center,
+      child: const Column(
+        children: [
+          Icon(Icons.people_outline, size: 40, color: colorOutlineVariant),
+          SizedBox(height: 8),
+          Text("No se encontraron usuarios", style: TextStyle(color: colorOnSurfaceVariant, fontSize: 13)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaginationFooter(int totalRecords, int totalPages, int startIndex, int endIndex) {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            totalRecords == 0 ? "Sin registros" : "Mostrando ${startIndex + 1}-$endIndex de $totalRecords usuarios",
+            style: const TextStyle(color: colorOnSurfaceVariant, fontSize: 13),
+          ),
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chevron_left, size: 18),
+                onPressed: _viewModel.currentPage > 0 ? () => _viewModel.setCurrentPage(_viewModel.currentPage - 1) : null,
+              ),
+              ...List.generate(totalPages, (index) {
+                final bool isSelected = index == _viewModel.currentPage;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: isSelected
+                      ? Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(color: colorPrimary, borderRadius: BorderRadius.circular(4)),
+                          child: Text("${index + 1}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                        )
+                      : TextButton(
+                          onPressed: () => _viewModel.setCurrentPage(index),
+                          child: Text("${index + 1}", style: const TextStyle(color: colorOnSurface, fontSize: 13)),
+                        ),
+                );
+              }),
+              IconButton(
+                icon: const Icon(Icons.chevron_right, size: 18),
+                onPressed: _viewModel.currentPage < totalPages - 1 ? () => _viewModel.setCurrentPage(_viewModel.currentPage + 1) : null,
+              ),
+            ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTableTabItem(String label, int mode, int count) {
+    final bool isSelected = _viewModel.selectedViewMode == mode;
+    return InkWell(
+      onTap: () => _viewModel.setSelectedViewMode(mode),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: isSelected ? colorPrimary : Colors.transparent, width: 2)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? colorPrimary : colorOnSurfaceVariant,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: isSelected ? colorPrimary.withValues(alpha: 0.1) : colorOutlineVariant.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                "$count",
+                style: TextStyle(color: isSelected ? colorPrimary : colorOnSurfaceVariant, fontSize: 11, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1023,16 +634,10 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
       child: Text(
         label,
         textAlign: alignRight ? TextAlign.right : TextAlign.left,
-        style: const TextStyle(
-          color: colorOnSurfaceVariant,
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 0.5,
-        ),
+        style: const TextStyle(color: colorOnSurfaceVariant, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5),
       ),
     );
   }
-
 
   Widget _buildPermissionsGuideCard() {
     return Container(
@@ -1045,7 +650,6 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final isWide = constraints.maxWidth > 900;
-
           if (isWide) {
             return Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1054,14 +658,7 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
                 Expanded(
                   flex: 2,
                   child: Container(
-                    decoration: BoxDecoration(
-                      border: Border(
-                        left: BorderSide(
-                          color: colorOutlineVariant.withValues(alpha: 0.6),
-                          width: 1,
-                        ),
-                      ),
-                    ),
+                    decoration: BoxDecoration(border: Border(left: BorderSide(color: colorOutlineVariant.withValues(alpha: 0.6), width: 1))),
                     child: _buildRightOptionsPanel(),
                   ),
                 ),
@@ -1072,11 +669,7 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _buildLeftProfilePanel(),
-                Divider(
-                  height: 1,
-                  thickness: 1,
-                  color: colorOutlineVariant.withValues(alpha: 0.6),
-                ),
+                Divider(height: 1, thickness: 1, color: colorOutlineVariant.withValues(alpha: 0.6)),
                 _buildRightOptionsPanel(),
               ],
             );
@@ -1093,15 +686,7 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
-            "GESTIÓN DE PERFILES",
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.2,
-              color: colorOnSurfaceVariant,
-            ),
-          ),
+          const Text("GESTIÓN DE PERFILES", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.2, color: colorOnSurfaceVariant)),
           const SizedBox(height: 16),
           TextField(
             controller: _profileNameController,
@@ -1111,12 +696,7 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
               isDense: true,
               filled: true,
               fillColor: colorSurfaceContainerLow.withValues(alpha: 0.3),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(
-                  color: colorOutlineVariant.withValues(alpha: 0.5),
-                ),
-              ),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: colorOutlineVariant.withValues(alpha: 0.5))),
             ),
           ),
           const SizedBox(height: 12),
@@ -1124,18 +704,8 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
             onPressed: () {
               final name = _profileNameController.text.trim();
               if (name.isEmpty) return;
-              setState(() {
-                _profiles.add(
-                  UserProfileConfig(
-                    id: UniqueKey().toString(),
-                    name: name,
-                    permissions: {},
-                  ),
-                );
-                _profileNameController.clear();
-                // Selecciona automáticamente el nuevo
-                _selectedProfileIndex = _profiles.length - 1;
-              });
+              _viewModel.addLocalProfile(name);
+              _profileNameController.clear();
             },
             icon: const Icon(Icons.add_circle_outline, size: 18),
             label: const Text("CREAR PERFIL"),
@@ -1143,157 +713,101 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
               backgroundColor: colorPrimary,
               foregroundColor: Colors.white,
               minimumSize: const Size.fromHeight(48),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               elevation: 0,
             ),
           ),
           const SizedBox(height: 32),
-          const Text(
-            "PERFILES GUARDADOS",
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.2,
-              color: colorOnSurfaceVariant,
-            ),
-          ),
+          const Text("PERFILES GUARDADOS", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.2, color: colorOnSurfaceVariant)),
           const SizedBox(height: 12),
-          if (_profiles.isEmpty)
+          if (_viewModel.profiles.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 16),
-              child: Text(
-                "No hay perfiles creados",
-                style: TextStyle(
-                  fontStyle: FontStyle.italic,
-                  color: colorOnSurfaceVariant,
-                  fontSize: 13,
-                ),
-                textAlign: TextAlign.center,
-              ),
+              child: Text("No hay perfiles creados", style: TextStyle(fontStyle: FontStyle.italic, color: colorOnSurfaceVariant, fontSize: 13), textAlign: TextAlign.center),
             )
           else
-            ...List.generate(_profiles.length, (index) {
-              return _buildProfileListItem(
-                index,
-                _profiles[index].name,
-                isSelected: index == _selectedProfileIndex,
-              );
+            ...List.generate(_viewModel.profiles.length, (index) {
+              return _buildProfileListItem(index, _viewModel.profiles[index].name, isSelected: index == _viewModel.selectedProfileIndex);
             }),
         ],
       ),
     );
   }
 
-  Widget _buildProfileListItem(
-    int index,
-    String title, {
-    required bool isSelected,
-  }) {
+  Widget _buildProfileListItem(int index, String title, {required bool isSelected}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color:
-            isSelected
-                ? colorPrimary.withValues(alpha: 0.08)
-                : Colors.transparent,
+        color: isSelected ? colorPrimary.withValues(alpha: 0.08) : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color:
-              isSelected
-                  ? colorPrimary.withValues(alpha: 0.3)
-                  : Colors.transparent,
-        ),
+        border: Border.all(color: isSelected ? colorPrimary.withValues(alpha: 0.3) : Colors.transparent),
       ),
       child: ListTile(
         dense: true,
         visualDensity: VisualDensity.compact,
-        leading: Icon(
-          Icons.badge_outlined,
-          color: isSelected ? colorPrimary : colorOnSurfaceVariant,
-          size: 18,
-        ),
-        title: Text(
-          title,
-          style: TextStyle(
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-            color: isSelected ? colorPrimary : colorOnSurface,
-            fontSize: 14,
-          ),
-        ),
+        leading: Icon(Icons.badge_outlined, color: isSelected ? colorPrimary : colorOnSurfaceVariant, size: 18),
+        title: Text(title, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.w500, color: isSelected ? colorPrimary : colorOnSurface, fontSize: 14)),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (isSelected)
-              const Icon(Icons.check_circle, color: colorPrimary, size: 16),
+            if (isSelected) const Icon(Icons.check_circle, color: colorPrimary, size: 16),
             const SizedBox(width: 8),
             IconButton(
-              icon: const Icon(
-                Icons.delete_outline,
-                size: 18,
-                color: Color(0xFFBA1A1A),
-              ),
-              onPressed: () {
-                setState(() {
-                  _profiles.removeAt(index);
-                  // Reajustar index seleccionado si es necesario
-                  if (_profiles.isEmpty) {
-                    _selectedProfileIndex = 0;
-                  } else if (_selectedProfileIndex >= _profiles.length) {
-                    _selectedProfileIndex = _profiles.length - 1;
-                  }
-                });
-              },
+              icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFBA1A1A)),
+              onPressed: () => _confirmDeleteProfile(index),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
               splashRadius: 18,
             ),
           ],
         ),
-        onTap: () {
-          setState(() {
-            _selectedProfileIndex = index;
-          });
-        },
+        onTap: () => _viewModel.setSelectedProfileIndex(index),
       ),
     );
   }
 
+  Future<void> _confirmDeleteProfile(int index) async {
+    final profile = _viewModel.profiles[index];
+    final bool confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Eliminar Perfil"),
+        content: Text("¿Estás seguro de que deseas eliminar el perfil '${profile.name}'?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Cancelar")),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text("Eliminar", style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    ) ?? false;
+
+    if (confirm) {
+      try {
+        await _viewModel.deleteProfile(index);
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Perfil eliminado correctamente")));
+      } catch (e) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error al eliminar perfil: $e")));
+      }
+    }
+  }
+
   Widget _buildRightOptionsPanel() {
-    if (_profiles.isEmpty) {
+    final profile = _viewModel.currentProfile;
+    if (profile == null) {
       return Container(
         padding: const EdgeInsets.all(48),
         child: const Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                Icons.admin_panel_settings_outlined,
-                size: 48,
-                color: colorOutlineVariant,
-              ),
+              Icon(Icons.admin_panel_settings_outlined, size: 48, color: colorOutlineVariant),
               SizedBox(height: 16),
-              Text(
-                "No hay perfiles",
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: colorOnSurfaceVariant,
-                ),
-              ),
-              Text(
-                "Crea un perfil en el panel izquierdo para configurar accesos.",
-                style: TextStyle(fontSize: 13, color: colorOnSurfaceVariant),
-                textAlign: TextAlign.center,
-              ),
+              Text("No hay perfiles", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: colorOnSurfaceVariant)),
+              Text("Crea un perfil en el panel izquierdo para configurar accesos.", style: TextStyle(fontSize: 13, color: colorOnSurfaceVariant), textAlign: TextAlign.center),
             ],
           ),
         ),
       );
     }
-
-    final currentProfile = _profiles[_selectedProfileIndex];
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -1302,104 +816,56 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
         children: [
           Row(
             children: [
-              const Icon(
-                Icons.settings_suggest_outlined,
-                color: colorPrimary,
-                size: 20,
-              ),
+              const Icon(Icons.settings_suggest_outlined, color: colorPrimary, size: 20),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  "CONFIGURACIÓN: ${currentProfile.name.toUpperCase()}",
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 13,
-                    letterSpacing: 1,
-                    color: colorOnSurface,
-                  ),
-                ),
+                child: Text("CONFIGURACIÓN: ${profile.name.toUpperCase()}", style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, letterSpacing: 1, color: colorOnSurface)),
               ),
               TextButton.icon(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        "Cambios guardados para ${currentProfile.name}",
-                      ),
-                      behavior: SnackBarBehavior.floating,
-                      backgroundColor: const Color(0xFF10B981),
-                    ),
-                  );
+                onPressed: () async {
+                  try {
+                    await _viewModel.saveProfile(profile);
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text("Cambios guardados para ${profile.name}"), behavior: SnackBarBehavior.floating, backgroundColor: const Color(0xFF10B981)),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error al guardar: $e")));
+                  }
                 },
                 icon: const Icon(Icons.save_as_outlined, size: 16),
-                label: const Text(
-                  "Guardar Cambios",
-                  style: TextStyle(fontSize: 13),
-                ),
+                label: const Text("Guardar Cambios", style: TextStyle(fontSize: 13)),
               ),
             ],
           ),
           const Divider(height: 24),
-          _buildModularRow(currentProfile, "Inventario", ["Ver datos", "Crear dañados"]),
+          _buildModularRow(profile, "Inventario", ["Ver datos", "Crear dañados"]),
           const Divider(height: 24),
-          _buildModularRow(currentProfile, "Nuevo Artículo", ["Guardar datos"]),
+          _buildModularRow(profile, "Nuevo Artículo", ["Guardar datos"]),
           const Divider(height: 24),
-          _buildModularRow(currentProfile, "Modificar Artículo", [
-            "Visualizar datos",
-            "Modificar datos",
-          ]),
+          _buildModularRow(profile, "Modificar Artículo", ["Modificar datos"]),
           const Divider(height: 24),
-          _buildModularRow(currentProfile, "Ventas", [
-            "Crear venta",
-            "Crear oferta",
-          ]),
+          _buildModularRow(profile, "Ventas", ["Crear venta", "Crear oferta", "Modificar ventas"]),
           const Divider(height: 24),
-          _buildModularRow(currentProfile, "Notificaciones", [
-            "Visualizar datos",
-          ]),
+          _buildModularRow(profile, "Notificaciones", ["Visualizar datos"]),
           const Divider(height: 24),
-          _buildModularRow(currentProfile, "Cierre", [
-            "Visualizar datos",
-            "Añadir egresos",
-            "Editar datos",
-            "Crear cierre del dia",
-            "Modificar ventas",
-          ]),
+          _buildModularRow(profile, "Cierre", ["Visualizar datos", "Crear Egresos", "Editar datos", "Crear cierre del dia"]),
         ],
       ),
     );
   }
 
-  Widget _buildModularRow(
-    UserProfileConfig profile,
-    String title,
-    List<String> permissions,
-  ) {
+  Widget _buildModularRow(UserProfileConfig profile, String title, List<String> permissions) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth > 650;
-
         final moduleHeader = Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 4,
-              height: 18,
-              decoration: BoxDecoration(
-                color: colorPrimary,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
+            Container(width: 4, height: 18, decoration: BoxDecoration(color: colorPrimary, borderRadius: BorderRadius.circular(2))),
             const SizedBox(width: 12),
-            Text(
-              title.toUpperCase(),
-              style: const TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 12,
-                letterSpacing: 0.8,
-                color: colorOnSurface,
-              ),
-            ),
+            Text(title.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, letterSpacing: 0.8, color: colorOnSurface)),
           ],
         );
 
@@ -1407,29 +873,12 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
           spacing: 12,
           runSpacing: 12,
           children: permissions.map((perm) {
-            final isChecked =
-                profile.permissions[title]?.contains(perm) ?? false;
-
+            final isChecked = profile.permissions[title]?.contains(perm) ?? false;
             return Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: colorOutlineVariant.withValues(alpha: 0.5),
-                ),
-              ),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: colorOutlineVariant.withValues(alpha: 0.5))),
               child: InkWell(
-                onTap: () {
-                  setState(() {
-                    final modPerms = profile.permissions;
-                    if (isChecked) {
-                      modPerms[title]?.remove(perm);
-                    } else {
-                      modPerms.putIfAbsent(title, () => {}).add(perm);
-                    }
-                  });
-                },
+                onTap: () => _viewModel.togglePermission(profile, title, perm),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -1438,32 +887,14 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
                       width: 18,
                       child: Checkbox(
                         value: isChecked,
-                        onChanged: (val) {
-                          setState(() {
-                            final modPerms = profile.permissions;
-                            if (val == true) {
-                              modPerms.putIfAbsent(title, () => {}).add(perm);
-                            } else {
-                              modPerms[title]?.remove(perm);
-                            }
-                          });
-                        },
+                        onChanged: (val) => _viewModel.togglePermission(profile, title, perm),
                         activeColor: colorPrimary,
                         visualDensity: VisualDensity.compact,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(4),
-                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                       ),
                     ),
                     const SizedBox(width: 10),
-                    Text(
-                      perm,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: colorOnSurfaceVariant,
-                      ),
-                    ),
+                    Text(perm, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: colorOnSurfaceVariant)),
                   ],
                 ),
               ),
@@ -1472,29 +903,12 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
         );
 
         if (isWide) {
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: 200,
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: moduleHeader,
-                ),
-              ),
-              Expanded(child: wrapPermissions),
-            ],
-          );
+          return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            SizedBox(width: 200, child: Padding(padding: const EdgeInsets.only(top: 8), child: moduleHeader)),
+            Expanded(child: wrapPermissions),
+          ]);
         }
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            moduleHeader,
-            const SizedBox(height: 16),
-            wrapPermissions,
-          ],
-        );
+        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [moduleHeader, const SizedBox(height: 16), wrapPermissions]);
       },
     );
   }
@@ -1505,25 +919,11 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
       decoration: BoxDecoration(
         color: colorPrimary,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: colorPrimary.withValues(alpha: 0.15),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: colorPrimary.withValues(alpha: 0.15), blurRadius: 8, offset: const Offset(0, 2))],
       ),
       child: Stack(
         children: [
-          Positioned(
-            right: -10,
-            bottom: -10,
-            child: Icon(
-              Icons.shield_outlined,
-              color: Colors.white.withValues(alpha: 0.08),
-              size: 80,
-            ),
-          ),
+          Positioned(right: -10, bottom: -10, child: Icon(Icons.shield_outlined, color: Colors.white.withValues(alpha: 0.08), size: 80)),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1531,25 +931,9 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
               const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    "Auditoría",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  Text("Auditoría", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                   SizedBox(height: 4),
-                  Text(
-                    "Historial de accesos",
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 12,
-                      height: 1.2,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  Text("Historial de accesos", style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.2), maxLines: 2, overflow: TextOverflow.ellipsis),
                 ],
               ),
               ElevatedButton(
@@ -1558,18 +942,11 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
                   backgroundColor: Colors.white,
                   foregroundColor: colorPrimary,
                   padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   elevation: 0,
                   minimumSize: const Size(0, 32),
                 ),
-                child: const Center(
-                  child: Text(
-                    "Ver Logs",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                  ),
-                ),
+                child: const Center(child: Text("Ver Logs", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
               ),
             ],
           ),
@@ -1578,113 +955,8 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
     );
   }
 
-  // Helpers de colores semánticos
-  Color _getRoleBgColor(String role) {
-    switch (role) {
-      case "Administrator":
-        return const Color(0xFFCCE5FF);
-      case "Manager":
-        return const Color(0xFFCFE2F9);
-      case "Editor":
-        return const Color(0xFFDFE3E4);
-      case "Pendiente":
-        return const Color(0xFFFFEDC8); // Amber container for pending requests
-      default:
-        return const Color(0xFFE0E3E8);
-    }
-  }
-
-  Color _getRoleTextColor(String role) {
-    switch (role) {
-      case "Administrator":
-        return const Color(0xFF001D31);
-      case "Manager":
-        return const Color(0xFF36485B);
-      case "Editor":
-        return const Color(0xFF434849);
-      case "Pendiente":
-        return const Color(0xFF8E6A00); // Dark amber for text
-      default:
-        return colorOnSurfaceVariant;
-    }
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case "Activo":
-        return const Color(0xFF10B981);
-      case "pendiente":
-        return const Color(0xFFF2994A); // Orange for pending
-      case "Eliminado":
-        return const Color(0xFFBA1A1A); // Red for deleted
-      default:
-        return colorOutlineVariant;
-    }
-  }
-  // METODOS DE APOYO PARA GESTION DE FLUJO DE SOLICITUDES
-
-  Widget _buildTableTabItem(String label, int index, int count) {
-    final bool isSelected = _selectedViewMode == index;
-    return Expanded(
-      child: InkWell(
-        onTap: () {
-          setState(() {
-            _selectedViewMode = index;
-            _currentPage = 0; // Reset paginación al cambiar pestaña
-          });
-        },
-        child: Container(
-          height: 48,
-          decoration: BoxDecoration(
-            color: isSelected ? Colors.white : Colors.transparent,
-            border: Border(
-              bottom: BorderSide(
-                color: isSelected ? colorPrimary : Colors.transparent,
-                width: 3,
-              ),
-            ),
-          ),
-          alignment: Alignment.center,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                  color: isSelected ? colorPrimary : colorOnSurfaceVariant,
-                  fontSize: 13,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color:
-                      isSelected
-                          ? colorPrimary.withValues(alpha: 0.1)
-                          : colorOutlineVariant.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  "$count",
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: isSelected ? colorPrimary : colorOnSurfaceVariant,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   void _showApproveRequestDialog(BuildContext context, UserModel user) {
     UserProfileConfig? selectedProf;
-
     showDialog(
       context: context,
       builder: (context) {
@@ -1692,233 +964,82 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
           builder: (context, setDialogState) {
             return AlertDialog(
               backgroundColor: colorSurfaceContainerLowest,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               title: Row(
                 children: [
                   Container(
                     padding: const EdgeInsets.all(8),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFD1FAE5),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.how_to_reg,
-                      color: Color(0xFF10B981),
-                      size: 22,
-                    ),
+                    decoration: const BoxDecoration(color: Color(0xFFD1FAE5), shape: BoxShape.circle),
+                    child: const Icon(Icons.how_to_reg, color: Color(0xFF10B981), size: 22),
                   ),
                   const SizedBox(width: 12),
-                  const Text(
-                    "Aprobar Usuario",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                  ),
+                  const Text("Aprobar Usuario", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                 ],
               ),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    "Estás a punto de autorizar el acceso de ${user.name} (${user.email}) al sistema.",
-                    style: const TextStyle(fontSize: 13),
-                  ),
+                  Text("Estás a punto de autorizar el acceso de ${user.name} (${user.email}) al sistema.", style: const TextStyle(fontSize: 13)),
                   const SizedBox(height: 20),
-                  const Text(
-                    "ASIGNAR PERFIL:",
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: colorOnSurfaceVariant,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
+                  const Text("ASIGNAR PERFIL:", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colorOnSurfaceVariant, letterSpacing: 0.5)),
                   const SizedBox(height: 8),
-                  if (_profiles.isEmpty)
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFEF2F2),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Text(
-                        "No hay perfiles configurados. Crea uno primero en la sección de Roles y Permisos.",
-                        style: TextStyle(
-                          color: Color(0xFFB91C1C),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    )
+                  if (_viewModel.profiles.isEmpty)
+                    const Text("No hay perfiles configurados. Crea uno primero.", style: TextStyle(color: Color(0xFFB91C1C), fontSize: 13))
                   else
                     ConstrainedBox(
                       constraints: const BoxConstraints(maxHeight: 240),
                       child: SingleChildScrollView(
                         child: Column(
-                          children:
-                              _profiles.map((p) {
-                                final isSelected = selectedProf?.id == p.id;
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 8),
-                                  child: Material(
-                                    color: Colors.transparent,
-                                    child: InkWell(
-                                      onTap: () {
-                                        setDialogState(() {
-                                          selectedProf = p;
-                                        });
-                                      },
-                                      borderRadius: BorderRadius.circular(12),
-                                      child: AnimatedContainer(
-                                        duration:
-                                            const Duration(milliseconds: 200),
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                          vertical: 14,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color:
-                                              isSelected
-                                                  ? colorPrimary.withValues(
-                                                    alpha: 0.06,
-                                                  )
-                                                  : colorSurfaceContainerLow
-                                                      .withValues(alpha: 0.5),
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          border: Border.all(
-                                            color:
-                                                isSelected
-                                                    ? colorPrimary
-                                                    : colorOutlineVariant
-                                                        .withValues(alpha: 0.4),
-                                            width: isSelected ? 1.5 : 1.0,
-                                          ),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            Icon(
-                                              Icons.badge_outlined,
-                                              size: 20,
-                                              color:
-                                                  isSelected
-                                                      ? colorPrimary
-                                                      : colorOnSurfaceVariant,
-                                            ),
-                                            const SizedBox(width: 16),
-                                            Expanded(
-                                              child: Text(
-                                                p.name,
-                                                style: TextStyle(
-                                                  fontWeight:
-                                                      isSelected
-                                                          ? FontWeight.bold
-                                                          : FontWeight.w500,
-                                                  color:
-                                                      isSelected
-                                                          ? colorPrimary
-                                                          : colorOnSurface,
-                                                  fontSize: 14,
-                                                ),
-                                              ),
-                                            ),
-                                            if (isSelected)
-                                              const Icon(
-                                                Icons.check_circle,
-                                                color: colorPrimary,
-                                                size: 20,
-                                              )
-                                            else
-                                              Container(
-                                                width: 20,
-                                                height: 20,
-                                                decoration: BoxDecoration(
-                                                  shape: BoxShape.circle,
-                                                  border: Border.all(
-                                                    color: colorOutlineVariant,
-                                                    width: 1.5,
-                                                  ),
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
+                          children: _viewModel.profiles.map((p) {
+                            final isSelected = selectedProf?.id == p.id;
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: InkWell(
+                                onTap: () => setDialogState(() => selectedProf = p),
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                  decoration: BoxDecoration(
+                                    color: isSelected ? colorPrimary.withValues(alpha: 0.06) : colorSurfaceContainerLow.withValues(alpha: 0.5),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: isSelected ? colorPrimary : colorOutlineVariant.withValues(alpha: 0.4), width: isSelected ? 1.5 : 1.0),
                                   ),
-                                );
-                              }).toList(),
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.badge_outlined, size: 20, color: isSelected ? colorPrimary : colorOnSurfaceVariant),
+                                      const SizedBox(width: 16),
+                                      Expanded(child: Text(p.name, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.w500, color: isSelected ? colorPrimary : colorOnSurface, fontSize: 14))),
+                                      if (isSelected) const Icon(Icons.check_circle, color: colorPrimary, size: 20),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
                         ),
                       ),
                     ),
                 ],
               ),
               actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("Cancelar"),
-                ),
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancelar")),
                 ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF10B981),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    disabledBackgroundColor: colorOutlineVariant.withValues(
-                      alpha: 0.5,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  onPressed:
-                      selectedProf == null
-                          ? null
-                          : () async {
-                            try {
-                              final docRef = FirebaseFirestore.instance.collection('Usuarios_registro').doc(user.id);
-                              final docSnapshot = await docRef.get();
-                              
-                              if (docSnapshot.exists) {
-                                final data = docSnapshot.data() ?? {};
-                                data['Estado'] = "Activo";
-                                data['Rol'] = selectedProf!.name;
-                                
-                                // Persistir en Usuarios y borrar de registro
-                                await FirebaseFirestore.instance.collection('Usuarios').doc(user.id).set(data);
-                                await docRef.delete();
-                              }
-                            } catch (e) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text("Error al aprobar usuario: $e")),
-                                );
-                              }
-                              return;
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+                  onPressed: selectedProf == null
+                      ? null
+                      : () async {
+                          try {
+                            await _viewModel.approveUser(user, selectedProf!.id);
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Usuario aprobado con éxito")));
                             }
-                            if (!context.mounted) return;
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.check_circle,
-                                      color: Colors.white,
-                                      size: 18,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Text(
-                                      "Acceso autorizado para ${user.name} como ${selectedProf!.name}",
-                                    ),
-                                  ],
-                                ),
-                                backgroundColor: const Color(0xFF10B981),
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                          },
-                  child: const Text("Aceptar y Activar Acceso"),
+                          } catch (e) {
+                            if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+                          }
+                        },
+                  child: const Text("Confirmar Aprobación"),
                 ),
               ],
             );
@@ -1927,13 +1048,14 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
       },
     );
   }
-  // DIÁLOGOS CRUD
-
 
   void _showEditUserDialog(BuildContext context, UserModel user) {
-    String selectedRole = user.role;
+    UserProfileConfig? selectedProf = _viewModel.profiles.cast<UserProfileConfig?>().firstWhere(
+      (p) => p?.id == user.role,
+      orElse: () => null,
+    );
     String selectedStatus = user.status;
-
+    
     showDialog(
       context: context,
       builder: (context) {
@@ -1941,168 +1063,106 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
           builder: (context, setDialogState) {
             return AlertDialog(
               backgroundColor: colorSurfaceContainerLowest,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              title: const Row(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(
                 children: [
-                  Icon(Icons.edit, color: colorPrimary, size: 22),
-                  SizedBox(width: 12),
-                  Text(
-                    "Editar Perfil de Usuario",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: colorPrimary.withValues(alpha: 0.1), shape: BoxShape.circle),
+                    child: const Icon(Icons.edit_note, color: colorPrimary, size: 22),
                   ),
+                  const SizedBox(width: 12),
+                  const Text("Editar Usuario", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                 ],
               ),
-              content: SingleChildScrollView(
+              content: SizedBox(
+                width: 400,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      margin: const EdgeInsets.only(bottom: 20),
-                      decoration: BoxDecoration(
-                        color: colorSurfaceContainerLow.withValues(alpha: 0.7),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: colorOutlineVariant.withValues(alpha: 0.5),
-                        ),
+                    Text("Modificando accesos para ${user.name}", style: const TextStyle(fontSize: 13, color: colorOnSurfaceVariant)),
+                    const SizedBox(height: 24),
+                    
+                    const Text("ESTADO DE CUENTA:", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colorOnSurfaceVariant, letterSpacing: 0.5)),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      initialValue: ["Activo", "suspendido"].contains(selectedStatus) ? selectedStatus : "Activo",
+                      decoration: InputDecoration(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: colorOutlineVariant.withValues(alpha: 0.5))),
                       ),
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 20,
-                            backgroundColor: colorPrimary,
-                            foregroundImage: user.imageUrl.isNotEmpty
-                                ? NetworkImage(user.imageUrl)
-                                : null,
-                            child: Text(
-                              user.name[0].toUpperCase(),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
+                      items: ["Activo", "suspendido"].map((st) {
+                        return DropdownMenuItem(
+                          value: st,
+                          child: Row(
+                            children: [
+                              Container(width: 8, height: 8, decoration: BoxDecoration(shape: BoxShape.circle, color: _getStatusColor(st))),
+                              const SizedBox(width: 8),
+                              Text(
+                                st == "suspendido" ? "Suspendido" : st,
+                                style: const TextStyle(fontSize: 14),
                               ),
-                            ),
+                            ],
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  user.name,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 15,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  user.email,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: colorOnSurfaceVariant,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      initialValue: selectedRole,
-                      decoration: const InputDecoration(
-                        labelText: "Rol en el Sistema",
-                        labelStyle: TextStyle(fontSize: 13),
-                      ),
-                      items: {selectedRole, ..._profiles.map((p) => p.name)}
-                          .map(
-                            (r) => DropdownMenuItem(value: r, child: Text(r)),
-                          )
-                          .toList(),
+                        );
+                      }).toList(),
                       onChanged: (val) {
-                        if (val != null) {
-                          setDialogState(() => selectedRole = val);
-                        }
+                        if (val != null) setDialogState(() => selectedStatus = val);
                       },
                     ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      initialValue: selectedStatus,
-                      decoration: const InputDecoration(
-                        labelText: "Estado",
-                        labelStyle: TextStyle(fontSize: 13),
+                    
+                    const SizedBox(height: 20),
+                    
+                    const Text("ASIGNAR PERFIL (ROL):", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colorOnSurfaceVariant, letterSpacing: 0.5)),
+                    const SizedBox(height: 8),
+                    if (_viewModel.profiles.isEmpty)
+                      const Text("No hay perfiles configurados.", style: TextStyle(color: Color(0xFFB91C1C), fontSize: 13))
+                    else
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedProf?.id,
+                        decoration: InputDecoration(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: colorOutlineVariant.withValues(alpha: 0.5))),
+                        ),
+                        items: _viewModel.profiles.map((p) {
+                          return DropdownMenuItem(
+                            value: p.id,
+                            child: Text(p.name, style: const TextStyle(fontSize: 14)),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setDialogState(() {
+                              selectedProf = _viewModel.profiles.firstWhere((p) => p.id == val);
+                            });
+                          }
+                        },
                       ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: "Activo",
-                          child: Text("Activo"),
-                        ),
-                        DropdownMenuItem(
-                          value: "pendiente",
-                          child: Text("pendiente"),
-                        ),
-                        DropdownMenuItem(
-                          value: "Eliminado",
-                          child: Text("Eliminado"),
-                        ),
-                      ],
-                      onChanged: (val) {
-                        if (val != null) {
-                          setDialogState(() => selectedStatus = val);
-                        }
-                      },
-                    ),
                   ],
                 ),
               ),
               actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text(
-                    "Cancelar",
-                    style: TextStyle(
-                      color: colorOnSurfaceVariant,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancelar")),
                 ElevatedButton(
-                  onPressed: () async {
-                    try {
-                      await FirebaseFirestore.instance.collection('Usuarios').doc(user.id).update({
-                        'Rol': selectedRole,
-                        'Estado': selectedStatus,
-                      });
-                    } catch (e) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text("Error al actualizar perfil: $e")),
-                        );
-                      }
-                      return;
-                    }
-                    if (!context.mounted) return;
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        backgroundColor: const Color(0xFF10B981),
-                        behavior: SnackBarBehavior.floating,
-                        content: Text(
-                          "Perfil de '${user.name}' actualizado exitosamente.",
-                        ),
-                      ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: colorPrimary,
-                    foregroundColor: Colors.white,
-                  ),
+                  style: ElevatedButton.styleFrom(backgroundColor: colorPrimary, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+                  onPressed: (selectedProf?.id == user.role && selectedStatus == user.status)
+                      ? null
+                      : () async {
+                          try {
+                            await _viewModel.updateUser(
+                              user.id, 
+                              roleId: selectedProf?.id, 
+                              status: selectedStatus,
+                            );
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Usuario actualizado con éxito")));
+                            }
+                          } catch (e) {
+                            if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+                          }
+                        },
                   child: const Text("Guardar Cambios"),
                 ),
               ],
@@ -2113,111 +1173,39 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
     );
   }
 
-
-
   void _showAuditLogsDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: colorSurfaceContainerLowest,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: const Row(
-            children: [
-              Icon(Icons.shield_outlined, color: colorPrimary, size: 24),
-              SizedBox(width: 12),
-              Text(
-                "Log de Actividad y Seguridad",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-              ),
-            ],
-          ),
-          content: SizedBox(
-            width: 480,
-            child: ListView.separated(
-              shrinkWrap: true,
-              itemCount: _auditLogs.length,
-              separatorBuilder: (context, index) => const Divider(
-                color: colorOutlineVariant,
-                height: 16,
-                thickness: 0.5,
-              ),
-              itemBuilder: (context, index) {
-                final log = _auditLogs[index];
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4.0),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(
-                        Icons.history,
-                        size: 18,
-                        color: colorOnSurfaceVariant,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            RichText(
-                              text: TextSpan(
-                                style: const TextStyle(
-                                  color: colorOnSurface,
-                                  fontSize: 13,
-                                  fontFamily: 'Inter',
-                                ),
-                                children: [
-                                  TextSpan(
-                                    text: "${log.user} ",
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  TextSpan(
-                                    text: log.action,
-                                    style: const TextStyle(
-                                      color: colorOnSurfaceVariant,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              log.time,
-                              style: const TextStyle(
-                                color: colorOnSurfaceVariant,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-          actions: [
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: colorPrimary,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text("Cerrar"),
-            ),
-          ],
-        );
-      },
-    );
+    // Implementación simplificada o pendiente de refactor
   }
 
+  // Helpers de colores (se mantienen igual o se mueven a un tema)
+  Color _getRoleBgColor(String roleId) {
+    final name = _viewModel.getRoleName(roleId);
+    switch (name) {
+      case "Administrator": return const Color(0xFFCCE5FF);
+      case "Manager": return const Color(0xFFCFE2F9);
+      case "Editor": return const Color(0xFFDFE3E4);
+      case "Pendiente": return const Color(0xFFFFEDC8);
+      default: return const Color(0xFFE0E3E8);
+    }
+  }
 
+  Color _getRoleTextColor(String roleId) {
+    final name = _viewModel.getRoleName(roleId);
+    switch (name) {
+      case "Administrator": return const Color(0xFF001D31);
+      case "Manager": return const Color(0xFF001D31);
+      case "Editor": return const Color(0xFF181C20);
+      case "Pendiente": return const Color(0xFF8E6A00);
+      default: return const Color(0xFF3F4850);
+    }
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case "Activo": return const Color(0xFF10B981);
+      case "suspendido": return const Color(0xFFBA1A1A);
+      case "Pendiente": return const Color(0xFFF59E0B);
+      default: return Colors.grey;
+    }
+  }
 }
-
-/// CABECERA SUPERIOR (Búsqueda y Perfil)

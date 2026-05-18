@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:confianza_admin/firebase_options.dart';
 import 'package:confianza_admin/modulos/sesion/vista_sesion.dart';
 import 'package:confianza_admin/modulos/inicio/vista_inicio.dart';
@@ -22,20 +23,26 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'La Confianza Admin',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF006397)),
-        useMaterial3: true,
-      ),
-      initialRoute: '/',
-      routes: {
-        '/': (context) => const VistaSesion(),
-        '/inicio': (context) => const VistaInicio(),
-        '/generador': (context) => const VistaGenerador(),
-        '/inventario': (context) => const VistaInventario(),
-        '/cierre': (context) => const VistaCierre(),
-        '/usuarios': (context) => const VistaUsuarios(),
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        return MaterialApp(
+          title: 'La Confianza Admin',
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF006397)),
+            useMaterial3: true,
+          ),
+          // Si el usuario ya está autenticado, vamos a /inicio, si no a /
+          initialRoute: snapshot.hasData ? '/inicio' : '/',
+          routes: {
+            '/': (context) => const VistaSesion(),
+            '/inicio': (context) => const VistaInicio(),
+            '/generador': (context) => const VistaGenerador(),
+            '/inventario': (context) => const VistaInventario(),
+            '/cierre': (context) => const VistaCierre(),
+            '/usuarios': (context) => const VistaUsuarios(),
+          },
+        );
       },
     );
   }

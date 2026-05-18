@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:confianza_admin/core/theme/app_colors.dart';
 
 class Header extends StatelessWidget {
@@ -23,6 +24,9 @@ class Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final User? user = FirebaseAuth.instance.currentUser;
+    final String userName = user?.displayName ?? user?.email?.split('@')[0] ?? "Admin User";
+
     return Container(
       height: 64,
       padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -60,7 +64,7 @@ class Header extends StatelessWidget {
             ],
           ),
 
-          // CENTRO: Opciones Dinámicas + Buscador (Flexible y escalable)
+          // CENTRO: Opciones Dinámicas + Buscador
           if (isDesktop)
             Expanded(
               child: Padding(
@@ -176,21 +180,21 @@ class Header extends StatelessWidget {
               Row(
                 children: [
                   if (isDesktop)
-                    const Column(
+                    Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Text(
-                          "Admin User",
-                          style: TextStyle(
+                          userName,
+                          style: const TextStyle(
                             color: AppColors.onSurface,
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        SizedBox(height: 2),
-                        Text(
-                          "SUPER ADMIN",
+                        const SizedBox(height: 2),
+                        const Text(
+                          "ADMINISTRADOR",
                           style: TextStyle(
                             color: AppColors.onSurfaceVariant,
                             fontSize: 10,
@@ -200,30 +204,62 @@ class Header extends StatelessWidget {
                       ],
                     ),
                   const SizedBox(width: 12),
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: AppColors.primaryContainer,
-                        width: 2,
-                      ),
+                  PopupMenuButton<String>(
+                    offset: const Offset(0, 45),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    clipBehavior: Clip.antiAlias,
-                    child: Image.network(
-                      'https://lh3.googleusercontent.com/aida/ADBb0uj8I9f53CpSj40cca_fxt6KDo57B4z5FBtDqrwX6YOaNbbsU1WX7mEhu5cunyifZXLih2dswdROV7dw0Js73dJ6-qs5F2VgSeZBUVN4YFIaVu_oLsBL2c-rstYiGoQhE-uY0TM2gcuR09ryDxDAHAGOxRwKRDsshuF-3NnsAIx7hHyVwi16RaRRLlSy9jG1gnABu5nQv53OELiPWAR5XPkb_VxkSsTmeuvRyhFfaZfhzRVU6MflDLaPguo-x9gcLMgro1_ligRf5Q',
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          color: AppColors.primary,
-                          child: const Icon(
-                            Icons.person,
-                            color: Colors.white,
-                            size: 18,
+                    onSelected: (value) async {
+                      if (value == 'logout') {
+                        await FirebaseAuth.instance.signOut();
+                        if (context.mounted) {
+                          Navigator.pushReplacementNamed(context, '/');
+                        }
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      const PopupMenuItem<String>(
+                        value: 'profile',
+                        child: Row(
+                          children: [
+                            Icon(Icons.person_outline, size: 18, color: AppColors.primary),
+                            SizedBox(width: 12),
+                            Text("Mi Perfil", style: TextStyle(fontSize: 13)),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'logout',
+                        child: Row(
+                          children: [
+                            Icon(Icons.logout, size: 18, color: AppColors.error),
+                            SizedBox(width: 12),
+                            Text("Cerrar sesión", style: TextStyle(fontSize: 13, color: AppColors.error)),
+                          ],
+                        ),
+                      ),
+                    ],
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.primaryContainer,
+                          width: 2,
+                        ),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: user?.photoURL != null 
+                        ? Image.network(user!.photoURL!, fit: BoxFit.cover)
+                        : Container(
+                            color: AppColors.primary,
+                            child: const Icon(
+                              Icons.person,
+                              color: Colors.white,
+                              size: 18,
+                            ),
                           ),
-                        );
-                      },
                     ),
                   ),
                 ],
