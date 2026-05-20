@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'modelos_usuarios.dart';
 import 'servicio_usuarios.dart';
 
@@ -82,6 +83,28 @@ class ViewModelUsuarios extends ChangeNotifier {
       _profiles.isNotEmpty && _selectedProfileIndex < _profiles.length
           ? _profiles[_selectedProfileIndex]
           : null;
+
+  UserModel? get currentUser {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return null;
+    try {
+      return _allUsers.firstWhere((u) => u.id == uid);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  bool get isCurrentUserAdminMaster {
+    final user = currentUser;
+    if (user == null) return false;
+    final roleName = getRoleName(user.role);
+    return roleName == 'Admin Master';
+  }
+
+  List<UserProfileConfig> get assignableRoles {
+    if (isCurrentUserAdminMaster) return _profiles;
+    return _profiles.where((p) => p.name != 'Admin Master').toList();
+  }
 
   String getRoleName(String roleId) {
     if (roleId.isEmpty) return 'Sin Rol';
@@ -212,14 +235,49 @@ class ViewModelUsuarios extends ChangeNotifier {
 
   Future<void> approveUser(UserModel user, String roleId) async {
     try {
+      if (getRoleName(roleId) == 'Admin Master') {
+        throw Exception("No puedes aprobar a un usuario directamente como Admin Master. Asígnale otro rol y luego transfiere el poder.");
+      }
       await _servicio.approveUser(user, roleId);
     } catch (e) {
       rethrow;
     }
   }
 
+  Future<void> transferAdminMaster(String targetUserId) async {
+    final currentUserData = currentUser;
+    if (currentUserData == null) throw Exception("No hay sesión activa.");
+    
+    final adminMasterRole = _profiles.firstWhere(
+      (p) => p.name == 'Admin Master', 
+      orElse: () => throw Exception("Rol Admin Master no encontrado")
+    );
+    final normalAdminRole = _profiles.firstWhere(
+      (p) => p.name == 'Admin', 
+      orElse: () => throw Exception("Rol Admin normal no encontrado")
+    );
+
+    await _servicio.transferAdminMaster(
+      currentMasterUserId: currentUserData.id,
+      newMasterUserId: targetUserId,
+      adminMasterRoleId: adminMasterRole.id,
+      normalAdminRoleId: normalAdminRole.id,
+    );
+  }
+
   Future<void> updateUser(String userId, {String? roleId, String? status}) async {
     try {
+      if (roleId != null && getRoleName(roleId) == 'Admin Master') {
+         // Verificamos si ya es el Admin Master (no hacemos nada si no cambia)
+         final userToUpdate = _allUsers.firstWhere((u) => u.id == userId);
+         if (getRoleName(userToUpdate.role) != 'Admin Master') {
+            await transferAdminMaster(userId);
+            // Solo retornamos si no hay cambios de estado pendientes
+            if (status == null || status == userToUpdate.status) {
+               return; 
+            }
+         }
+      }
       await _servicio.updateUser(userId, roleId: roleId, status: status);
     } catch (e) {
       rethrow;

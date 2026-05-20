@@ -362,10 +362,10 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
                             ),
                             children: [
                               _buildTableHeaderCell("USUARIO"),
-                              _buildTableHeaderCell(_viewModel.selectedViewMode == 1 ? "SOLICITUD" : "ROL"),
+                              _buildTableHeaderCell("ROL"),
                               _buildTableHeaderCell("ESTADO"),
                               _buildTableHeaderCell("ÚLTIMO ACCESO"),
-                              _buildTableHeaderCell(_viewModel.selectedViewMode == 1 ? "DECISIÓN" : "ACCIONES", alignRight: true),
+                              _buildTableHeaderCell("ACCIONES", alignRight: true),
                             ],
                           ),
                           if (filtered.isNotEmpty)
@@ -752,13 +752,14 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
           children: [
             if (isSelected) const Icon(Icons.check_circle, color: colorPrimary, size: 16),
             const SizedBox(width: 8),
-            IconButton(
-              icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFBA1A1A)),
-              onPressed: () => _confirmDeleteProfile(index),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-              splashRadius: 18,
-            ),
+            if (title != 'Admin Master')
+              IconButton(
+                icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFBA1A1A)),
+                onPressed: () => _confirmDeleteProfile(index),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                splashRadius: 18,
+              ),
           ],
         ),
         onTap: () => _viewModel.setSelectedProfileIndex(index),
@@ -1086,12 +1087,15 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
                     
                     const Text("ESTADO DE CUENTA:", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colorOnSurfaceVariant, letterSpacing: 0.5)),
                     const SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
-                      initialValue: ["Activo", "suspendido"].contains(selectedStatus) ? selectedStatus : "Activo",
-                      decoration: InputDecoration(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: colorOutlineVariant.withValues(alpha: 0.5))),
-                      ),
+                    if (_viewModel.getRoleName(user.role) == 'Admin Master')
+                      const Text("Activo (Estado Inmutable)", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: colorPrimary))
+                    else
+                      DropdownButtonFormField<String>(
+                        initialValue: ["Activo", "suspendido"].contains(selectedStatus) ? selectedStatus : "Activo",
+                        decoration: InputDecoration(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: colorOutlineVariant.withValues(alpha: 0.5))),
+                        ),
                       items: ["Activo", "suspendido"].map((st) {
                         return DropdownMenuItem(
                           value: st,
@@ -1116,7 +1120,9 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
                     
                     const Text("ASIGNAR PERFIL (ROL):", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colorOnSurfaceVariant, letterSpacing: 0.5)),
                     const SizedBox(height: 8),
-                    if (_viewModel.profiles.isEmpty)
+                    if (_viewModel.getRoleName(user.role) == 'Admin Master' && !_viewModel.isCurrentUserAdminMaster)
+                      const Text("Admin Master (Rol bloqueado)", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: colorPrimary))
+                    else if (_viewModel.assignableRoles.isEmpty)
                       const Text("No hay perfiles configurados.", style: TextStyle(color: Color(0xFFB91C1C), fontSize: 13))
                     else
                       DropdownButtonFormField<String>(
@@ -1125,7 +1131,7 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: colorOutlineVariant.withValues(alpha: 0.5))),
                         ),
-                        items: _viewModel.profiles.map((p) {
+                        items: _viewModel.assignableRoles.map((p) {
                           return DropdownMenuItem(
                             value: p.id,
                             child: Text(p.name, style: const TextStyle(fontSize: 14)),
@@ -1134,7 +1140,7 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
                         onChanged: (val) {
                           if (val != null) {
                             setDialogState(() {
-                              selectedProf = _viewModel.profiles.firstWhere((p) => p.id == val);
+                              selectedProf = _viewModel.assignableRoles.firstWhere((p) => p.id == val);
                             });
                           }
                         },
@@ -1146,9 +1152,28 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
                 TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancelar")),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: colorPrimary, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-                  onPressed: (selectedProf?.id == user.role && selectedStatus == user.status)
+                  onPressed: (selectedProf?.id == user.role && selectedStatus == user.status) || (_viewModel.getRoleName(user.role) == 'Admin Master' && !_viewModel.isCurrentUserAdminMaster)
                       ? null
                       : () async {
+                          if (selectedProf?.name == 'Admin Master' && _viewModel.getRoleName(user.role) != 'Admin Master') {
+                             final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (c) => AlertDialog(
+                                   title: const Text("⚠ TRANSFERENCIA DE PODER", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                                   content: const Text("Estás a punto de transferir tu rol de 'Admin Master'. Al confirmar, perderás tus privilegios absolutos de forma irreversible y volverás a ser un Admin normal. ¿Estás absolutamente seguro?"),
+                                   actions: [
+                                      TextButton(onPressed: () => Navigator.pop(c, false), child: const Text("Cancelar")),
+                                      ElevatedButton(
+                                        onPressed: () => Navigator.pop(c, true), 
+                                        style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+                                        child: const Text("Sí, Transferir"),
+                                      ),
+                                   ]
+                                )
+                             );
+                             if (confirm != true) return;
+                          }
+
                           try {
                             await _viewModel.updateUser(
                               user.id, 

@@ -143,6 +143,15 @@ class ServicioUsuarios {
 
       final bool isNew = profile.id.startsWith('temp_');
 
+      if (!isNew) {
+        final existingDoc = await _firestore.collection('Roles').doc(profile.id).get();
+        if (existingDoc.exists && existingDoc.data()?['nombre'] == 'Admin Master' && profile.name != 'Admin Master') {
+          throw Exception('No puedes cambiarle el nombre al rol Admin Master.');
+        }
+      } else if (profile.name.trim().toLowerCase() == 'admin master') {
+        throw Exception('El nombre "Admin Master" está reservado para el sistema.');
+      }
+
       final DocumentReference docRef;
       if (isNew) {
         docRef = _firestore.collection('Roles').doc();
@@ -178,11 +187,24 @@ class ServicioUsuarios {
   }
 
   Future<void> deleteRole(String id) async {
+    final doc = await _firestore.collection('Roles').doc(id).get();
+    if (doc.exists && doc.data()?['nombre'] == 'Admin Master') {
+      throw Exception('El rol "Admin Master" es del sistema y no puede ser eliminado.');
+    }
     await _firestore.collection('Roles').doc(id).delete();
   }
 
   Future<void> deletePendingUser(String id) async {
-    // Si están en la misma colección, solo borramos el documento
+    final doc = await _firestore.collection('Usuarios').doc(id).get();
+    if (doc.exists) {
+      final roleId = doc.data()?['Rol'];
+      if (roleId != null) {
+        final rolDoc = await _firestore.collection('Roles').doc(roleId).get();
+        if (rolDoc.exists && rolDoc.data()?['nombre'] == 'Admin Master') {
+          throw Exception('No puedes eliminar al usuario Admin Master.');
+        }
+      }
+    }
     await _firestore.collection('Usuarios').doc(id).delete();
   }
 
@@ -206,6 +228,28 @@ class ServicioUsuarios {
     String? roleId,
     String? status,
   }) async {
+    final doc = await _firestore.collection('Usuarios').doc(userId).get();
+    if (!doc.exists) return;
+
+    final currentRoleId = doc.data()?['Rol'];
+    bool isCurrentlyMaster = false;
+
+    if (currentRoleId != null) {
+      final rolDoc = await _firestore.collection('Roles').doc(currentRoleId).get();
+      if (rolDoc.exists && rolDoc.data()?['nombre'] == 'Admin Master') {
+        isCurrentlyMaster = true;
+      }
+    }
+
+    if (isCurrentlyMaster) {
+      if (status != null && status != 'Activo') {
+        throw Exception('El Admin Master no puede ser suspendido ni modificado de estado.');
+      }
+      if (roleId != null && roleId != currentRoleId) {
+        throw Exception('No puedes quitar el rol de Admin Master directamente. Utiliza la opción de transferir rol.');
+      }
+    }
+
     final Map<String, dynamic> updates = {
       'fecha_actualizacion': DateTime.now().toIso8601String(),
     };
@@ -213,5 +257,29 @@ class ServicioUsuarios {
     if (status != null) updates['Estado'] = status;
 
     await _firestore.collection('Usuarios').doc(userId).update(updates);
+  }
+
+  Future<void> transferAdminMaster({
+    required String currentMasterUserId,
+    required String newMasterUserId,
+    required String adminMasterRoleId,
+    required String normalAdminRoleId,
+  }) async {
+    final batch = _firestore.batch();
+    
+    // El nuevo recibe el poder
+    batch.update(_firestore.collection('Usuarios').doc(newMasterUserId), {
+      'Rol': adminMasterRoleId,
+      'fecha_actualizacion': DateTime.now().toIso8601String(),
+    });
+
+    // El antiguo se degrada a Admin Normal
+    batch.update(_firestore.collection('Usuarios').doc(currentMasterUserId), {
+      'Rol': normalAdminRoleId,
+      'fecha_actualizacion': DateTime.now().toIso8601String(),
+    });
+
+    await batch.commit();
+    debugPrint("DEBUG: Transferencia de poder completada.");
   }
 }

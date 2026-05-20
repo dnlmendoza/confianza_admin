@@ -1,6 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:confianza_admin/core/widgets/admin_layout.dart';
 import 'package:confianza_admin/core/theme/app_colors.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'servicio_generador.dart';
 
 class BarcodeEntry {
   final String id;
@@ -40,6 +45,10 @@ class _VistaGeneradorState extends State<VistaGenerador>
   late final TextEditingController _barcodeController;
   late final TextEditingController _searchQueryController;
 
+  final ServicioGenerador _servicioGenerador = ServicioGenerador();
+  bool _isSaving = false;
+  StreamSubscription<List<BarcodeEntry>>? _codigosSub;
+
   final List<BarcodeEntry> _generatedCodes = [];
   final List<BarcodeEntry> _reprintCodes = [];
   final List<BarcodeEntry> _printQueue = [];
@@ -67,6 +76,21 @@ class _VistaGeneradorState extends State<VistaGenerador>
           _currentBarcode = _barcodeController.text.trim();
         });
       }
+    });
+
+    _codigosSub = _servicioGenerador.listenToCodigos().listen((codigos) {
+      if (!mounted) return;
+      setState(() {
+        _generatedCodes.clear();
+        _reprintCodes.clear();
+        for (var c in codigos) {
+          if (c.hasOriginalCode) {
+            _reprintCodes.add(c);
+          } else {
+            _generatedCodes.add(c);
+          }
+        }
+      });
     });
   }
 
@@ -100,7 +124,7 @@ class _VistaGeneradorState extends State<VistaGenerador>
     return "750${DateTime.now().millisecondsSinceEpoch.toString().substring(0, 9)}0";
   }
 
-  void _saveNewBarcode() {
+  Future<void> _saveNewBarcode() async {
     final name = _nameController.text.trim();
     final barcode = _currentBarcode.trim();
     
@@ -170,35 +194,64 @@ class _VistaGeneradorState extends State<VistaGenerador>
       hasOriginalCode: isOriginal,
     );
 
-    if (isOriginal) {
-      _reprintCodes.insert(0, newEntry);
-    } else {
-      _generatedCodes.insert(0, newEntry);
-    }
-
-    _nameController.clear();
-    _barcodeController.clear();
-    _priceController.text = "0.00";
-    _currentBarcode = '';
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: const Color(0xFF10B981),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(24),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        content: Row(
-          children: [
-            const Icon(Icons.check_circle, color: Colors.white),
-            const SizedBox(width: 12),
-            Text(
-              "Código generado para '$name'",
-              style: const TextStyle(fontWeight: FontWeight.bold),
+    setState(() => _isSaving = true);
+    
+    try {
+      await _servicioGenerador.guardarCodigo(newEntry);
+      
+      _nameController.clear();
+      _barcodeController.clear();
+      _priceController.text = "0.00";
+      _currentBarcode = '';
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(24),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 12),
+                Text(
+                  "Código guardado para '$name'",
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
-    );
-    setState(() {});
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(24),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    e.toString().replaceAll("Exception: ", ""),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
   }
 
   void _addSelectedToPrintQueue() {
@@ -229,6 +282,7 @@ class _VistaGeneradorState extends State<VistaGenerador>
 
   @override
   void dispose() {
+    _codigosSub?.cancel();
     _tabController.dispose();
     _nameController.dispose();
     _priceController.dispose();
@@ -324,6 +378,143 @@ class _VistaGeneradorState extends State<VistaGenerador>
         controller: _tabController,
         children: [_buildGenerateTab(), _buildPrintQueueTab()],
       ),
+    );
+  }
+
+  void _showEditBarcodeDialog(BarcodeEntry entry) {
+    final nameController = TextEditingController(text: entry.name);
+    final priceController = TextEditingController(text: entry.price);
+    bool isSaving = false;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              backgroundColor: AppColors.surfaceContainerLowest,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              title: const Text(
+                "Editar Código de Barras",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Código: ${entry.barcode}", style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: "Nombre del Producto",
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: priceController,
+                    decoration: const InputDecoration(
+                      labelText: "Precio (L.)",
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.number,
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton.icon(
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (c) => AlertDialog(
+                              backgroundColor: AppColors.surfaceContainerLowest,
+                              title: const Text("Eliminar Código"),
+                              content: Text("¿Estás seguro de que deseas eliminar el código ${entry.barcode}? Esta acción no se puede deshacer."),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.pop(c, false), child: const Text("Cancelar")),
+                                ElevatedButton(
+                                  onPressed: () => Navigator.pop(c, true),
+                                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, foregroundColor: Colors.white),
+                                  child: const Text("Eliminar"),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (confirm == true) {
+                            setStateDialog(() => isSaving = true);
+                            try {
+                              await _servicioGenerador.eliminarCodigo(entry.barcode);
+                              if (!context.mounted) return;
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text("Código eliminado exitosamente"), backgroundColor: Color(0xFF10B981)),
+                              );
+                            } catch (e) {
+                              setStateDialog(() => isSaving = false);
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text("Error al eliminar: $e"), backgroundColor: AppColors.error),
+                              );
+                            }
+                          }
+                        },
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  label: const Text("Eliminar"),
+                  style: TextButton.styleFrom(foregroundColor: AppColors.error),
+                ),
+                TextButton(
+                  onPressed: isSaving ? null : () => Navigator.pop(context),
+                  child: const Text("Cancelar"),
+                ),
+                ElevatedButton(
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          if (nameController.text.trim().isEmpty) return;
+                          setStateDialog(() => isSaving = true);
+                          try {
+                            final updated = BarcodeEntry(
+                              id: entry.id,
+                              name: nameController.text.trim(),
+                              barcode: entry.barcode,
+                              price: priceController.text.trim().isEmpty ? "0.00" : priceController.text.trim(),
+                              createdAt: entry.createdAt,
+                              hasOriginalCode: entry.hasOriginalCode,
+                              selectedForPrint: entry.selectedForPrint,
+                            );
+                            await _servicioGenerador.actualizarCodigo(updated);
+                            if (!context.mounted) return;
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Código actualizado exitosamente"),
+                                backgroundColor: Color(0xFF10B981),
+                              ),
+                            );
+                          } catch (e) {
+                            setStateDialog(() => isSaving = false);
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text("Error al actualizar: $e"),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+                  child: isSaving
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text("Guardar"),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -609,7 +800,7 @@ class _VistaGeneradorState extends State<VistaGenerador>
                 width: double.infinity,
                 height: 44,
                 child: ElevatedButton.icon(
-                  onPressed: _currentBarcode.isNotEmpty
+                  onPressed: _currentBarcode.isNotEmpty && !_isSaving
                       ? _saveNewBarcode
                       : null,
                   style: ElevatedButton.styleFrom(
@@ -622,10 +813,12 @@ class _VistaGeneradorState extends State<VistaGenerador>
                     ),
                     elevation: 1,
                   ),
-                  icon: const Icon(Icons.save_alt, size: 18),
-                  label: const Text(
-                    "Guardar y Listar",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  icon: _isSaving
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Icon(Icons.save_alt, size: 18),
+                  label: Text(
+                    _isSaving ? "Guardando..." : "Guardar y Listar",
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                   ),
                 ),
               ),
@@ -1083,11 +1276,12 @@ class _VistaGeneradorState extends State<VistaGenerador>
                   child: Table(
                     columnWidths: const {
                       0: FixedColumnWidth(56),
-                      1: FlexColumnWidth(3.5),
-                      2: FlexColumnWidth(2.2),
-                      3: FlexColumnWidth(1.3),
-                      4: FlexColumnWidth(1.3),
-                      5: FlexColumnWidth(1.3),
+                      1: FlexColumnWidth(),
+                      2: FixedColumnWidth(180),
+                      3: FixedColumnWidth(120),
+                      4: FixedColumnWidth(120),
+                      5: FixedColumnWidth(120),
+                      6: FixedColumnWidth(80),
                     },
                     children: [
                       TableRow(
@@ -1117,6 +1311,7 @@ class _VistaGeneradorState extends State<VistaGenerador>
                           _tHeader("PRECIO", align: TextAlign.center),
                           _tHeader("FECHA", align: TextAlign.center),
                           _tHeader("TIPO", align: TextAlign.center),
+                          _tHeader("ACCIÓN", align: TextAlign.center),
                         ],
                       ),
                       ...entries.map(
@@ -1265,6 +1460,21 @@ class _VistaGeneradorState extends State<VistaGenerador>
                                 ),
                               ),
                             ),
+                            TableCell(
+                              verticalAlignment: TableCellVerticalAlignment.middle,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 4),
+                                child: Center(
+                                  child: IconButton(
+                                    icon: const Icon(Icons.edit_outlined, size: 20, color: AppColors.primary),
+                                    onPressed: () => _showEditBarcodeDialog(entry),
+                                    tooltip: "Editar",
+                                    constraints: const BoxConstraints(),
+                                    padding: const EdgeInsets.all(8),
+                                  ),
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -1372,26 +1582,7 @@ class _VistaGeneradorState extends State<VistaGenerador>
                         ),
                         const SizedBox(width: 12),
                         ElevatedButton.icon(
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.check_circle,
-                                      color: Colors.white,
-                                      size: 20,
-                                    ),
-                                    SizedBox(width: 12),
-                                    Text("Iniciando descarga del PDF..."),
-                                  ],
-                                ),
-                                backgroundColor: Colors.green,
-                                behavior: SnackBarBehavior.floating,
-                                duration: Duration(seconds: 2),
-                              ),
-                            );
-                          },
+                          onPressed: _downloadPdf,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(
                               0xFF0F172A,
@@ -1629,6 +1820,7 @@ class _VistaGeneradorState extends State<VistaGenerador>
                           ElevatedButton.icon(
                             onPressed: () {
                               Navigator.pop(ctx);
+                              _printPdf();
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.primary,
@@ -1854,5 +2046,278 @@ class _VistaGeneradorState extends State<VistaGenerador>
         ),
       ),
     );
+  }
+
+  Future<pw.Document> _generatePdfDocument() async {
+    final pdf = pw.Document();
+    
+    // Agrupar la cola en páginas de 24 etiquetas (4 columnas x 6 filas)
+    final queueChunks = <List<BarcodeEntry>>[];
+    for (var i = 0; i < _printQueue.length; i += 24) {
+      queueChunks.add(
+        _printQueue.sublist(
+          i,
+          i + 24 > _printQueue.length ? _printQueue.length : i + 24,
+        ),
+      );
+    }
+
+    for (var pageIndex = 0; pageIndex < queueChunks.length; pageIndex++) {
+      final chunk = queueChunks[pageIndex];
+
+      // Agrupar los elementos de esta página en filas de 4 columnas
+      final rows = <List<BarcodeEntry>>[];
+      for (var i = 0; i < chunk.length; i += 4) {
+        rows.add(
+          chunk.sublist(
+            i,
+            i + 4 > chunk.length ? chunk.length : i + 4,
+          ),
+        );
+      }
+
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(24),
+          build: (pw.Context context) {
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                // Cabecera de la página (estilo previsualización)
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text(
+                      "CONFIANZA - Etiquetas de Códigos de Barras",
+                      style: pw.TextStyle(
+                        color: PdfColor.fromHex('#64748B'),
+                        fontSize: 10,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.Text(
+                      "Página ${pageIndex + 1} de ${queueChunks.length}  •  ${_printQueue.length} etiquetas",
+                      style: pw.TextStyle(
+                        color: PdfColor.fromHex('#94A3B8'),
+                        fontSize: 9,
+                      ),
+                    ),
+                  ],
+                ),
+                pw.SizedBox(height: 8),
+                pw.Container(
+                  height: 1,
+                  color: PdfColor.fromHex('#E2E8F0'),
+                ),
+                pw.SizedBox(height: 12),
+                
+                // Filas de etiquetas
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: rows.map((rowItems) {
+                    return pw.Padding(
+                      padding: const pw.EdgeInsets.only(bottom: 8),
+                      child: pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.start,
+                        children: [
+                          ...rowItems.map((entry) {
+                            final now = entry.createdAt;
+                            final dateStr =
+                                "${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}";
+                            final modeStr = entry.hasOriginalCode ? 'ORIGINAL' : 'GENERADO';
+                            final pVal = double.tryParse(entry.price.replaceAll(',', '')) ?? 0;
+                            final hasPrice = pVal > 0;
+
+                            return pw.Container(
+                              width: 130.8,
+                              height: 78.5,
+                              padding: const pw.EdgeInsets.all(7),
+                              decoration: pw.BoxDecoration(
+                                color: PdfColors.white,
+                                border: pw.Border.all(color: PdfColors.black, width: 0.5),
+                              ),
+                              child: pw.Column(
+                                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                                children: [
+                                  pw.Row(
+                                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                                    children: [
+                                      pw.Expanded(
+                                        child: pw.Text(
+                                          entry.name.split(" - ").first,
+                                          maxLines: 1,
+                                          overflow: pw.TextOverflow.clip,
+                                          style: pw.TextStyle(
+                                            color: PdfColors.black,
+                                            fontSize: 5.5,
+                                            fontWeight: pw.FontWeight.bold,
+                                            letterSpacing: -0.15,
+                                          ),
+                                        ),
+                                      ),
+                                      if (_showPrice && hasPrice) ...[
+                                        pw.SizedBox(width: 4),
+                                        pw.Text(
+                                          "L. ${entry.price}",
+                                          style: pw.TextStyle(
+                                            color: PdfColors.black,
+                                            fontSize: 6.0,
+                                            fontWeight: pw.FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                  pw.Column(
+                                    mainAxisAlignment: pw.MainAxisAlignment.center,
+                                    children: [
+                                      pw.SizedBox(
+                                        height: 26,
+                                        width: 65,
+                                        child: pw.BarcodeWidget(
+                                          barcode: pw.Barcode.code128(),
+                                          data: entry.barcode,
+                                          drawText: false,
+                                        ),
+                                      ),
+                                      pw.SizedBox(height: 2.5),
+                                      pw.Text(
+                                        entry.barcode,
+                                        style: pw.TextStyle(
+                                          color: PdfColors.black,
+                                          fontSize: 4.2,
+                                          fontWeight: pw.FontWeight.bold,
+                                          letterSpacing: 2.4,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  pw.Container(
+                                    padding: const pw.EdgeInsets.only(top: 3.5),
+                                    decoration: const pw.BoxDecoration(
+                                      border: pw.Border(
+                                        top: pw.BorderSide(color: PdfColors.black, width: 0.3),
+                                      ),
+                                    ),
+                                    child: pw.Row(
+                                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        pw.Text(
+                                          "SISTEMA LA CONFIANZA\nCÓDIGO $modeStr",
+                                          style: pw.TextStyle(
+                                            color: PdfColors.black,
+                                            fontSize: 2.4,
+                                            fontWeight: pw.FontWeight.bold,
+                                          ),
+                                        ),
+                                        pw.Text(
+                                          dateStr,
+                                          style: const pw.TextStyle(
+                                            color: PdfColors.black,
+                                            fontSize: 2.4,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }),
+                          // Rellenar espacios vacíos si la fila no está completa para mantener la alineación
+                          if (rowItems.length < 4)
+                            ...List.generate(
+                              4 - rowItems.length,
+                              (_) => pw.SizedBox(width: 130.8, height: 78.5),
+                            ),
+                        ].expand((w) => [w, pw.SizedBox(width: 8)]).take(7).toList(),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+    }
+    return pdf;
+  }
+
+  Future<void> _downloadPdf() async {
+    if (_printQueue.isEmpty) return;
+
+    // Mostrar SnackBar de inicio
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+            SizedBox(width: 12),
+            Text("Generando PDF de etiquetas..."),
+          ],
+        ),
+        backgroundColor: AppColors.primary,
+        duration: Duration(seconds: 1),
+      ),
+    );
+
+    try {
+      final pdf = await _generatePdfDocument();
+      final pdfBytes = await pdf.save();
+      await Printing.sharePdf(
+        bytes: pdfBytes,
+        filename: 'etiquetas_codigos_barras_${DateTime.now().millisecondsSinceEpoch}.pdf',
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 12),
+                Text("PDF descargado exitosamente"),
+              ],
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("DEBUG: ERROR al descargar PDF: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error al descargar el PDF: $e"),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _printPdf() async {
+    if (_printQueue.isEmpty) return;
+
+    try {
+      final pdf = await _generatePdfDocument();
+      final pdfBytes = await pdf.save();
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => pdfBytes,
+        name: 'etiquetas_codigos_barras',
+      );
+    } catch (e) {
+      debugPrint("DEBUG: ERROR al imprimir PDF: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error al iniciar impresión: $e"),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 }

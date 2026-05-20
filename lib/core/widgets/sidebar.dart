@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:confianza_admin/core/theme/app_colors.dart';
 import 'package:confianza_admin/main.dart'; // For SidebarState
 
@@ -72,6 +73,7 @@ class Sidebar extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12.0),
             children: [
               _buildNavItem(
+                context: context,
                 icon: Icons.group,
                 label: "Usuarios",
                 isActive: activeRoute == '/usuarios',
@@ -84,9 +86,11 @@ class Sidebar extends StatelessWidget {
                 isCollapsed: SidebarState.isCollapsed && !isDrawer,
               ),
               _buildNavItem(
+                context: context,
                 icon: Icons.inventory_outlined,
                 label: "Inventario",
                 isActive: activeRoute == '/inventario',
+                isDisabled: true,
                 onTap: () {
                   if (isDrawer) Navigator.pop(context);
                   if (activeRoute != '/inventario') {
@@ -96,9 +100,11 @@ class Sidebar extends StatelessWidget {
                 isCollapsed: SidebarState.isCollapsed && !isDrawer,
               ),
               _buildNavItem(
+                context: context,
                 icon: Icons.point_of_sale,
                 label: "Cierre de Caja",
                 isActive: activeRoute == '/cierre',
+                isDisabled: true,
                 onTap: () {
                   if (isDrawer) Navigator.pop(context);
                   if (activeRoute != '/cierre') {
@@ -108,13 +114,16 @@ class Sidebar extends StatelessWidget {
                 isCollapsed: SidebarState.isCollapsed && !isDrawer,
               ),
               _buildNavItem(
+                context: context,
                 icon: Icons.storage,
                 label: "Datos",
                 isActive: activeRoute == '/datos',
+                isDisabled: true,
                 onTap: () {},
                 isCollapsed: SidebarState.isCollapsed && !isDrawer,
               ),
               _buildNavItem(
+                context: context,
                 icon: Icons.calendar_view_week_outlined,
                 label: "Códigos de Barras",
                 isActive: activeRoute == '/generador',
@@ -141,6 +150,7 @@ class Sidebar extends StatelessWidget {
             children: [
               if (!isDrawer && onToggleCollapse != null)
                 _buildNavItem(
+                  context: context,
                   icon: SidebarState.isCollapsed
                       ? Icons.chevron_right
                       : Icons.chevron_left,
@@ -150,6 +160,7 @@ class Sidebar extends StatelessWidget {
                   isCollapsed: SidebarState.isCollapsed,
                 ),
               _buildNavItem(
+                context: context,
                 icon: Icons.help_outline,
                 label: "Soporte",
                 isActive: false,
@@ -157,12 +168,16 @@ class Sidebar extends StatelessWidget {
                 isCollapsed: SidebarState.isCollapsed && !isDrawer,
               ),
               _buildNavItem(
+                context: context,
                 icon: Icons.logout,
                 label: "Cerrar Sesión",
                 isActive: false,
-                onTap: () {
+                onTap: () async {
                   if (isDrawer) Navigator.pop(context);
-                  Navigator.pushReplacementNamed(context, '/');
+                  await FirebaseAuth.instance.signOut();
+                  if (context.mounted) {
+                    Navigator.pushReplacementNamed(context, '/');
+                  }
                 },
                 isCollapsed: SidebarState.isCollapsed && !isDrawer,
               ),
@@ -174,16 +189,27 @@ class Sidebar extends StatelessWidget {
   }
 
   Widget _buildNavItem({
+    required BuildContext context,
     required IconData icon,
     required String label,
     required bool isActive,
     required VoidCallback onTap,
     bool isCollapsed = false,
+    bool isDisabled = false,
   }) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onTap,
+        onTap: isDisabled
+            ? () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("Este módulo está en mantenimiento provisionalmente."),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
+            : onTap,
         borderRadius: BorderRadius.circular(8),
         child: Container(
           padding: EdgeInsets.symmetric(
@@ -202,9 +228,11 @@ class Sidebar extends StatelessWidget {
             children: [
               Icon(
                 icon,
-                color: isActive
-                    ? Colors.white
-                    : Colors.white.withValues(alpha: 0.6),
+                color: isDisabled 
+                    ? Colors.white.withValues(alpha: 0.2)
+                    : (isActive
+                        ? Colors.white
+                        : Colors.white.withValues(alpha: 0.6)),
                 size: 20,
               ),
               if (!isCollapsed) ...[
@@ -212,9 +240,11 @@ class Sidebar extends StatelessWidget {
                 Text(
                   label,
                   style: TextStyle(
-                    color: isActive
-                        ? Colors.white
-                        : Colors.white.withValues(alpha: 0.8),
+                    color: isDisabled
+                        ? Colors.white.withValues(alpha: 0.2)
+                        : (isActive
+                            ? Colors.white
+                            : Colors.white.withValues(alpha: 0.8)),
                     fontSize: 13,
                     fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
                   ),

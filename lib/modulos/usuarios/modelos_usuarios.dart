@@ -40,9 +40,13 @@ class UserModel {
   }
 
   factory UserModel.fromFirestore(Map<String, dynamic> json, String id, {required bool isRequest}) {
-    final String nombres = json['Nombres'] as String? ?? '';
-    final String apellidos = json['Apellidos'] as String? ?? '';
-    final String name = '$nombres $apellidos'.trim();
+    final String nombresRaw = (json['Nombres'] as String? ?? '').trim();
+    final String apellidosRaw = (json['Apellidos'] as String? ?? '').trim();
+    
+    final String primerNombre = nombresRaw.isNotEmpty ? nombresRaw.split(RegExp(r'\s+')).first : '';
+    final String primerApellido = apellidosRaw.isNotEmpty ? apellidosRaw.split(RegExp(r'\s+')).first : '';
+    
+    final String name = '$primerNombre $primerApellido'.trim();
     
     // Imprimir llaves del documento para depuración del desarrollador
     debugPrint("Firestore Keys for user '$name': ${json.keys.toList()}");
