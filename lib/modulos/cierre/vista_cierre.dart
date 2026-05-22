@@ -93,10 +93,6 @@ class _VistaCierreState extends State<VistaCierre> {
     return AdminLayout(
       activeRoute: '/cierre',
       title: 'Cierre de Caja',
-      searchController: _searchController,
-      onSearchChanged: (val) {
-        setState(() {});
-      },
       child: LayoutBuilder(
         builder: (context, constraints) {
           final isDesktop = constraints.maxWidth >= 1024;
@@ -309,6 +305,29 @@ class _VistaCierreState extends State<VistaCierre> {
                   ],
                 ),
               ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+            child: Container(
+              height: 38,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: TextField(
+                controller: _searchController,
+                onChanged: (val) {
+                  setState(() {});
+                },
+                decoration: const InputDecoration(
+                  hintText: "Buscar movimientos...",
+                  hintStyle: TextStyle(color: AppColors.onSurfaceVariant, fontSize: 12),
+                  prefixIcon: Icon(Icons.search, size: 18, color: AppColors.onSurfaceVariant),
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(vertical: 10),
+                ),
+              ),
             ),
           ),
 

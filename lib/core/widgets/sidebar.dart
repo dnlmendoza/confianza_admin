@@ -90,7 +90,6 @@ class Sidebar extends StatelessWidget {
                 icon: Icons.inventory_outlined,
                 label: "Inventario",
                 isActive: activeRoute == '/inventario',
-                isDisabled: true,
                 onTap: () {
                   if (isDrawer) Navigator.pop(context);
                   if (activeRoute != '/inventario') {
@@ -111,15 +110,6 @@ class Sidebar extends StatelessWidget {
                     Navigator.pushReplacementNamed(context, '/cierre');
                   }
                 },
-                isCollapsed: SidebarState.isCollapsed && !isDrawer,
-              ),
-              _buildNavItem(
-                context: context,
-                icon: Icons.storage,
-                label: "Datos",
-                isActive: activeRoute == '/datos',
-                isDisabled: true,
-                onTap: () {},
                 isCollapsed: SidebarState.isCollapsed && !isDrawer,
               ),
               _buildNavItem(

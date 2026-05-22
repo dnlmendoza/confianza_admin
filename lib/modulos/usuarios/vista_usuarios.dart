@@ -58,10 +58,6 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
           activeRoute: '/usuarios',
           title: 'Usuarios',
           notifications: notifications,
-          searchController: _searchController,
-          onSearchChanged: (val) {
-            // Ya se maneja con el listener
-          },
           child: LayoutBuilder(
             builder: (context, constraints) {
               final isDesktop = constraints.maxWidth >= 1024;

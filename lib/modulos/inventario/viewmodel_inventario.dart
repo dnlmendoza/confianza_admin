@@ -1,5 +1,39 @@
 import 'package:flutter/material.dart';
 
+class LoteItem {
+  String id;
+  int stock;
+  String fechaIngreso;
+  String fechaVencimiento;
+  String unidades;
+  double costoLote;
+  double costoUnitario;
+  double impuestoCompra;
+  double precioVenta;
+  double impuestoVenta;
+  double gananciaUnidad;
+  double gananciaLote;
+  int danados;
+  String ubicacion;
+
+  LoteItem({
+    required this.id,
+    required this.stock,
+    required this.fechaIngreso,
+    this.fechaVencimiento = "28-02-2027",
+    this.unidades = "Unid",
+    this.costoLote = 108.75,
+    this.costoUnitario = 36.25,
+    this.impuestoCompra = 15.0,
+    this.precioVenta = 42.0,
+    this.impuestoVenta = 15.0,
+    this.gananciaUnidad = 5.75,
+    this.gananciaLote = 17.25,
+    this.danados = 0,
+    this.ubicacion = "Estante A1",
+  });
+}
+
 class ProductItem {
   String name;
   String subtitle;
@@ -9,6 +43,11 @@ class ProductItem {
   int maxStock;
   double price;
   String imageUrl;
+  List<LoteItem> lotes;
+  String provider;
+  int minStock;
+  String productType;
+  String dateEntered;
 
   ProductItem({
     required this.name,
@@ -19,6 +58,11 @@ class ProductItem {
     required this.maxStock,
     required this.price,
     required this.imageUrl,
+    required this.lotes,
+    this.provider = "Bodega",
+    this.minStock = 1,
+    this.productType = "Normal",
+    this.dateEntered = "19-05-26",
   });
 }
 
@@ -49,6 +93,10 @@ class ViewModelInventario extends ChangeNotifier {
       maxStock: 200,
       price: 299.00,
       imageUrl: "https://lh3.googleusercontent.com/aida/ADBb0uhDGSJL6EQq__ES4O2BHuQPLhIu-v_4g9dOUZIK7_T_C3IqAudQPDnEnlH7hHQzst4S2rPl3Mts12ht5Y-_SbdPQUu1ub7GUcjjeYWFhomHxPINBqpxAJBKO90Kswd3b-3rivbPXBAgoRs_1GjMw7pxg8GwrO_1Xbaj96ZaNyENfufKBpOtyMNO8himPTyt-B8P8C6IoXm4_AFO45XaoFL_OjYQdCZP053oRa4BQhctwEdru2Sq18tQtzpUlRRrtCpnf1nIIrF_",
+      lotes: [
+        LoteItem(id: "L-8012", stock: 80, fechaIngreso: "12-04-2026"),
+        LoteItem(id: "L-8013", stock: 76, fechaIngreso: "28-04-2026"),
+      ],
     ),
     ProductItem(
       name: "Mechanic K1 Keyboard",
@@ -59,6 +107,9 @@ class ViewModelInventario extends ChangeNotifier {
       maxStock: 100,
       price: 149.50,
       imageUrl: "https://lh3.googleusercontent.com/aida/ADBb0uie9aXo1SLfhg9oUGqFi4nj1R8WsE7bT8hS8vdtDW1ECX8pNL-Rs-qEps1ft0cRqFODMqLGSDXutWEiHblqTxlePbkM7J1ag0U1jYhlT6NzJ91Um7oobtKxw1OsJxhJQ_7_9VfA-LFK1hQHzAgQy9y6yiGGW1MGZGnFnws73dmYfLqbK30MdXcUhAZ1WGfR1gUjpbzN19DA1IAVrbZN_jgFGMYwIMofXIqznfNk3_ib9SomYPmsyKJkn1iqRjorMszaPyTriM1KZQ",
+      lotes: [
+        LoteItem(id: "L-5021", stock: 12, fechaIngreso: "05-05-2026"),
+      ],
     ),
     ProductItem(
       name: "UltraWide 34\" Display",
@@ -69,6 +120,10 @@ class ViewModelInventario extends ChangeNotifier {
       maxStock: 100,
       price: 599.99,
       imageUrl: "https://lh3.googleusercontent.com/aida/ADBb0uh4Tj2eAXE_OWkZULpzK2h_Q8kPH-6MKNSC3wbUiSjuIeQFgke68asTEoP-OwydyJR-vHaoOza7-NbITPCUY5rVOcE1mVdRPQtX9q0SG1qsAzcLthOhHL7RXQrKwN5MUn190NZySmD45LzmuuocLrnRLtLizsFeVJg17xPdRcoksECY2NRTFBwqGF1qSGBRE0u6S_sNW2K1Y2G-WbYFAKgssRVf1iBWY9t6Y0HlbB1OPEA5Hd3iBoWqR_H4Vf3RS36pKAheDSSlQg",
+      lotes: [
+        LoteItem(id: "L-1090", stock: 30, fechaIngreso: "20-04-2026"),
+        LoteItem(id: "L-1091", stock: 15, fechaIngreso: "10-05-2026"),
+      ],
     ),
     ProductItem(
       name: "ErgoChair X-series",
@@ -79,6 +134,10 @@ class ViewModelInventario extends ChangeNotifier {
       maxStock: 250,
       price: 425.00,
       imageUrl: "https://lh3.googleusercontent.com/aida/ADBb0uj8I9f53CpSj40cca_fxt6KDo57B4z5FBtDqrwX6YOaNbbsU1WX7mEhu5cunyifZXLih2dswdROV7dw0Js73dJ6-qs5F2VgSeZBUVN4YFIaVu_oLsBL2c-rstYiGoQhE-uY0TM2gcuR09ryDxDAHAGOxRwKRDsshuF-3NnsAIx7hHyVwi16RaRRLlSy9jG1gnABu5nQv53OELiPWAR5XPkb_VxkSsTmeuvRyhFfaZfhzRVU6MflDLaPguo-x9gcLMgro1_ligRf5Q",
+      lotes: [
+        LoteItem(id: "L-3033", stock: 110, fechaIngreso: "01-04-2026"),
+        LoteItem(id: "L-3034", stock: 100, fechaIngreso: "15-04-2026"),
+      ],
     ),
   ];
 

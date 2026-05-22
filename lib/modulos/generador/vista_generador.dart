@@ -296,8 +296,6 @@ class _VistaGeneradorState extends State<VistaGenerador>
     return AdminLayout(
       activeRoute: '/generador',
       title: 'Códigos de Barras',
-      searchController: _searchQueryController,
-      onSearchChanged: (v) => setState(() {}),
       centerWidget: SegmentedButton<int>(
         segments: [
           ButtonSegment<int>(
@@ -1217,7 +1215,25 @@ class _VistaGeneradorState extends State<VistaGenerador>
             ),
           ],
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
+        Container(
+          height: 38,
+          decoration: BoxDecoration(
+            color: AppColors.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: TextField(
+            controller: _searchQueryController,
+            decoration: const InputDecoration(
+              hintText: "Buscar códigos de barra o productos...",
+              hintStyle: TextStyle(color: AppColors.onSurfaceVariant, fontSize: 12),
+              prefixIcon: Icon(Icons.search, size: 18, color: AppColors.onSurfaceVariant),
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.symmetric(vertical: 10),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
         _buildCodesTable(
           filteredCodes,
           allSelected,

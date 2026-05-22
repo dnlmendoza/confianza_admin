@@ -13,9 +13,7 @@ import 'package:confianza_admin/modulos/usuarios/vista_usuarios.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const MyApp());
 }
 
@@ -24,7 +22,6 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
@@ -35,7 +32,9 @@ class MyApp extends StatelessWidget {
           builder: (context, child) => InactivitySignOutListener(child: child!),
           title: 'La Confianza Admin',
           theme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF006397)),
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFF006397),
+            ),
             useMaterial3: true,
           ),
           // Si el usuario ya está autenticado, vamos a /inicio, si no a /
@@ -149,7 +148,8 @@ class InactivitySignOutListener extends StatefulWidget {
   const InactivitySignOutListener({super.key, required this.child});
 
   @override
-  State<InactivitySignOutListener> createState() => _InactivitySignOutListenerState();
+  State<InactivitySignOutListener> createState() =>
+      _InactivitySignOutListenerState();
 }
 
 class _InactivitySignOutListenerState extends State<InactivitySignOutListener> {
@@ -178,7 +178,8 @@ class _InactivitySignOutListenerState extends State<InactivitySignOutListener> {
   void _resetTimer() {
     final now = DateTime.now();
     // Throttle interaction updates to once every 2 seconds to avoid timer recreation overhead
-    if (_timer == null || now.difference(_lastInteraction) > const Duration(seconds: 2)) {
+    if (_timer == null ||
+        now.difference(_lastInteraction) > const Duration(seconds: 2)) {
       _lastInteraction = now;
       _timer?.cancel();
       // Temporizador de 10 minutos (600 segundos) para el comportamiento definitivo
@@ -206,4 +207,3 @@ class _InactivitySignOutListenerState extends State<InactivitySignOutListener> {
     );
   }
 }
-
