@@ -215,12 +215,12 @@ class ServicioUsuarios {
 
     // Al estar todo en la misma colección, solo actualizamos el documento
     await _firestore.collection('Usuarios').doc(user.id).update({
-      'Estado': "Activo",
+      'Estado': "Aprobado",
       'Rol': roleId,
       'fecha_aprobacion': DateTime.now().toIso8601String(),
     });
 
-    debugPrint("DEBUG: Aprobación completada con éxito (Update)");
+    debugPrint("DEBUG: Aprobación completada con éxito (Update a Aprobado)");
   }
 
   Future<void> updateUser(

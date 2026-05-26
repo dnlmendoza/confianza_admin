@@ -1431,7 +1431,7 @@ class _VistaGeneradorState extends State<VistaGenerador>
                                   horizontal: 16,
                                 ),
                                 child: Text(
-                                  "${entry.createdAt.day.toString().padLeft(2, '0')}/${entry.createdAt.month.toString().padLeft(2, '0')}/${entry.createdAt.year}",
+                                  "${entry.createdAt.day.toString().padLeft(2, '0')}-${entry.createdAt.month.toString().padLeft(2, '0')}-${entry.createdAt.year}",
                                   textAlign: TextAlign.center,
                                   style: const TextStyle(
                                     color: AppColors.onSurfaceVariant,
@@ -1956,7 +1956,7 @@ class _VistaGeneradorState extends State<VistaGenerador>
   Widget _buildMiniLabel(BarcodeEntry entry) {
     final now = entry.createdAt;
     final dateStr =
-        "${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}";
+        "${now.day.toString().padLeft(2, '0')}-${now.month.toString().padLeft(2, '0')}-${now.year}";
     final modeStr = entry.hasOriginalCode ? 'ORIGINAL' : 'GENERADO';
     final pVal = double.tryParse(entry.price.replaceAll(',', '')) ?? 0;
     final hasPrice = pVal > 0;
@@ -2140,7 +2140,7 @@ class _VistaGeneradorState extends State<VistaGenerador>
                           ...rowItems.map((entry) {
                             final now = entry.createdAt;
                             final dateStr =
-                                "${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}";
+                                "${now.day.toString().padLeft(2, '0')}-${now.month.toString().padLeft(2, '0')}-${now.year}";
                             final modeStr = entry.hasOriginalCode ? 'ORIGINAL' : 'GENERADO';
                             final pVal = double.tryParse(entry.price.replaceAll(',', '')) ?? 0;
                             final hasPrice = pVal > 0;
