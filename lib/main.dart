@@ -10,6 +10,7 @@ import 'package:confianza_admin/modulos/generador/vista_generador.dart';
 import 'package:confianza_admin/modulos/inventario/vista_inventario.dart';
 import 'package:confianza_admin/modulos/cierre/vista_cierre.dart';
 import 'package:confianza_admin/modulos/usuarios/vista_usuarios.dart';
+import 'package:confianza_admin/modulos/pos/vista_pos.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,6 +47,7 @@ class MyApp extends StatelessWidget {
             '/inventario': (context) => const VistaInventario(),
             '/cierre': (context) => const VistaCierre(),
             '/usuarios': (context) => const VistaUsuarios(),
+            '/pos': (context) => const VistaPos(),
           },
         );
       },

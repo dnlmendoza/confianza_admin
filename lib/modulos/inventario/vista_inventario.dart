@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:confianza_admin/core/widgets/admin_layout.dart';
 import 'package:confianza_admin/core/theme/app_colors.dart';
 import 'package:confianza_admin/modulos/inventario/viewmodel_inventario.dart';
+import 'package:confianza_admin/modulos/inventario/vm_catalogos.dart';
 
 class VistaInventario extends StatefulWidget {
   const VistaInventario({super.key});
@@ -19,28 +21,15 @@ class _VistaInventarioState extends State<VistaInventario> {
 
   // Tab State
   int _activeTab = 0; // 0: Inventario y Lotes, 1: Mantenimiento de Catálogos
+  int _activeCatalogTab = 0; // 0: Categorías, 1: Proveedores, 2: Unidades
+  final TextEditingController _catalogSearchController = TextEditingController();
 
-  // Dynamic lists for catalogs
-  final List<String> _categories = [
-    "Electrónica",
-    "Periféricos",
-    "Monitores",
-    "Mobiliario",
-  ];
-  final List<String> _providers = [
-    "TechSource Inc.",
-    "Global Logistics",
-    "Bodega",
-  ];
-  final List<String> _units = [
-    "Unid",
-    "Caja",
-    "Paquete",
-    "Libra",
-    "Kg",
-    "Litro",
-    "Docena",
-  ];
+  // Dynamic lists for catalogs (vinculados al ViewModel)
+  late final VMCatalogos _vmCatalogos;
+
+  List<String> get _categories => _vmCatalogos.categorias;
+  List<String> get _providers => _vmCatalogos.proveedores;
+  List<String> get _units => _vmCatalogos.unidades;
 
   // Lista base del inventario
   final List<ProductItem> _products = [
@@ -155,6 +144,10 @@ class _VistaInventarioState extends State<VistaInventario> {
   @override
   void initState() {
     super.initState();
+    _vmCatalogos = VMCatalogos()..addListener(() {
+      if (mounted) setState(() {});
+    });
+    
     if (_products.isNotEmpty) {
       _selectedProduct = _products.first;
     }
@@ -195,7 +188,9 @@ class _VistaInventarioState extends State<VistaInventario> {
 
   @override
   void dispose() {
+    _vmCatalogos.dispose();
     _searchController.dispose();
+    _catalogSearchController.dispose();
     _nameEditController.dispose();
     _subtitleEditController.dispose();
     _skuEditController.dispose();
@@ -276,9 +271,9 @@ class _VistaInventarioState extends State<VistaInventario> {
 
   // KPI calculations
   int get _totalStock {
-    return _products.fold(0, (sum, item) {
+    return _products.fold(0, (total, item) {
       final activeLot = _getActiveLot(item);
-      return sum + (activeLot?.stock ?? 0);
+      return total + (activeLot?.stock ?? 0);
     });
   }
 
@@ -290,11 +285,11 @@ class _VistaInventarioState extends State<VistaInventario> {
   }
 
   double get _totalValue {
-    return _products.fold(0.0, (sum, item) {
+    return _products.fold(0.0, (total, item) {
       final activeLot = _getActiveLot(item);
       final price = activeLot?.precioVenta ?? item.price;
       final stock = activeLot?.stock ?? 0;
-      return sum + (price * stock);
+      return total + (price * stock);
     });
   }
 
@@ -395,15 +390,11 @@ class _VistaInventarioState extends State<VistaInventario> {
         children: [
           _buildTabButton(
             0,
-            "Gestión de Inventario (PEPS / FIFO)",
+            "Gestión de Inventario",
             Icons.inventory_2_outlined,
           ),
           const SizedBox(width: 12),
-          _buildTabButton(
-            1,
-            "Mantenimiento de Catálogos",
-            Icons.settings_outlined,
-          ),
+          _buildTabButton(1, "Catálogos", Icons.settings_outlined),
         ],
       ),
       child: Column(
@@ -457,7 +448,7 @@ class _VistaInventarioState extends State<VistaInventario> {
             )
           else
             Expanded(
-              child: SingleChildScrollView(
+              child: Padding(
                 padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
                 child: _buildCatalogMaintenance(context),
               ),
@@ -672,181 +663,176 @@ class _VistaInventarioState extends State<VistaInventario> {
                   1: FlexColumnWidth(2), // SKU
                   2: FlexColumnWidth(2), // Categoría
                 },
+                children: [
+                  TableRow(
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceContainerLow,
+                      border: Border(
+                        bottom: BorderSide(
+                          color: AppColors.outlineVariant,
+                          width: 1,
+                        ),
+                      ),
+                    ),
                     children: [
-                      TableRow(
+                      _buildTableHeaderCell("NOMBRE ARTICULO"),
+                      _buildTableHeaderCell("CODIGO BARRAS"),
+                      _buildTableHeaderCell("CATEGORÍA"),
+                    ],
+                  ),
+                  if (filtered.isEmpty)
+                    TableRow(
+                      children: [
+                        TableCell(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 48),
+                            alignment: Alignment.center,
+                            child: const Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.inventory_2_outlined,
+                                  size: 48,
+                                  color: AppColors.outlineVariant,
+                                ),
+                                SizedBox(height: 12),
+                                Text(
+                                  "No se encontraron productos coincidentes",
+                                  style: TextStyle(
+                                    color: AppColors.onSurfaceVariant,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(),
+                        const SizedBox(),
+                      ],
+                    )
+                  else
+                    ...filtered.map((item) {
+                      final isSelected = _selectedProduct == item;
+
+                      return TableRow(
                         decoration: BoxDecoration(
-                          color: AppColors.surfaceContainerLow,
+                          color: isSelected
+                              ? AppColors.primary.withValues(alpha: 0.08)
+                              : null,
                           border: Border(
                             bottom: BorderSide(
                               color: AppColors.outlineVariant,
-                              width: 1,
+                              width: 0.5,
                             ),
                           ),
                         ),
                         children: [
-                          _buildTableHeaderCell("NOMBRE DEL ITEM"),
-                          _buildTableHeaderCell("SKU / BARCODE"),
-                          _buildTableHeaderCell("CATEGORÍA"),
-                        ],
-                      ),
-                      if (filtered.isEmpty)
-                        TableRow(
-                          children: [
-                            TableCell(
-                              child: Container(
+                          // Nombre del Item + Subtítulo
+                          TableCell(
+                            verticalAlignment:
+                                TableCellVerticalAlignment.middle,
+                            child: GestureDetector(
+                              onTap: () => _selectProduct(item),
+                              behavior: HitTestBehavior.opaque,
+                              child: Padding(
                                 padding: const EdgeInsets.symmetric(
-                                  vertical: 48,
+                                  horizontal: 16.0,
+                                  vertical: 12.0,
                                 ),
-                                alignment: Alignment.center,
-                                child: const Column(
-                                  mainAxisSize: MainAxisSize.min,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Icon(
-                                      Icons.inventory_2_outlined,
-                                      size: 48,
-                                      color: AppColors.outlineVariant,
-                                    ),
-                                    SizedBox(height: 12),
                                     Text(
-                                      "No se encontraron productos coincidentes",
-                                      style: TextStyle(
-                                        color: AppColors.onSurfaceVariant,
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w500,
+                                      item.name,
+                                      style: const TextStyle(
+                                        color: AppColors.onSurface,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
                                       ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      item.subtitle,
+                                      style: const TextStyle(
+                                        color: AppColors.onSurfaceVariant,
+                                        fontSize: 12,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ],
                                 ),
                               ),
                             ),
-                            const SizedBox(),
-                            const SizedBox(),
-                          ],
-                        )
-                      else
-                        ...filtered.map((item) {
-                          final isSelected = _selectedProduct == item;
-
-                          return TableRow(
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? AppColors.primary.withValues(alpha: 0.08)
-                                  : null,
-                              border: Border(
-                                bottom: BorderSide(
-                                  color: AppColors.outlineVariant,
-                                  width: 0.5,
+                          ),
+                          // SKU / BARCODE
+                          TableCell(
+                            verticalAlignment:
+                                TableCellVerticalAlignment.middle,
+                            child: GestureDetector(
+                              onTap: () => _selectProduct(item),
+                              behavior: HitTestBehavior.opaque,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16.0,
+                                ),
+                                child: Text(
+                                  item.sku,
+                                  style: const TextStyle(
+                                    fontFamily: 'monospace',
+                                    color: AppColors.onSurfaceVariant,
+                                    fontSize: 13,
+                                  ),
                                 ),
                               ),
                             ),
-                            children: [
-                              // Nombre del Item + Subtítulo
-                              TableCell(
-                                verticalAlignment:
-                                    TableCellVerticalAlignment.middle,
-                                child: GestureDetector(
-                                  onTap: () => _selectProduct(item),
-                                  behavior: HitTestBehavior.opaque,
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 16.0,
-                                      vertical: 12.0,
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          item.name,
-                                          style: const TextStyle(
-                                            color: AppColors.onSurface,
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          item.subtitle,
-                                          style: const TextStyle(
-                                            color: AppColors.onSurfaceVariant,
-                                            fontSize: 12,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
+                          ),
+                          // Categoría Badge
+                          TableCell(
+                            verticalAlignment:
+                                TableCellVerticalAlignment.middle,
+                            child: GestureDetector(
+                              onTap: () => _selectProduct(item),
+                              behavior: HitTestBehavior.opaque,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16.0,
                                 ),
-                              ),
-                              // SKU / BARCODE
-                              TableCell(
-                                verticalAlignment:
-                                    TableCellVerticalAlignment.middle,
-                                child: GestureDetector(
-                                  onTap: () => _selectProduct(item),
-                                  behavior: HitTestBehavior.opaque,
-                                  child: Padding(
+                                child: IntrinsicWidth(
+                                  child: Container(
                                     padding: const EdgeInsets.symmetric(
-                                      horizontal: 16.0,
+                                      horizontal: 10,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary.withValues(
+                                        alpha: 0.08,
+                                      ),
+                                      borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: Text(
-                                      item.sku,
+                                      item.category.toUpperCase(),
                                       style: const TextStyle(
-                                        fontFamily: 'monospace',
-                                        color: AppColors.onSurfaceVariant,
-                                        fontSize: 13,
+                                        color: AppColors.primary,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 0.5,
                                       ),
                                     ),
                                   ),
                                 ),
                               ),
-                              // Categoría Badge
-                              TableCell(
-                                verticalAlignment:
-                                    TableCellVerticalAlignment.middle,
-                                child: GestureDetector(
-                                  onTap: () => _selectProduct(item),
-                                  behavior: HitTestBehavior.opaque,
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 16.0,
-                                    ),
-                                    child: IntrinsicWidth(
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 4,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.primary.withValues(
-                                            alpha: 0.08,
-                                          ),
-                                          borderRadius: BorderRadius.circular(
-                                            4,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          item.category.toUpperCase(),
-                                          style: const TextStyle(
-                                            color: AppColors.primary,
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.bold,
-                                            letterSpacing: 0.5,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          );
-                        }),
-                    ],
-                  ),
-                ),
+                            ),
+                          ),
+                        ],
+                      );
+                    }),
+                ],
               ),
+            ),
+          ),
         ],
       ),
     );
@@ -867,6 +853,7 @@ class _VistaInventarioState extends State<VistaInventario> {
       ),
     );
   }
+
   /// 5. Tarjeta de Detalles del Artículo Seleccionado (Collapsible & Smart)
   Widget _buildArticleDetailsCard(BuildContext context) {
     if (_selectedProduct == null) {
@@ -895,7 +882,9 @@ class _VistaInventarioState extends State<VistaInventario> {
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: AppColors.outlineVariant.withValues(alpha: 0.3)),
+        side: BorderSide(
+          color: AppColors.outlineVariant.withValues(alpha: 0.3),
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -903,208 +892,216 @@ class _VistaInventarioState extends State<VistaInventario> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.inventory_2_outlined,
+                          color: AppColors.primary,
+                          size: 20,
+                        ),
                       ),
-                      child: const Icon(Icons.inventory_2_outlined, color: AppColors.primary, size: 20),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      "Datos del Artículo",
-                      style: GoogleFonts.outfit(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.onSurface,
+                      const SizedBox(width: 12),
+                      Text(
+                        "Datos del Artículo",
+                        style: GoogleFonts.outfit(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.onSurface,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                Row(
-                  children: [
-                    if (showGuardar)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 12.0),
-                        child: ElevatedButton.icon(
-                          onPressed: _saveProductDetails,
-                          icon: const Icon(Icons.save_outlined, size: 18),
-                          label: const Text("Guardar"),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      if (showGuardar)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 12.0),
+                          child: ElevatedButton.icon(
+                            onPressed: _saveProductDetails,
+                            icon: const Icon(Icons.save_outlined, size: 18),
+                            label: const Text("Guardar"),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
                           ),
                         ),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceContainerLow,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: IconButton(
+                          icon: Icon(
+                            _isDetailsExpanded
+                                ? Icons.expand_less
+                                : Icons.expand_more,
+                            color: AppColors.onSurfaceVariant,
+                          ),
+                          tooltip: _isDetailsExpanded
+                              ? "Ocultar detalles"
+                              : "Mostrar detalles",
+                          onPressed: () {
+                            setState(() {
+                              _isDetailsExpanded = !_isDetailsExpanded;
+                            });
+                          },
+                        ),
                       ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                     Container(
+                      width: 130,
                       decoration: BoxDecoration(
                         color: AppColors.surfaceContainerLow,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: IconButton(
-                        icon: Icon(
-                          _isDetailsExpanded
-                              ? Icons.expand_less
-                              : Icons.expand_more,
-                          color: AppColors.onSurfaceVariant,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.04),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                        border: Border.all(
+                          color: AppColors.outlineVariant.withValues(
+                            alpha: 0.3,
+                          ),
                         ),
-                        tooltip: _isDetailsExpanded
-                            ? "Ocultar detalles"
-                            : "Mostrar detalles",
-                        onPressed: () {
-                          setState(() {
-                            _isDetailsExpanded = !_isDetailsExpanded;
-                          });
-                        },
                       ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Container(
-                    width: 130,
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceContainerLow,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 8,
-                        offset: const Offset(0, 4),
-                      )
-                    ],
-                    border: Border.all(
-                      color: AppColors.outlineVariant.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: _selectedProduct!.imageUrl.isNotEmpty
-                      ? Image.network(
-                          _selectedProduct!.imageUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return const Center(
+                      clipBehavior: Clip.antiAlias,
+                      child: _selectedProduct!.imageUrl.isNotEmpty
+                          ? Image.network(
+                              _selectedProduct!.imageUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return const Center(
+                                  child: Icon(
+                                    Icons.image,
+                                    color: AppColors.outlineVariant,
+                                    size: 32,
+                                  ),
+                                );
+                              },
+                            )
+                          : const Center(
                               child: Icon(
                                 Icons.image,
                                 color: AppColors.outlineVariant,
                                 size: 32,
                               ),
-                            );
-                          },
-                        )
-                      : const Center(
-                          child: Icon(
-                            Icons.image,
-                            color: AppColors.outlineVariant,
-                            size: 32,
+                            ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildFormField(
+                            label: "Nombre del Producto",
+                            controller: _nameEditController,
+                            visible: true,
                           ),
-                        ),
+                          _buildFormField(
+                            label: "Descripción / Subtítulo",
+                            controller: _subtitleEditController,
+                            visible: true,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildFormField(
-                        label: "Nombre del Producto",
-                        controller: _nameEditController,
+              ),
+              if (_isDetailsExpanded) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildFormField(
+                        label: "Código de Barra",
+                        controller: _skuEditController,
                         visible: true,
                       ),
-                      _buildFormField(
-                        label: "Descripción / Subtítulo",
-                        controller: _subtitleEditController,
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _buildFormField(
+                        label: "Categoría",
+                        controller: _categoryEditController,
                         visible: true,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildFormField(
+                        label: "Proveedor",
+                        controller: _providerEditController,
+                        visible: true,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _buildFormField(
+                        label: "Cantidad Mínima",
+                        controller: _minStockEditController,
+                        visible: true,
+                      ),
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildFormField(
+                        label: "Tipo de Producto",
+                        controller: _productTypeEditController,
+                        visible: true,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _buildFormField(
+                        label: "Fecha Ingresado",
+                        controller: _dateEnteredEditController,
+                        visible: true,
+                      ),
+                    ),
+                  ],
                 ),
               ],
-            ),
-            ),
-            if (_isDetailsExpanded) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildFormField(
-                      label: "Código de Barra",
-                      controller: _skuEditController,
-                      visible: true,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildFormField(
-                      label: "Categoría",
-                      controller: _categoryEditController,
-                      visible: true,
-                    ),
-                  ),
-                ],
-              ),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildFormField(
-                      label: "Proveedor",
-                      controller: _providerEditController,
-                      visible: true,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildFormField(
-                      label: "Cantidad Mínima",
-                      controller: _minStockEditController,
-                      visible: true,
-                    ),
-                  ),
-                ],
-              ),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildFormField(
-                      label: "Tipo de Producto",
-                      controller: _productTypeEditController,
-                      visible: true,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildFormField(
-                      label: "Fecha Ingresado",
-                      controller: _dateEnteredEditController,
-                      visible: true,
-                    ),
-                  ),
-                ],
-              ),
-            ],
             ],
           ),
         ),
       ),
     );
   }
-
 
   Widget _buildFormField({
     required String label,
@@ -1136,7 +1133,10 @@ class _VistaInventarioState extends State<VistaInventario> {
             decoration: InputDecoration(
               isDense: true,
               hintText: "Ingrese $label",
-              hintStyle: const TextStyle(color: AppColors.outlineVariant, fontSize: 13),
+              hintStyle: const TextStyle(
+                color: AppColors.outlineVariant,
+                fontSize: 13,
+              ),
               filled: true,
               fillColor: AppColors.surfaceContainerLow.withValues(alpha: 0.5),
               contentPadding: const EdgeInsets.symmetric(
@@ -1245,7 +1245,7 @@ class _VistaInventarioState extends State<VistaInventario> {
                           setState(() {
                             // Recalcular stock total del producto
                             _selectedProduct!.stock = _selectedProduct!.lotes
-                                .fold(0, (sum, lot) => sum + lot.stock);
+                                .fold(0, (total, lot) => total + lot.stock);
                           });
                         },
                       );
@@ -1325,19 +1325,15 @@ class _VistaInventarioState extends State<VistaInventario> {
         // Recalcular stock total del producto
         _selectedProduct!.stock = _selectedProduct!.lotes.fold(
           0,
-          (sum, lot) => sum + lot.stock,
+          (total, lot) => total + lot.stock,
         );
       });
     }
   }
 
-
   void _renameCategory(String oldCat, String newCat) {
+    _vmCatalogos.renameCategoria(oldCat, newCat);
     setState(() {
-      final index = _categories.indexOf(oldCat);
-      if (index != -1) {
-        _categories[index] = newCat;
-      }
       for (var product in _products) {
         if (product.category.toLowerCase() == oldCat.toLowerCase()) {
           product.category = newCat;
@@ -1351,12 +1347,9 @@ class _VistaInventarioState extends State<VistaInventario> {
   }
 
   void _deleteCategory(String cat) {
+    _vmCatalogos.deleteCategoria(cat);
     setState(() {
-      _categories.remove(cat);
-      final fallback = _categories.isNotEmpty ? _categories.first : "General";
-      if (_categories.isEmpty) {
-        _categories.add("General");
-      }
+      final fallback = "General";
       for (var product in _products) {
         if (product.category.toLowerCase() == cat.toLowerCase()) {
           product.category = fallback;
@@ -1373,11 +1366,8 @@ class _VistaInventarioState extends State<VistaInventario> {
   }
 
   void _renameProvider(String oldProv, String newProv) {
+    _vmCatalogos.renameProveedor(oldProv, newProv);
     setState(() {
-      final index = _providers.indexOf(oldProv);
-      if (index != -1) {
-        _providers[index] = newProv;
-      }
       for (var product in _products) {
         if (product.provider.toLowerCase() == oldProv.toLowerCase()) {
           product.provider = newProv;
@@ -1390,12 +1380,9 @@ class _VistaInventarioState extends State<VistaInventario> {
   }
 
   void _deleteProvider(String prov) {
+    _vmCatalogos.deleteProveedor(prov);
     setState(() {
-      _providers.remove(prov);
-      final fallback = _providers.isNotEmpty ? _providers.first : "Bodega";
-      if (_providers.isEmpty) {
-        _providers.add("Bodega");
-      }
+      final fallback = "Bodega";
       for (var product in _products) {
         if (product.provider.toLowerCase() == prov.toLowerCase()) {
           product.provider = fallback;
@@ -1411,11 +1398,8 @@ class _VistaInventarioState extends State<VistaInventario> {
   }
 
   void _renameUnit(String oldUnit, String newUnit) {
+    _vmCatalogos.renameUnidad(oldUnit, newUnit);
     setState(() {
-      final index = _units.indexOf(oldUnit);
-      if (index != -1) {
-        _units[index] = newUnit;
-      }
       for (var product in _products) {
         for (var lote in product.lotes) {
           if (lote.unidades.toLowerCase() == oldUnit.toLowerCase()) {
@@ -1430,12 +1414,9 @@ class _VistaInventarioState extends State<VistaInventario> {
   }
 
   void _deleteUnit(String unit) {
+    _vmCatalogos.deleteUnidad(unit);
     setState(() {
-      _units.remove(unit);
-      final fallback = _units.isNotEmpty ? _units.first : "Unid";
-      if (_units.isEmpty) {
-        _units.add("Unid");
-      }
+      final fallback = "Unid";
       for (var product in _products) {
         for (var lote in product.lotes) {
           if (lote.unidades.toLowerCase() == unit.toLowerCase()) {
@@ -1449,286 +1430,92 @@ class _VistaInventarioState extends State<VistaInventario> {
     });
   }
 
-  Widget _buildCatalogMaintenance(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isDesktop = screenWidth >= 1100;
+  Future<int> _fetchCatalogUsageCount(String item, int tabIndex) async {
+    try {
+      final firestore = FirebaseFirestore.instance;
+      if (tabIndex == 0) {
+        // Categorías: Guardan el ID, no el nombre. Primero buscamos el ID.
+        final catSnap = await firestore.collection('Categorias').where('Nombre', isEqualTo: item).get();
+        int count = 0;
+        for (var doc in catSnap.docs) {
+          final snapId = await firestore.collection('Inventario').where('categoria', isEqualTo: doc.id).count().get();
+          count += (snapId.count ?? 0);
+        }
+        // Fallback: por si acaso hay registros antiguos que usaron el texto
+        final snapStr = await firestore.collection('Inventario').where('categoria', isEqualTo: item).count().get();
+        return count + (snapStr.count ?? 0);
+        
+      } else if (tabIndex == 1) {
+        // Proveedores: Igual que categorías
+        final provSnap = await firestore.collection('Proveedores').where('Nombre', isEqualTo: item).get();
+        int count = 0;
+        for (var doc in provSnap.docs) {
+          final snapId = await firestore.collection('Inventario').where('proveedor', isEqualTo: doc.id).count().get();
+          count += (snapId.count ?? 0);
+        }
+        // Fallback texto
+        final snapStr = await firestore.collection('Inventario').where('proveedor', isEqualTo: item).count().get();
+        return count + (snapStr.count ?? 0);
+        
+      } else {
+        // Unidades: Guardan el ID o el texto.
+        final unitSnap = await firestore.collection('Unidades').where('Tipo', isEqualTo: item).get();
+        final List<String> possibleValues = unitSnap.docs.map((d) => d.id).toList();
+        possibleValues.add(item); // Fallback al texto
 
-    final childWidgets = [
-      _CatalogMaintenanceCard(
-        title: "Categorías",
-        items: _categories,
-        icon: Icons.category_outlined,
-        onAdd: (newVal) {
-          if (newVal.isNotEmpty && !_categories.contains(newVal)) {
-            setState(() => _categories.add(newVal));
+        int count = 0;
+        try {
+          // Intentamos usar collectionGroup primero (requiere índice)
+          final snapId = await firestore.collectionGroup('lote').where('unidades', whereIn: possibleValues).count().get();
+          count = snapId.count ?? 0;
+        } catch (e) {
+          debugPrint("Falta índice collectionGroup, usando iteración manual en memoria: $e");
+          final invSnap = await firestore.collection('Inventario').get();
+          
+          final lotesFutures = invSnap.docs.map((doc) => doc.reference.collection('lote').get());
+          final allLotesSnaps = await Future.wait(lotesFutures);
+          
+          for (var lotesSnap in allLotesSnaps) {
+            for (var loteDoc in lotesSnap.docs) {
+              final data = loteDoc.data();
+              if (data.containsKey('unidades')) {
+                final val = data['unidades']?.toString().trim();
+                if (val != null && possibleValues.contains(val)) {
+                  count++;
+                } else if (val != null && val.toLowerCase() == item.toLowerCase()) {
+                  count++;
+                }
+              }
+            }
           }
-        },
-        onRename: (oldVal, newVal) => _renameCategory(oldVal, newVal),
-        onDelete: (val) => _deleteCategory(val),
-      ),
-      _CatalogMaintenanceCard(
-        title: "Proveedores",
-        items: _providers,
-        icon: Icons.local_shipping_outlined,
-        onAdd: (newVal) {
-          if (newVal.isNotEmpty && !_providers.contains(newVal)) {
-            setState(() => _providers.add(newVal));
-          }
-        },
-        onRename: (oldVal, newVal) => _renameProvider(oldVal, newVal),
-        onDelete: (val) => _deleteProvider(val),
-      ),
-      _CatalogMaintenanceCard(
-        title: "Unidades de Medida",
-        items: _units,
-        icon: Icons.square_foot_outlined,
-        onAdd: (newVal) {
-          if (newVal.isNotEmpty && !_units.contains(newVal)) {
-            setState(() => _units.add(newVal));
-          }
-        },
-        onRename: (oldVal, newVal) => _renameUnit(oldVal, newVal),
-        onDelete: (val) => _deleteUnit(val),
-      ),
-    ];
-
-    if (isDesktop) {
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: childWidgets
-            .map(
-              (w) => Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: w,
-                ),
-              ),
-            )
-            .toList(),
-      );
-    } else {
-      return Column(
-        children: childWidgets
-            .map(
-              (w) =>
-                  Padding(padding: const EdgeInsets.only(bottom: 16), child: w),
-            )
-            .toList(),
-      );
+        }
+        return count;
+      }
+    } catch (e) {
+      debugPrint("Error fetching usage: $e");
+      return 0;
     }
   }
-}
 
-class _CatalogMaintenanceCard extends StatefulWidget {
-  final String title;
-  final List<String> items;
-  final IconData icon;
-  final ValueChanged<String> onAdd;
-  final Function(String, String) onRename;
-  final ValueChanged<String> onDelete;
+  void _showAddCatalogDialog(BuildContext context, int tabIndex) {
+    final title = tabIndex == 0 ? "Nueva Categoría" : (tabIndex == 1 ? "Nuevo Proveedor" : "Nueva Unidad");
+    final label = tabIndex == 0 ? "Nombre de la Categoría" : (tabIndex == 1 ? "Nombre del Proveedor" : "Tipo de Unidad");
+    final controller = TextEditingController();
 
-  const _CatalogMaintenanceCard({
-    required this.title,
-    required this.items,
-    required this.icon,
-    required this.onAdd,
-    required this.onRename,
-    required this.onDelete,
-  });
-
-  @override
-  State<_CatalogMaintenanceCard> createState() =>
-      _CatalogMaintenanceCardState();
-}
-
-class _CatalogMaintenanceCardState extends State<_CatalogMaintenanceCard> {
-  final TextEditingController _addController = TextEditingController();
-
-  @override
-  void dispose() {
-    _addController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: AppColors.surfaceContainerLowest,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Header: Title and Icon
-            Row(
-              children: [
-                Icon(widget.icon, color: AppColors.primary, size: 22),
-                const SizedBox(width: 8),
-                Text(
-                  "${widget.title} (${widget.items.length})",
-                  style: GoogleFonts.outfit(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.onSurface,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Add Input Row
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _addController,
-                    decoration: const InputDecoration(
-                      hintText: "Nueva...",
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      border: OutlineInputBorder(),
-                    ),
-                    onFieldSubmitted: (text) {
-                      final val = text.trim();
-                      if (val.isNotEmpty) {
-                        widget.onAdd(val);
-                        _addController.clear();
-                      }
-                    },
-                  ),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: () {
-                    final text = _addController.text.trim();
-                    if (text.isNotEmpty) {
-                      widget.onAdd(text);
-                      _addController.clear();
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    padding: const EdgeInsets.all(12),
-                  ),
-                  child: const Icon(Icons.add, size: 18),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Scrollable List of items
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 350),
-              child: widget.items.isEmpty
-                  ? Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 24.0),
-                      child: Text(
-                        "No hay elementos",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: AppColors.onSurfaceVariant,
-                          fontSize: 13,
-                        ),
-                      ),
-                    )
-                  : ListView.separated(
-                      shrinkWrap: true,
-                      itemCount: widget.items.length,
-                      separatorBuilder: (context, index) => Divider(
-                        color: AppColors.outlineVariant.withValues(alpha: 0.5),
-                      ),
-                      itemBuilder: (context, index) {
-                        final val = widget.items[index];
-                        return ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(
-                            val,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.onSurface,
-                            ),
-                          ),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.edit_outlined,
-                                  size: 18,
-                                  color: AppColors.primary,
-                                ),
-                                onPressed: () => _showRenameCatalogDialog(
-                                  context,
-                                  widget.title,
-                                  val,
-                                  widget.onRename,
-                                ),
-                                tooltip: "Renombrar",
-                              ),
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.delete_outline,
-                                  size: 18,
-                                  color: Color(0xFFBA1A1A),
-                                ),
-                                onPressed: () =>
-                                    _showConfirmDeleteCatalogDialog(
-                                      context,
-                                      widget.title,
-                                      val,
-                                      widget.onDelete,
-                                    ),
-                                tooltip: "Eliminar",
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showRenameCatalogDialog(
-    BuildContext context,
-    String catalogTitle,
-    String oldValue,
-    Function(String, String) onRename,
-  ) {
-    final renameController = TextEditingController(text: oldValue);
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
           backgroundColor: AppColors.surfaceContainerLowest,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Text(
-            "Renombrar en $catalogTitle",
-            style: GoogleFonts.outfit(
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-              color: AppColors.onSurface,
-            ),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(title, style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
           content: TextField(
-            controller: renameController,
-            decoration: const InputDecoration(
-              labelText: "Nuevo Nombre",
-              border: OutlineInputBorder(),
+            controller: controller,
+            decoration: InputDecoration(
+              labelText: label,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             ),
+            autofocus: true,
           ),
           actions: [
             TextButton(
@@ -1736,17 +1523,154 @@ class _CatalogMaintenanceCardState extends State<_CatalogMaintenanceCard> {
               child: const Text("Cancelar"),
             ),
             ElevatedButton(
-              onPressed: () {
-                final newValue = renameController.text.trim();
-                if (newValue.isNotEmpty && newValue != oldValue) {
-                  onRename(oldValue, newValue);
-                  Navigator.pop(context);
-                }
-              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
+              onPressed: () {
+                final val = controller.text.trim();
+                if (val.isNotEmpty) {
+                  if (tabIndex == 0 && !_categories.contains(val)) {
+                    _vmCatalogos.addCategoria(val);
+                  } else if (tabIndex == 1 && !_providers.contains(val)) {
+                    _vmCatalogos.addProveedor(val);
+                  } else if (tabIndex == 2 && !_units.contains(val)) {
+                    _vmCatalogos.addUnidad(val);
+                  }
+                  Navigator.pop(context);
+                }
+              },
+              child: const Text("Guardar"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _confirmDeleteCatalog(BuildContext context, String item, int tabIndex) async {
+    final usage = await _fetchCatalogUsageCount(item, tabIndex);
+    if (!context.mounted) return;
+    
+    final typeStr = tabIndex == 0 ? "categoría" : (tabIndex == 1 ? "proveedor" : "unidad");
+    final fallbackStr = tabIndex == 0 ? "General" : (tabIndex == 1 ? "Bodega" : "Unid");
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: AppColors.surfaceContainerLowest,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
+              const SizedBox(width: 8),
+              Text("Eliminar $typeStr", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("¿Estás seguro que deseas eliminar '$item'?"),
+              if (usage > 0) ...[
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha:0.05),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red.withValues(alpha:0.2)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.info_outline, color: Colors.red, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          "Esta $typeStr está siendo usada por $usage producto(s) o lote(s). Si la eliminas, se reasignarán a '$fallbackStr'.",
+                          style: const TextStyle(color: Colors.red, fontSize: 13),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancelar"),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFBA1A1A),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () {
+                if (tabIndex == 0) {
+                  _deleteCategory(item);
+                } else if (tabIndex == 1) {
+                  _deleteProvider(item);
+                } else {
+                  _deleteUnit(item);
+                }
+                Navigator.pop(context);
+              },
+              child: const Text("Eliminar"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showRenameCatalogDialog(BuildContext context, String item, int tabIndex) {
+    final title = tabIndex == 0 ? "Renombrar Categoría" : (tabIndex == 1 ? "Renombrar Proveedor" : "Renombrar Unidad");
+    final controller = TextEditingController(text: item);
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: AppColors.surfaceContainerLowest,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(title, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18)),
+          content: TextField(
+            controller: controller,
+            decoration: const InputDecoration(
+              labelText: "Nuevo Nombre",
+              border: OutlineInputBorder(),
+            ),
+            autofocus: true,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancelar"),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () {
+                final val = controller.text.trim();
+                if (val.isNotEmpty && val != item) {
+                  if (tabIndex == 0) {
+                    _renameCategory(item, val);
+                  } else if (tabIndex == 1) {
+                    _renameProvider(item, val);
+                  } else {
+                    _renameUnit(item, val);
+                  }
+                  Navigator.pop(context);
+                }
+              },
               child: const Text("Renombrar"),
             ),
           ],
@@ -1755,50 +1679,296 @@ class _CatalogMaintenanceCardState extends State<_CatalogMaintenanceCard> {
     );
   }
 
-  void _showConfirmDeleteCatalogDialog(
-    BuildContext context,
-    String catalogTitle,
-    String value,
-    ValueChanged<String> onDelete,
-  ) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: AppColors.surfaceContainerLowest,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+  Widget _buildCatalogMaintenance(BuildContext context) {
+    final tabs = ["Categorías", "Proveedores", "Unidades de Venta"];
+    final icons = [Icons.category_outlined, Icons.local_shipping_outlined, Icons.square_foot_outlined];
+    
+    List<String> currentList;
+    if (_activeCatalogTab == 0) {
+      currentList = _categories;
+    } else if (_activeCatalogTab == 1) {
+      currentList = _providers;
+    } else {
+      currentList = _units;
+    }
+
+    final searchQuery = _catalogSearchController.text.toLowerCase();
+    if (searchQuery.isNotEmpty) {
+      currentList = currentList.where((e) => e.toLowerCase().contains(searchQuery)).toList();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Top Navigation Tabs
+        Container(
+          height: 50,
+          decoration: BoxDecoration(
+            color: AppColors.surfaceContainerLowest,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.outlineVariant.withValues(alpha:0.5)),
           ),
-          title: Text(
-            "Eliminar de $catalogTitle",
-            style: GoogleFonts.outfit(
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-              color: AppColors.onSurface,
+          child: Row(
+            children: List.generate(tabs.length, (index) {
+              final isSelected = _activeCatalogTab == index;
+              return Expanded(
+                child: InkWell(
+                  onTap: () {
+                    setState(() {
+                      _activeCatalogTab = index;
+                      _catalogSearchController.clear();
+                    });
+                  },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: isSelected ? AppColors.primary.withValues(alpha:0.1) : Colors.transparent,
+                      borderRadius: BorderRadius.circular(11),
+                      border: isSelected ? Border.all(color: AppColors.primary.withValues(alpha:0.3)) : null,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(icons[index], color: isSelected ? AppColors.primary : AppColors.onSurfaceVariant, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          tabs[index],
+                          style: GoogleFonts.outfit(
+                            fontSize: 15,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                            color: isSelected ? AppColors.primary : AppColors.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+        ),
+        const SizedBox(height: 24),
+        
+        // Data Table Card
+        Expanded(
+          child: Card(
+            color: AppColors.surfaceContainerLowest,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            elevation: 2,
+            shadowColor: Colors.black.withValues(alpha:0.05),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Header (Search & Add)
+                Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _catalogSearchController,
+                          onChanged: (_) => setState(() {}),
+                          decoration: InputDecoration(
+                            hintText: "Buscar en ${tabs[_activeCatalogTab].toLowerCase()}...",
+                            prefixIcon: const Icon(Icons.search, color: AppColors.onSurfaceVariant),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(30),
+                              borderSide: const BorderSide(color: AppColors.outlineVariant),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(30),
+                              borderSide: const BorderSide(color: AppColors.outlineVariant),
+                            ),
+                            filled: true,
+                            fillColor: AppColors.surfaceContainerLow,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.add, size: 20),
+                        label: const Text("Añadir Nuevo"),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                          elevation: 0,
+                        ),
+                        onPressed: () => _showAddCatalogDialog(context, _activeCatalogTab),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                
+                // Table Header
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  color: AppColors.surfaceContainerLow.withValues(alpha:0.5),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: Text(
+                          "NOMBRE",
+                          style: GoogleFonts.outfit(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.onSurfaceVariant,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        flex: 2,
+                        child: Text(
+                          "USO (PRODUCTOS/LOTES)",
+                          style: GoogleFonts.outfit(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.onSurfaceVariant,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 100,
+                        child: Text(
+                          "ACCIONES",
+                          textAlign: TextAlign.right,
+                          style: GoogleFonts.outfit(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.onSurfaceVariant,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                
+                // Table Body
+                Expanded(
+                  child: currentList.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.inbox_outlined, size: 64, color: AppColors.outlineVariant),
+                              const SizedBox(height: 16),
+                              const Text(
+                                "No se encontraron resultados",
+                                style: TextStyle(color: AppColors.onSurfaceVariant, fontSize: 16),
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          itemCount: currentList.length,
+                          separatorBuilder: (context, index) => const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final item = currentList[index];
+                            
+                            return FutureBuilder<int>(
+                              future: _fetchCatalogUsageCount(item, _activeCatalogTab),
+                              builder: (context, snapshot) {
+                                final usage = snapshot.data ?? 0;
+                                final isLoading = snapshot.connectionState == ConnectionState.waiting;
+                                
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        flex: 3,
+                                        child: Row(
+                                          children: [
+                                            Container(
+                                              width: 8,
+                                              height: 8,
+                                              decoration: BoxDecoration(
+                                                color: usage > 0 ? AppColors.primary : Colors.grey,
+                                                shape: BoxShape.circle,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Text(
+                                              item,
+                                              style: const TextStyle(
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w600,
+                                                color: AppColors.onSurface,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Expanded(
+                                        flex: 2,
+                                        child: Align(
+                                          alignment: Alignment.centerLeft,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: isLoading 
+                                                  ? Colors.transparent 
+                                                  : (usage > 0 ? AppColors.primary.withValues(alpha: 0.1) : AppColors.surfaceContainerLow),
+                                              borderRadius: BorderRadius.circular(20),
+                                            ),
+                                            child: isLoading 
+                                                ? const SizedBox(
+                                                    width: 12, 
+                                                    height: 12, 
+                                                    child: CircularProgressIndicator(strokeWidth: 2)
+                                                  )
+                                                : Text(
+                                                    usage > 0 ? "$usage asociados" : "Sin uso",
+                                                    style: TextStyle(
+                                                      fontSize: 13,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: usage > 0 ? AppColors.primary : AppColors.onSurfaceVariant,
+                                                    ),
+                                                  ),
+                                          ),
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        width: 100,
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.end,
+                                          children: [
+                                            IconButton(
+                                              icon: const Icon(Icons.edit_outlined, size: 20),
+                                              color: AppColors.primary,
+                                              tooltip: "Renombrar",
+                                              onPressed: () => _showRenameCatalogDialog(context, item, _activeCatalogTab),
+                                            ),
+                                            IconButton(
+                                              icon: const Icon(Icons.delete_outline, size: 20),
+                                              color: Colors.red,
+                                              tooltip: "Eliminar",
+                                              onPressed: () => _confirmDeleteCatalog(context, item, _activeCatalogTab),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }
+                            );
+                          },
+                        ),
+                ),
+              ],
             ),
           ),
-          content: Text(
-            "¿Está seguro de que desea eliminar '$value'? Si hay productos o lotes utilizándolo, se reasignarán automáticamente.",
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Cancelar"),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                onDelete(value);
-                Navigator.pop(context);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFBA1A1A),
-                foregroundColor: Colors.white,
-              ),
-              child: const Text("Eliminar"),
-            ),
-          ],
-        );
-      },
+        ),
+      ],
     );
   }
 }
@@ -1997,6 +2167,11 @@ class _InteractiveLoteRowState extends State<_InteractiveLoteRow> {
     required List<String> options,
     required ValueChanged<String?> onChanged,
   }) {
+    final safeOptions = List<String>.from(options);
+    if (value.isNotEmpty && !safeOptions.contains(value)) {
+      safeOptions.add(value);
+    }
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2010,14 +2185,14 @@ class _InteractiveLoteRowState extends State<_InteractiveLoteRow> {
         ),
         const SizedBox(height: 6),
         DropdownButtonFormField<String>(
-          initialValue: value,
+          initialValue: value.isEmpty && safeOptions.isNotEmpty ? safeOptions.first : (value.isEmpty ? null : value),
           onChanged: onChanged,
           style: const TextStyle(fontSize: 13, color: AppColors.onSurface),
           decoration: const InputDecoration(
             contentPadding: EdgeInsets.symmetric(horizontal: 8),
             border: OutlineInputBorder(),
           ),
-          items: options
+          items: safeOptions
               .map((opt) => DropdownMenuItem(value: opt, child: Text(opt)))
               .toList(),
         ),
@@ -2141,9 +2316,7 @@ class _InteractiveLoteRowState extends State<_InteractiveLoteRow> {
                   ),
               ],
             ),
-            subtitle: Text(
-              "Ingreso: ${widget.lote.fechaIngreso}",
-            ),
+            subtitle: Text("Ingreso: ${widget.lote.fechaIngreso}"),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -2499,38 +2672,47 @@ class _AddLoteDialogState extends State<_AddLoteDialog> {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: DropdownButtonFormField<String>(
-                        initialValue: widget.units.contains(_unidades)
-                            ? _unidades
-                            : (widget.units.isNotEmpty
-                                  ? widget.units.first
-                                  : "Unid"),
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.onSurface,
-                        ),
-                        decoration: const InputDecoration(
-                          labelText: "Unidades",
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
-                          border: OutlineInputBorder(),
-                        ),
-                        items: widget.units
-                            .map(
-                              (opt) => DropdownMenuItem(
-                                value: opt,
-                                child: Text(opt),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            setState(() {
-                              _unidades = val;
-                            });
+                      child: Builder(
+                        builder: (context) {
+                          final initVal = widget.units.contains(_unidades)
+                              ? _unidades
+                              : (widget.units.isNotEmpty
+                                    ? widget.units.first
+                                    : "Unid");
+                          final safeUnits = List<String>.from(widget.units);
+                          if (!safeUnits.contains(initVal)) {
+                            safeUnits.add(initVal);
                           }
+                          return DropdownButtonFormField<String>(
+                            initialValue: initVal,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: AppColors.onSurface,
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: "Unidades",
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              border: OutlineInputBorder(),
+                            ),
+                            items: safeUnits
+                                .map(
+                                  (opt) => DropdownMenuItem(
+                                    value: opt,
+                                    child: Text(opt),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() {
+                                  _unidades = val;
+                                });
+                              }
+                            },
+                          );
                         },
                       ),
                     ),
@@ -2634,7 +2816,6 @@ class _AddLoteDialogState extends State<_AddLoteDialog> {
                     double.tryParse(_impuestoVentaController.text) ?? 15.0,
                 gananciaUnidad: _gananciaUnidad,
                 gananciaLote: _gananciaLote,
-
               );
               Navigator.pop(context, newLote);
             }
