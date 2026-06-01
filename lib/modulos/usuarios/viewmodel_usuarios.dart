@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:confianza_admin/core/config/role_constants.dart';
 import 'modelos_usuarios.dart';
 import 'servicio_usuarios.dart';
 
@@ -97,13 +98,12 @@ class ViewModelUsuarios extends ChangeNotifier {
   bool get isCurrentUserAdminMaster {
     final user = currentUser;
     if (user == null) return false;
-    final roleName = getRoleName(user.role);
-    return roleName == 'Admin Master';
+    return user.role == RoleConstants.adminMasterId;
   }
 
   List<UserProfileConfig> get assignableRoles {
     if (isCurrentUserAdminMaster) return _profiles;
-    return _profiles.where((p) => p.name != 'Admin Master').toList();
+    return _profiles.where((p) => p.id != RoleConstants.adminMasterId).toList();
   }
 
   String getRoleName(String roleId) {
@@ -125,7 +125,7 @@ class ViewModelUsuarios extends ChangeNotifier {
       if (_selectedViewMode == 0) {
         matchesViewMode = item.status == "Activo";
       } else if (_selectedViewMode == 1) {
-        matchesViewMode = item.status == "Pendiente";
+        matchesViewMode = item.status == "Pendiente" || item.status == "Aprobado";
       } else if (_selectedViewMode == 2) {
         matchesViewMode = item.status == "suspendido";
       }
@@ -235,7 +235,7 @@ class ViewModelUsuarios extends ChangeNotifier {
 
   Future<void> approveUser(UserModel user, String roleId) async {
     try {
-      if (getRoleName(roleId) == 'Admin Master') {
+      if (roleId == RoleConstants.adminMasterId) {
         throw Exception("No puedes aprobar a un usuario directamente como Admin Master. Asígnale otro rol y luego transfiere el poder.");
       }
       await _servicio.approveUser(user, roleId);
@@ -249,11 +249,11 @@ class ViewModelUsuarios extends ChangeNotifier {
     if (currentUserData == null) throw Exception("No hay sesión activa.");
     
     final adminMasterRole = _profiles.firstWhere(
-      (p) => p.name == 'Admin Master', 
+      (p) => p.id == RoleConstants.adminMasterId, 
       orElse: () => throw Exception("Rol Admin Master no encontrado")
     );
     final normalAdminRole = _profiles.firstWhere(
-      (p) => p.name == 'Admin', 
+      (p) => p.id == RoleConstants.adminId, 
       orElse: () => throw Exception("Rol Admin normal no encontrado")
     );
 
@@ -267,10 +267,10 @@ class ViewModelUsuarios extends ChangeNotifier {
 
   Future<void> updateUser(String userId, {String? roleId, String? status}) async {
     try {
-      if (roleId != null && getRoleName(roleId) == 'Admin Master') {
+      if (roleId != null && roleId == RoleConstants.adminMasterId) {
          // Verificamos si ya es el Admin Master (no hacemos nada si no cambia)
          final userToUpdate = _allUsers.firstWhere((u) => u.id == userId);
-         if (getRoleName(userToUpdate.role) != 'Admin Master') {
+         if (userToUpdate.role != RoleConstants.adminMasterId) {
             await transferAdminMaster(userId);
             // Solo retornamos si no hay cambios de estado pendientes
             if (status == null || status == userToUpdate.status) {

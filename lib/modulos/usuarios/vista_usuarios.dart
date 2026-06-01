@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:confianza_admin/core/widgets/admin_layout.dart';
 import 'modelos_usuarios.dart';
 import 'viewmodel_usuarios.dart';
+import 'package:confianza_admin/core/config/role_constants.dart';
 
 class VistaUsuarios extends StatefulWidget {
   const VistaUsuarios({super.key});
@@ -45,7 +46,7 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
     return ListenableBuilder(
       listenable: _viewModel,
       builder: (context, _) {
-        final pendingCount = _viewModel.users.where((u) => u.status == "Pendiente").length;
+        final pendingCount = _viewModel.users.where((u) => u.status == "Pendiente" || u.status == "Aprobado").length;
         final notifications = pendingCount > 0
             ? [
                 pendingCount == 1
@@ -118,7 +119,7 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
         ),
         _buildBentoStatCard(
           title: "Solicitudes",
-          value: "${_viewModel.users.where((u) => u.status == 'Pendiente').length}",
+          value: "${_viewModel.users.where((u) => u.status == 'Pendiente' || u.status == 'Aprobado').length}",
           subtitle: "Pendientes de aprobación",
           icon: Icons.person_add_alt_1,
           iconColor: const Color(0xFF8E6A00),
@@ -264,7 +265,7 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
                   child: _buildTableTabItem(
                     "Solicitudes de Acceso",
                     1,
-                    _viewModel.users.where((u) => u.status == 'Pendiente').length,
+                    _viewModel.users.where((u) => u.status == 'Pendiente' || u.status == 'Aprobado').length,
                   ),
                 ),
                 Expanded(
@@ -491,29 +492,35 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
         child: Align(
           alignment: Alignment.centerRight,
           child: _viewModel.selectedViewMode == 1
-              ? Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.cancel_outlined, color: Color(0xFFBA1A1A), size: 20),
-                      onPressed: () => _viewModel.rejectUser(item.id),
-                      tooltip: "Rechazar",
-                    ),
-                    const SizedBox(width: 8),
-                    ElevatedButton.icon(
-                      onPressed: () => _showApproveRequestDialog(context, item),
-                      icon: const Icon(Icons.check, size: 14),
-                      label: const Text("Aprobar"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF10B981),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        minimumSize: const Size(0, 32),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                      ),
-                    ),
-                  ],
-                )
+              ? (item.status == "Aprobado"
+                  ? const SizedBox(
+                      height: 24,
+                      width: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.cancel_outlined, color: Color(0xFFBA1A1A), size: 20),
+                          onPressed: () => _viewModel.rejectUser(item.id),
+                          tooltip: "Rechazar",
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          onPressed: () => _showApproveRequestDialog(context, item),
+                          icon: const Icon(Icons.check, size: 14),
+                          label: const Text("Aprobar"),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF10B981),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            minimumSize: const Size(0, 32),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                          ),
+                        ),
+                      ],
+                    ))
               : ElevatedButton(
                   onPressed: () => _showEditUserDialog(context, item),
                   style: ElevatedButton.styleFrom(
@@ -748,7 +755,7 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
           children: [
             if (isSelected) const Icon(Icons.check_circle, color: colorPrimary, size: 16),
             const SizedBox(width: 8),
-            if (title != 'Admin Master')
+            if (_viewModel.profiles[index].id != RoleConstants.adminMasterId && _viewModel.profiles[index].id != RoleConstants.adminId)
               IconButton(
                 icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFBA1A1A)),
                 onPressed: () => _confirmDeleteProfile(index),
@@ -816,7 +823,22 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
               const Icon(Icons.settings_suggest_outlined, color: colorPrimary, size: 20),
               const SizedBox(width: 10),
               Expanded(
-                child: Text("CONFIGURACIÓN: ${profile.name.toUpperCase()}", style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, letterSpacing: 1, color: colorOnSurface)),
+                child: Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        "CONFIGURACIÓN: ${profile.name.toUpperCase()}", 
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, letterSpacing: 1, color: colorOnSurface),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined, size: 16, color: colorPrimary),
+                      onPressed: () => _showEditProfileNameDialog(context, profile),
+                      tooltip: "Renombrar Perfil",
+                    ),
+                  ],
+                ),
               ),
               TextButton.icon(
                 onPressed: () async {
@@ -1083,8 +1105,12 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
                     
                     const Text("ESTADO DE CUENTA:", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colorOnSurfaceVariant, letterSpacing: 0.5)),
                     const SizedBox(height: 8),
-                    if (_viewModel.getRoleName(user.role) == 'Admin Master')
-                      const Text("Activo (Estado Inmutable)", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: colorPrimary))
+                    if (user.role == RoleConstants.adminMasterId)
+                      Container(
+                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                        decoration: BoxDecoration(color: const Color(0xFFFFF4E5), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFFFD8A8))),
+                        child: const Row(children: [Icon(Icons.warning_amber_rounded, color: Color(0xFFE67E22), size: 16), SizedBox(width: 8), Expanded(child: Text("El usuario principal no puede ser suspendido. Para quitar este privilegio, transfiere el rol a otro usuario.", style: TextStyle(color: Color(0xFFB95E04), fontSize: 11, fontStyle: FontStyle.italic)))]),
+                      )
                     else
                       DropdownButtonFormField<String>(
                         initialValue: ["Activo", "suspendido"].contains(selectedStatus) ? selectedStatus : "Activo",
@@ -1116,7 +1142,7 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
                     
                     const Text("ASIGNAR PERFIL (ROL):", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colorOnSurfaceVariant, letterSpacing: 0.5)),
                     const SizedBox(height: 8),
-                    if (_viewModel.getRoleName(user.role) == 'Admin Master' && !_viewModel.isCurrentUserAdminMaster)
+                    if (user.role == RoleConstants.adminMasterId && !_viewModel.isCurrentUserAdminMaster)
                       const Text("Admin Master (Rol bloqueado)", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: colorPrimary))
                     else if (_viewModel.assignableRoles.isEmpty)
                       const Text("No hay perfiles configurados.", style: TextStyle(color: Color(0xFFB91C1C), fontSize: 13))
@@ -1148,10 +1174,10 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
                 TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancelar")),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: colorPrimary, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-                  onPressed: (selectedProf?.id == user.role && selectedStatus == user.status) || (_viewModel.getRoleName(user.role) == 'Admin Master' && !_viewModel.isCurrentUserAdminMaster)
+                  onPressed: (selectedProf?.id == user.role && selectedStatus == user.status) || (user.role == RoleConstants.adminMasterId && !_viewModel.isCurrentUserAdminMaster)
                       ? null
                       : () async {
-                          if (selectedProf?.name == 'Admin Master' && _viewModel.getRoleName(user.role) != 'Admin Master') {
+                          if (selectedProf?.id == RoleConstants.adminMasterId && user.role != RoleConstants.adminMasterId) {
                              final confirm = await showDialog<bool>(
                                 context: context,
                                 builder: (c) => AlertDialog(
@@ -1194,6 +1220,66 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
     );
   }
 
+  Future<void> _showEditProfileNameDialog(BuildContext context, UserProfileConfig profile) async {
+    final TextEditingController nameController = TextEditingController(text: profile.name);
+    final formKey = GlobalKey<FormState>();
+
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Renombrar Perfil"),
+          content: Form(
+            key: formKey,
+            child: TextFormField(
+              controller: nameController,
+              decoration: const InputDecoration(labelText: "Nuevo Nombre"),
+              validator: (val) {
+                if (val == null || val.trim().isEmpty) return "El nombre no puede estar vacío";
+                return null;
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text("Cancelar"),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: colorPrimary, foregroundColor: Colors.white),
+              onPressed: () {
+                if (formKey.currentState?.validate() ?? false) {
+                  Navigator.pop(context, true);
+                }
+              },
+              child: const Text("Guardar"),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm == true) {
+      final newName = nameController.text.trim();
+      if (newName != profile.name) {
+        profile.name = newName;
+        try {
+          await _viewModel.saveProfile(profile);
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("Perfil renombrado con éxito"), backgroundColor: Color(0xFF10B981)),
+            );
+          }
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("Error al renombrar: $e"), backgroundColor: Colors.red),
+            );
+          }
+        }
+      }
+    }
+  }
   void _showAuditLogsDialog(BuildContext context) {
     // Implementación simplificada o pendiente de refactor
   }
@@ -1224,7 +1310,8 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
   Color _getStatusColor(String status) {
     switch (status) {
       case "Activo": return const Color(0xFF10B981);
-      case "suspendido": return const Color(0xFFBA1A1A);
+      case "Aprobado": return const Color(0xFF10B981);
+      case "suspendido": return const Color(0xFFE67E22);
       case "Pendiente": return const Color(0xFFF59E0B);
       default: return Colors.grey;
     }

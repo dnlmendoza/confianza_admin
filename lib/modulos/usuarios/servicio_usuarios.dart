@@ -1,3 +1,4 @@
+import 'package:confianza_admin/core/config/role_constants.dart';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'modelos_usuarios.dart';
@@ -9,7 +10,7 @@ class ServicioUsuarios {
     debugPrint("DEBUG: Iniciando listenToUsers()");
     return _firestore
         .collection('Usuarios')
-        .where('Estado', isNotEqualTo: 'Pendiente')
+        .where('Estado', whereIn: ['Activo', 'suspendido', 'Eliminado'])
         .snapshots()
         .map((snapshot) {
           debugPrint(
@@ -37,7 +38,7 @@ class ServicioUsuarios {
     debugPrint("DEBUG: Iniciando listenToPendingUsers()");
     return _firestore
         .collection('Usuarios')
-        .where('Estado', isEqualTo: 'Pendiente')
+        .where('Estado', whereIn: ['Pendiente', 'Aprobado'])
         .snapshots()
         .map((snapshot) {
           debugPrint(
@@ -143,15 +144,6 @@ class ServicioUsuarios {
 
       final bool isNew = profile.id.startsWith('temp_');
 
-      if (!isNew) {
-        final existingDoc = await _firestore.collection('Roles').doc(profile.id).get();
-        if (existingDoc.exists && existingDoc.data()?['nombre'] == 'Admin Master' && profile.name != 'Admin Master') {
-          throw Exception('No puedes cambiarle el nombre al rol Admin Master.');
-        }
-      } else if (profile.name.trim().toLowerCase() == 'admin master') {
-        throw Exception('El nombre "Admin Master" está reservado para el sistema.');
-      }
-
       final DocumentReference docRef;
       if (isNew) {
         docRef = _firestore.collection('Roles').doc();
@@ -187,9 +179,8 @@ class ServicioUsuarios {
   }
 
   Future<void> deleteRole(String id) async {
-    final doc = await _firestore.collection('Roles').doc(id).get();
-    if (doc.exists && doc.data()?['nombre'] == 'Admin Master') {
-      throw Exception('El rol "Admin Master" es del sistema y no puede ser eliminado.');
+    if (id == RoleConstants.adminMasterId || id == RoleConstants.adminId) {
+      throw Exception('Los roles "Admin" y "Admin Master" son del sistema y no pueden ser eliminados.');
     }
     await _firestore.collection('Roles').doc(id).delete();
   }
@@ -198,11 +189,8 @@ class ServicioUsuarios {
     final doc = await _firestore.collection('Usuarios').doc(id).get();
     if (doc.exists) {
       final roleId = doc.data()?['Rol'];
-      if (roleId != null) {
-        final rolDoc = await _firestore.collection('Roles').doc(roleId).get();
-        if (rolDoc.exists && rolDoc.data()?['nombre'] == 'Admin Master') {
-          throw Exception('No puedes eliminar al usuario Admin Master.');
-        }
+      if (roleId != null && roleId == RoleConstants.adminMasterId) {
+        throw Exception('No puedes eliminar al usuario Admin Master.');
       }
     }
     await _firestore.collection('Usuarios').doc(id).delete();
@@ -232,14 +220,7 @@ class ServicioUsuarios {
     if (!doc.exists) return;
 
     final currentRoleId = doc.data()?['Rol'];
-    bool isCurrentlyMaster = false;
-
-    if (currentRoleId != null) {
-      final rolDoc = await _firestore.collection('Roles').doc(currentRoleId).get();
-      if (rolDoc.exists && rolDoc.data()?['nombre'] == 'Admin Master') {
-        isCurrentlyMaster = true;
-      }
-    }
+    bool isCurrentlyMaster = currentRoleId == RoleConstants.adminMasterId;
 
     if (isCurrentlyMaster) {
       if (status != null && status != 'Activo') {

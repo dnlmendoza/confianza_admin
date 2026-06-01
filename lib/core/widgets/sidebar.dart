@@ -21,48 +21,51 @@ class Sidebar extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // Cabecera de la Marca
-        InkWell(
-          onTap: () {
-            if (isDrawer) Navigator.pop(context);
-            if (activeRoute != '/inicio') {
-              Navigator.pushReplacementNamed(context, '/inicio');
-            }
-          },
-          borderRadius: BorderRadius.circular(8),
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: SidebarState.isCollapsed && !isDrawer ? 12.0 : 24.0,
-              vertical: 24.0,
-            ),
-            child: Column(
-              crossAxisAlignment: SidebarState.isCollapsed && !isDrawer
-                  ? CrossAxisAlignment.center
-                  : CrossAxisAlignment.start,
-              children: [
-                Text(
-                  SidebarState.isCollapsed && !isDrawer
-                      ? "LC"
-                      : "La Confianza admin",
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                if (!(SidebarState.isCollapsed && !isDrawer)) ...[
-                  const SizedBox(height: 4),
+        Tooltip(
+          message: "Inicio",
+          child: InkWell(
+            onTap: () {
+              if (isDrawer) Navigator.pop(context);
+              if (activeRoute != '/inicio') {
+                Navigator.pushReplacementNamed(context, '/inicio');
+              }
+            },
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: SidebarState.isCollapsed && !isDrawer ? 12.0 : 24.0,
+                vertical: 24.0,
+              ),
+              child: Column(
+                crossAxisAlignment: SidebarState.isCollapsed && !isDrawer
+                    ? CrossAxisAlignment.center
+                    : CrossAxisAlignment.start,
+                children: [
                   Text(
-                    "Panel de Control",
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.3),
-                      fontSize: 10,
+                    SidebarState.isCollapsed && !isDrawer
+                        ? "LC"
+                        : "La Confianza admin",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      letterSpacing: 1.5,
+                      letterSpacing: -0.5,
                     ),
                   ),
+                  if (!(SidebarState.isCollapsed && !isDrawer)) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      "Panel de Control",
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.3),
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
@@ -101,7 +104,7 @@ class Sidebar extends StatelessWidget {
               _buildNavItem(
                 context: context,
                 icon: Icons.smartphone,
-                label: "POS",
+                label: "Instalador",
                 isActive: activeRoute == '/pos',
                 onTap: () {
                   if (isDrawer) Navigator.pop(context);
@@ -110,6 +113,7 @@ class Sidebar extends StatelessWidget {
                   }
                 },
                 isCollapsed: SidebarState.isCollapsed && !isDrawer,
+                isDisabled: true, // Bloqueado provisionalmente
               ),
               _buildNavItem(
                 context: context,
@@ -200,60 +204,63 @@ class Sidebar extends StatelessWidget {
     bool isCollapsed = false,
     bool isDisabled = false,
   }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: isDisabled
-            ? () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("Este módulo está en mantenimiento provisionalmente."),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              }
-            : onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: isCollapsed ? 8.0 : 16.0,
-            vertical: 12.0,
-          ),
-          margin: const EdgeInsets.symmetric(vertical: 2.0),
-          decoration: BoxDecoration(
-            color: isActive ? AppColors.primary : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            mainAxisAlignment: isCollapsed
-                ? MainAxisAlignment.center
-                : MainAxisAlignment.start,
-            children: [
-              Icon(
-                icon,
-                color: isDisabled 
-                    ? Colors.white.withValues(alpha: 0.2)
-                    : (isActive
-                        ? Colors.white
-                        : Colors.white.withValues(alpha: 0.6)),
-                size: 20,
-              ),
-              if (!isCollapsed) ...[
-                const SizedBox(width: 16),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: isDisabled
-                        ? Colors.white.withValues(alpha: 0.2)
-                        : (isActive
-                            ? Colors.white
-                            : Colors.white.withValues(alpha: 0.8)),
-                    fontSize: 13,
-                    fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-                  ),
+    return Tooltip(
+      message: label,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isDisabled
+              ? () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Este módulo está en mantenimiento provisionalmente."),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                }
+              : onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: isCollapsed ? 8.0 : 16.0,
+              vertical: 12.0,
+            ),
+            margin: const EdgeInsets.symmetric(vertical: 2.0),
+            decoration: BoxDecoration(
+              color: isActive ? AppColors.primary : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisAlignment: isCollapsed
+                  ? MainAxisAlignment.center
+                  : MainAxisAlignment.start,
+              children: [
+                Icon(
+                  icon,
+                  color: isDisabled 
+                      ? Colors.white.withValues(alpha: 0.2)
+                      : (isActive
+                          ? Colors.white
+                          : Colors.white.withValues(alpha: 0.6)),
+                  size: 20,
                 ),
+                if (!isCollapsed) ...[
+                  const SizedBox(width: 16),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: isDisabled
+                          ? Colors.white.withValues(alpha: 0.2)
+                          : (isActive
+                              ? Colors.white
+                              : Colors.white.withValues(alpha: 0.8)),
+                      fontSize: 13,
+                      fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

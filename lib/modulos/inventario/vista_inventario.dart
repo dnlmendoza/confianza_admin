@@ -654,6 +654,78 @@ class _VistaInventarioState extends State<VistaInventario> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Header y Buscador
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: const BoxDecoration(
+              color: AppColors.surfaceContainerLow,
+              border: Border(
+                bottom: BorderSide(
+                  color: AppColors.outlineVariant,
+                  width: 1,
+                ),
+              ),
+            ),
+            child: Row(
+              children: [
+                const Expanded(
+                  flex: 1,
+                  child: Text(
+                    "Artículos",
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.onSurface,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: Container(
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceContainerLowest,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: AppColors.outlineVariant.withValues(alpha: 0.5),
+                      ),
+                    ),
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: (_) {
+                        setState(() {}); // Actualiza la tabla al buscar
+                      },
+                      decoration: InputDecoration(
+                        hintText: "Buscar nombre o código...",
+                        hintStyle: const TextStyle(
+                          color: AppColors.onSurfaceVariant,
+                          fontSize: 13,
+                        ),
+                        prefixIcon: const Icon(
+                          Icons.search,
+                          size: 18,
+                          color: AppColors.onSurfaceVariant,
+                        ),
+                        suffixIcon: _searchController.text.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, size: 16),
+                                padding: EdgeInsets.zero,
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() {});
+                                },
+                              )
+                            : null,
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
           // Tabla con scroll vertical
           Expanded(
             child: SingleChildScrollView(
@@ -2000,30 +2072,28 @@ class _InteractiveLoteRowState extends State<_InteractiveLoteRow> {
   late final TextEditingController _precioVentaController;
   late final TextEditingController _impuestoCompraController;
   late final TextEditingController _impuestoVentaController;
+
+  late final TextEditingController _costoLoteController;
+  late final TextEditingController _gananciaUnidadController;
+  late final TextEditingController _gananciaLoteController;
+
   late String _unidades;
 
   @override
   void initState() {
     super.initState();
-    _stockController = TextEditingController(
-      text: widget.lote.stock.toString(),
-    );
-    _danadosController = TextEditingController(
-      text: widget.lote.danados.toString(),
-    );
+    _stockController = TextEditingController(text: widget.lote.stock.toString());
+    _danadosController = TextEditingController(text: widget.lote.danados.toString());
 
-    _costoUnitarioController = TextEditingController(
-      text: widget.lote.costoUnitario.toString(),
-    );
-    _precioVentaController = TextEditingController(
-      text: widget.lote.precioVenta.toString(),
-    );
-    _impuestoCompraController = TextEditingController(
-      text: widget.lote.impuestoCompra.toStringAsFixed(0),
-    );
-    _impuestoVentaController = TextEditingController(
-      text: widget.lote.impuestoVenta.toStringAsFixed(0),
-    );
+    _costoUnitarioController = TextEditingController(text: widget.lote.costoUnitario.toString());
+    _precioVentaController = TextEditingController(text: widget.lote.precioVenta.toString());
+    _impuestoCompraController = TextEditingController(text: widget.lote.impuestoCompra.toStringAsFixed(0));
+    _impuestoVentaController = TextEditingController(text: widget.lote.impuestoVenta.toStringAsFixed(0));
+
+    _costoLoteController = TextEditingController(text: widget.lote.costoLote.toStringAsFixed(2));
+    _gananciaUnidadController = TextEditingController(text: widget.lote.gananciaUnidad.toStringAsFixed(2));
+    _gananciaLoteController = TextEditingController(text: widget.lote.gananciaLote.toStringAsFixed(2));
+
     _unidades = widget.lote.unidades;
     if (!widget.units.contains(_unidades) && widget.units.isNotEmpty) {
       _unidades = widget.units.first;
@@ -2036,6 +2106,10 @@ class _InteractiveLoteRowState extends State<_InteractiveLoteRow> {
     _precioVentaController.addListener(_onFieldsChanged);
     _impuestoCompraController.addListener(_onFieldsChanged);
     _impuestoVentaController.addListener(_onFieldsChanged);
+    
+    _costoLoteController.addListener(_onDerivedFieldsChanged);
+    _gananciaUnidadController.addListener(_onDerivedFieldsChanged);
+    _gananciaLoteController.addListener(_onDerivedFieldsChanged);
   }
 
   @override
@@ -2047,6 +2121,10 @@ class _InteractiveLoteRowState extends State<_InteractiveLoteRow> {
     _precioVentaController.dispose();
     _impuestoCompraController.dispose();
     _impuestoVentaController.dispose();
+
+    _costoLoteController.dispose();
+    _gananciaUnidadController.dispose();
+    _gananciaLoteController.dispose();
     super.dispose();
   }
 
@@ -2055,22 +2133,38 @@ class _InteractiveLoteRowState extends State<_InteractiveLoteRow> {
       widget.lote.stock = int.tryParse(_stockController.text) ?? 0;
       widget.lote.danados = int.tryParse(_danadosController.text) ?? 0;
 
-      widget.lote.costoUnitario =
-          double.tryParse(_costoUnitarioController.text) ?? 0.0;
-      widget.lote.precioVenta =
-          double.tryParse(_precioVentaController.text) ?? 0.0;
-      widget.lote.impuestoCompra =
-          double.tryParse(_impuestoCompraController.text) ?? 0.0;
-      widget.lote.impuestoVenta =
-          double.tryParse(_impuestoVentaController.text) ?? 0.0;
+      widget.lote.costoUnitario = double.tryParse(_costoUnitarioController.text) ?? 0.0;
+      widget.lote.precioVenta = double.tryParse(_precioVentaController.text) ?? 0.0;
+      widget.lote.impuestoCompra = double.tryParse(_impuestoCompraController.text) ?? 0.0;
+      widget.lote.impuestoVenta = double.tryParse(_impuestoVentaController.text) ?? 0.0;
       widget.lote.unidades = _unidades;
 
       // Derived calculations
-      widget.lote.costoLote = widget.lote.costoUnitario * widget.lote.stock;
-      widget.lote.gananciaUnidad =
-          widget.lote.precioVenta - widget.lote.costoUnitario;
-      widget.lote.gananciaLote = widget.lote.gananciaUnidad * widget.lote.stock;
+      final calcCostoLote = widget.lote.costoUnitario * widget.lote.stock;
+      final calcGananciaUnidad = widget.lote.precioVenta - widget.lote.costoUnitario;
+      final calcGananciaLote = calcGananciaUnidad * widget.lote.stock;
+
+      if (_costoLoteController.text != calcCostoLote.toStringAsFixed(2)) {
+         _costoLoteController.text = calcCostoLote.toStringAsFixed(2);
+      }
+      if (_gananciaUnidadController.text != calcGananciaUnidad.toStringAsFixed(2)) {
+         _gananciaUnidadController.text = calcGananciaUnidad.toStringAsFixed(2);
+      }
+      if (_gananciaLoteController.text != calcGananciaLote.toStringAsFixed(2)) {
+         _gananciaLoteController.text = calcGananciaLote.toStringAsFixed(2);
+      }
+
+      widget.lote.costoLote = calcCostoLote;
+      widget.lote.gananciaUnidad = calcGananciaUnidad;
+      widget.lote.gananciaLote = calcGananciaLote;
     });
+    widget.onChanged();
+  }
+
+  void _onDerivedFieldsChanged() {
+    widget.lote.costoLote = double.tryParse(_costoLoteController.text) ?? widget.lote.costoLote;
+    widget.lote.gananciaUnidad = double.tryParse(_gananciaUnidadController.text) ?? widget.lote.gananciaUnidad;
+    widget.lote.gananciaLote = double.tryParse(_gananciaLoteController.text) ?? widget.lote.gananciaLote;
     widget.onChanged();
   }
 
@@ -2392,10 +2486,12 @@ class _InteractiveLoteRowState extends State<_InteractiveLoteRow> {
                           _onFieldsChanged();
                         },
                       ),
-                      // 4. Costo Lote (calculado)
-                      _buildFinanceItem(
-                        "Costo Lote",
-                        "L. ${widget.lote.costoLote.toStringAsFixed(2)}",
+                      // 4. Costo Lote
+                      _buildInlineInputField(
+                        label: "Costo Lote",
+                        controller: _costoLoteController,
+                        icon: Icons.calculate_outlined,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       ),
                       // 5. Costo unitario (móvil)
                       _buildInlineInputField(
@@ -2433,15 +2529,19 @@ class _InteractiveLoteRowState extends State<_InteractiveLoteRow> {
                           decimal: true,
                         ),
                       ),
-                      // 9. Ganancia Unidad (calculado)
-                      _buildFinanceItem(
-                        "Ganancia Unidad",
-                        "L. ${widget.lote.gananciaUnidad.toStringAsFixed(2)}",
+                      // 9. Ganancia Unidad
+                      _buildInlineInputField(
+                        label: "Ganancia Unidad",
+                        controller: _gananciaUnidadController,
+                        icon: Icons.calculate_outlined,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       ),
-                      // 10. Ganancia Lote (calculado)
-                      _buildFinanceItem(
-                        "Ganancia Lote",
-                        "L. ${widget.lote.gananciaLote.toStringAsFixed(2)}",
+                      // 10. Ganancia Lote
+                      _buildInlineInputField(
+                        label: "Ganancia Lote",
+                        controller: _gananciaLoteController,
+                        icon: Icons.calculate_outlined,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       ),
                       // 11. Fecha vencimiento
                       _buildInlineDateField(
@@ -2461,29 +2561,6 @@ class _InteractiveLoteRowState extends State<_InteractiveLoteRow> {
             ),
         ],
       ),
-    );
-  }
-
-  Widget _buildFinanceItem(String label, String value) {
-    return Column(
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 11,
-            color: AppColors.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: AppColors.primary,
-          ),
-        ),
-      ],
     );
   }
 }
@@ -2513,9 +2590,9 @@ class _AddLoteDialogState extends State<_AddLoteDialog> {
   String _fechaIngreso = "";
   String _fechaVencimiento = "28-02-2027";
 
-  double _costoLote = 0.0;
-  double _gananciaUnidad = 0.0;
-  double _gananciaLote = 0.0;
+  final _costoLoteController = TextEditingController(text: "0.00");
+  final _gananciaUnidadController = TextEditingController(text: "0.00");
+  final _gananciaLoteController = TextEditingController(text: "0.00");
 
   @override
   void initState() {
@@ -2545,6 +2622,11 @@ class _AddLoteDialogState extends State<_AddLoteDialog> {
     _precioVentaController.dispose();
     _impuestoCompraController.dispose();
     _impuestoVentaController.dispose();
+    
+    _costoLoteController.dispose();
+    _gananciaUnidadController.dispose();
+    _gananciaLoteController.dispose();
+
     super.dispose();
   }
 
@@ -2553,11 +2635,19 @@ class _AddLoteDialogState extends State<_AddLoteDialog> {
     final costoUnitario = double.tryParse(_costoUnitarioController.text) ?? 0.0;
     final precioVenta = double.tryParse(_precioVentaController.text) ?? 0.0;
 
-    setState(() {
-      _costoLote = costoUnitario * stock;
-      _gananciaUnidad = precioVenta - costoUnitario;
-      _gananciaLote = _gananciaUnidad * stock;
-    });
+    final cLote = costoUnitario * stock;
+    final gUnidad = precioVenta - costoUnitario;
+    final gLote = gUnidad * stock;
+
+    if (_costoLoteController.text != cLote.toStringAsFixed(2)) {
+      _costoLoteController.text = cLote.toStringAsFixed(2);
+    }
+    if (_gananciaUnidadController.text != gUnidad.toStringAsFixed(2)) {
+      _gananciaUnidadController.text = gUnidad.toStringAsFixed(2);
+    }
+    if (_gananciaLoteController.text != gLote.toStringAsFixed(2)) {
+      _gananciaLoteController.text = gLote.toStringAsFixed(2);
+    }
   }
 
   Widget _buildTextField({
@@ -2772,17 +2862,31 @@ class _AddLoteDialogState extends State<_AddLoteDialog> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    _buildFinanceItem(
-                      "Costo Lote",
-                      "L. ${_costoLote.toStringAsFixed(2)}",
+                    Expanded(
+                      child: _buildTextField(
+                        controller: _costoLoteController,
+                        label: "Costo Lote",
+                        hint: "0.00",
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      ),
                     ),
-                    _buildFinanceItem(
-                      "Ganancia/Unidad",
-                      "L. ${_gananciaUnidad.toStringAsFixed(2)}",
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildTextField(
+                        controller: _gananciaUnidadController,
+                        label: "Ganancia/Unidad",
+                        hint: "0.00",
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      ),
                     ),
-                    _buildFinanceItem(
-                      "Ganancia Lote",
-                      "L. ${_gananciaLote.toStringAsFixed(2)}",
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildTextField(
+                        controller: _gananciaLoteController,
+                        label: "Ganancia Lote",
+                        hint: "0.00",
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      ),
                     ),
                   ],
                 ),
@@ -2805,7 +2909,7 @@ class _AddLoteDialogState extends State<_AddLoteDialog> {
                 fechaIngreso: _fechaIngreso,
                 fechaVencimiento: _fechaVencimiento,
                 unidades: _unidades,
-                costoLote: _costoLote,
+                costoLote: double.tryParse(_costoLoteController.text) ?? 0.0,
                 costoUnitario:
                     double.tryParse(_costoUnitarioController.text) ?? 0.0,
                 precioVenta:
@@ -2814,8 +2918,8 @@ class _AddLoteDialogState extends State<_AddLoteDialog> {
                     double.tryParse(_impuestoCompraController.text) ?? 15.0,
                 impuestoVenta:
                     double.tryParse(_impuestoVentaController.text) ?? 15.0,
-                gananciaUnidad: _gananciaUnidad,
-                gananciaLote: _gananciaLote,
+                gananciaUnidad: double.tryParse(_gananciaUnidadController.text) ?? 0.0,
+                gananciaLote: double.tryParse(_gananciaLoteController.text) ?? 0.0,
               );
               Navigator.pop(context, newLote);
             }
@@ -2825,29 +2929,6 @@ class _AddLoteDialogState extends State<_AddLoteDialog> {
             foregroundColor: Colors.white,
           ),
           child: const Text("Registrar"),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFinanceItem(String label, String value) {
-    return Column(
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 11,
-            color: AppColors.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: AppColors.primary,
-          ),
         ),
       ],
     );

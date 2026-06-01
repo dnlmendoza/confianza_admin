@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+import 'package:confianza_admin/core/config/role_constants.dart';
 
 class ViewModelSesion extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -32,10 +35,36 @@ class ViewModelSesion extends ChangeNotifier {
         password: contrasena,
       );
 
-      // Login exitoso
+      // Verificar el rol del usuario en Firestore por ID (No por nombre)
+      final User? currentUser = _auth.currentUser;
+      if (currentUser != null) {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('Usuarios')
+            .doc(currentUser.uid)
+            .get();
+            
+        if (userDoc.exists) {
+          final userData = userDoc.data();
+          if (userData != null) {
+            final String? roleId = userData['Rol'];
+            if (roleId != null) {
+              if (roleId == RoleConstants.adminId || roleId == RoleConstants.adminMasterId) {
+                // Login exitoso y tiene permisos
+                _isLoading = false;
+                notifyListeners();
+                return true;
+              }
+            }
+          }
+        }
+      }
+
+      // Si llegamos aquí, el usuario no tiene permisos
+      await _auth.signOut();
+      _errorMessage = "No tienes permisos de administrador para acceder a esta plataforma.";
       _isLoading = false;
       notifyListeners();
-      return true;
+      return false;
     } on FirebaseAuthException catch (e) {
       debugPrint("Error de Firebase Auth: ${e.code} - ${e.message}");
       
