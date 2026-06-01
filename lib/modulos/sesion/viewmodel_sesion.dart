@@ -25,8 +25,9 @@ class ViewModelSesion extends ChangeNotifier {
     try {
       // Construir el identificador de correo
       // User said: apellidonombre@laconfianza.hn
-      final String userEmail = '${apellido.trim().toLowerCase()}${nombre.trim().toLowerCase()}@laconfianza.hn';
-      
+      final String userEmail =
+          '${apellido.trim().toLowerCase()}${nombre.trim().toLowerCase()}@laconfianza.hn';
+
       debugPrint("Intentando Firebase Auth login para: $userEmail");
 
       // Iniciar sesión con Firebase Auth
@@ -42,13 +43,14 @@ class ViewModelSesion extends ChangeNotifier {
             .collection('Usuarios')
             .doc(currentUser.uid)
             .get();
-            
+
         if (userDoc.exists) {
           final userData = userDoc.data();
           if (userData != null) {
             final String? roleId = userData['Rol'];
             if (roleId != null) {
-              if (roleId == RoleConstants.adminId || roleId == RoleConstants.adminMasterId) {
+              if (roleId == RoleConstants.adminId ||
+                  roleId == RoleConstants.adminMasterId) {
                 // Login exitoso y tiene permisos
                 _isLoading = false;
                 notifyListeners();
@@ -61,16 +63,17 @@ class ViewModelSesion extends ChangeNotifier {
 
       // Si llegamos aquí, el usuario no tiene permisos
       await _auth.signOut();
-      _errorMessage = "No tienes permisos de administrador para acceder a esta plataforma.";
+      _errorMessage = "No tienes permisos de administrador para acceder.";
       _isLoading = false;
       notifyListeners();
       return false;
     } on FirebaseAuthException catch (e) {
       debugPrint("Error de Firebase Auth: ${e.code} - ${e.message}");
-      
+
       switch (e.code) {
         case 'user-not-found':
-          _errorMessage = "Usuario no registrado en el sistema de autenticación.";
+          _errorMessage =
+              "Usuario no registrado en el sistema de autenticación.";
           break;
         case 'wrong-password':
           _errorMessage = "Contraseña incorrecta.";
@@ -82,12 +85,13 @@ class ViewModelSesion extends ChangeNotifier {
           _errorMessage = "Este usuario ha sido deshabilitado.";
           break;
         case 'invalid-credential':
-          _errorMessage = "Credenciales inválidas (usuario o contraseña incorrectos).";
+          _errorMessage =
+              "Credenciales inválidas (usuario o contraseña incorrectos).";
           break;
         default:
           _errorMessage = "Error de autenticación: ${e.message}";
       }
-      
+
       _isLoading = false;
       notifyListeners();
       return false;

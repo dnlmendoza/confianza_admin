@@ -13,6 +13,7 @@ class VistaSesion extends StatefulWidget {
 
 class _VistaSesionState extends State<VistaSesion> {
   bool _showManualLogin = false;
+  bool _obscurePassword = true;
   final ViewModelSesion _viewModel = ViewModelSesion();
 
   final TextEditingController _nombreController = TextEditingController();
@@ -43,7 +44,10 @@ class _VistaSesionState extends State<VistaSesion> {
                 children: [
                   Center(
                     child: SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 48.0),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24.0,
+                        vertical: 48.0,
+                      ),
                       child: Container(
                         constraints: const BoxConstraints(maxWidth: 1000),
                         decoration: BoxDecoration(
@@ -56,7 +60,9 @@ class _VistaSesionState extends State<VistaSesion> {
                               offset: const Offset(0, 4),
                             ),
                           ],
-                          border: Border.all(color: AppColors.outlineVariant.withOpacity(0.5)),
+                          border: Border.all(
+                            color: AppColors.outlineVariant.withOpacity(0.5),
+                          ),
                         ),
                         clipBehavior: Clip.antiAlias,
                         child: IntrinsicHeight(
@@ -77,10 +83,12 @@ class _VistaSesionState extends State<VistaSesion> {
                                     horizontal: isDesktop ? 64.0 : 24.0,
                                     vertical: isDesktop ? 64.0 : 48.0,
                                   ),
-                                  child: _showManualLogin 
-                                      ? _buildManualLoginForm() 
+                                  child: _showManualLogin
+                                      ? _buildManualLoginForm()
                                       : _SeccionDerecha(
-                                          onToggleManual: () => setState(() => _showManualLogin = true),
+                                          onToggleManual: () => setState(
+                                            () => _showManualLogin = true,
+                                          ),
                                         ),
                                 ),
                               ),
@@ -123,13 +131,10 @@ class _VistaSesionState extends State<VistaSesion> {
         const Text(
           "Ingresa tus datos para acceder al panel",
           textAlign: TextAlign.center,
-          style: TextStyle(
-            color: AppColors.onSurfaceVariant,
-            fontSize: 14,
-          ),
+          style: TextStyle(color: AppColors.onSurfaceVariant, fontSize: 14),
         ),
         const SizedBox(height: 32),
-        
+
         TextField(
           controller: _nombreController,
           decoration: const InputDecoration(
@@ -150,14 +155,24 @@ class _VistaSesionState extends State<VistaSesion> {
         const SizedBox(height: 16),
         TextField(
           controller: _passwordController,
-          obscureText: true,
-          decoration: const InputDecoration(
+          obscureText: _obscurePassword,
+          decoration: InputDecoration(
             labelText: "Contraseña",
-            prefixIcon: Icon(Icons.lock_outline),
-            border: OutlineInputBorder(),
+            prefixIcon: const Icon(Icons.lock_outline),
+            border: const OutlineInputBorder(),
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscurePassword ? Icons.visibility_off : Icons.visibility,
+              ),
+              onPressed: () {
+                setState(() {
+                  _obscurePassword = !_obscurePassword;
+                });
+              },
+            ),
           ),
         ),
-        
+
         if (_viewModel.errorMessage != null) ...[
           const SizedBox(height: 16),
           Text(
@@ -166,26 +181,38 @@ class _VistaSesionState extends State<VistaSesion> {
             textAlign: TextAlign.center,
           ),
         ],
-        
+
         const SizedBox(height: 32),
-        
+
         SizedBox(
           height: 48,
           child: ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
             onPressed: _viewModel.isLoading ? null : _handleLogin,
-            child: _viewModel.isLoading 
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : const Text("INICIAR SESIÓN", style: TextStyle(fontWeight: FontWeight.bold)),
+            child: _viewModel.isLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Text(
+                    "INICIAR SESIÓN",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
           ),
         ),
-        
+
         const SizedBox(height: 16),
-        
+
         TextButton(
           onPressed: () => setState(() => _showManualLogin = false),
           child: const Text("Volver a Vinculación QR"),
@@ -234,7 +261,15 @@ class _SeccionIzquierda extends StatelessWidget {
               mainAxisSpacing: 16,
               crossAxisSpacing: 16,
               physics: const NeverScrollableScrollPhysics(),
-              children: List.generate(6, (i) => Container(decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)))),
+              children: List.generate(
+                6,
+                (i) => Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
             ),
           ),
         ),
@@ -256,7 +291,7 @@ class _SeccionIzquierda extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  "Accede a tu panel de administración empresarial de forma segura sincronizando tu dispositivo móvil en segundos.",
+                  "Accede a tu panel de administración de forma segura sincronizando tu dispositivo móvil en segundos.",
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.7),
                     fontSize: 14,
@@ -307,9 +342,22 @@ class _SeccionIzquierda extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600)),
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const SizedBox(height: 4),
-              Text(subtitle, style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13)),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.5),
+                  fontSize: 13,
+                ),
+              ),
             ],
           ),
         ),
@@ -331,13 +379,21 @@ class _SeccionDerecha extends StatelessWidget {
         const Text(
           "Vincular Dispositivo",
           textAlign: TextAlign.center,
-          style: TextStyle(color: AppColors.onSurface, fontSize: 20, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: AppColors.onSurface,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         const SizedBox(height: 8),
         const Text(
           "Abre la app móvil y escanea el código para iniciar sesión",
           textAlign: TextAlign.center,
-          style: TextStyle(color: AppColors.onSurfaceVariant, fontSize: 14, height: 1.4),
+          style: TextStyle(
+            color: AppColors.onSurfaceVariant,
+            fontSize: 14,
+            height: 1.4,
+          ),
         ),
         const SizedBox(height: 32),
         Container(
@@ -345,8 +401,16 @@ class _SeccionDerecha extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.outlineVariant.withOpacity(0.5)),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2))],
+            border: Border.all(
+              color: AppColors.outlineVariant.withOpacity(0.5),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.02),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Stack(
             children: [
@@ -359,7 +423,13 @@ class _SeccionDerecha extends StatelessWidget {
                   child: Image.network(
                     'https://lh3.googleusercontent.com/aida/ADBb0uhavFE_cdN_MH6UxaJ-YPDlv4eh33h9JYk6e2KNmCBzQNPuhZtiOoIhdsHI-q1wHAr6-Xl5Gd0quGqRYPONfHwjLJmWY4isWJj5LKRhI8peJyGlvQHvam4_TYbUwWYWevidMqtgPAhzsoZcVDqQakp7ADvTlLNZdLTZYm9UgBA37QPxV-AJglIFeIR8-S4qCS5rhWR-TdqMgvOwx6jfICPRc24XlXU9Zf-lu_dm_37CtwO9appUDY-lbS8O_IyXRvewqo6LIgESWQ',
                     fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => const Center(child: Icon(Icons.qr_code, size: 120, color: AppColors.secondary)),
+                    errorBuilder: (context, error, stackTrace) => const Center(
+                      child: Icon(
+                        Icons.qr_code,
+                        size: 120,
+                        color: AppColors.secondary,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -373,18 +443,38 @@ class _SeccionDerecha extends StatelessWidget {
           children: [
             BouncingDots(),
             SizedBox(width: 8),
-            Text("ESPERANDO ESCANEO...", style: TextStyle(color: AppColors.onSurfaceVariant, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.5)),
+            Text(
+              "ESPERANDO ESCANEO...",
+              style: TextStyle(
+                color: AppColors.onSurfaceVariant,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1.5,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 32),
         Row(
           children: [
-            Expanded(child: Divider(color: AppColors.outlineVariant.withOpacity(0.5))),
+            Expanded(
+              child: Divider(color: AppColors.outlineVariant.withOpacity(0.5)),
+            ),
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16.0),
-              child: Text("O BIEN", style: TextStyle(color: AppColors.secondary, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.0)),
+              child: Text(
+                "O BIEN",
+                style: TextStyle(
+                  color: AppColors.secondary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.0,
+                ),
+              ),
             ),
-            Expanded(child: Divider(color: AppColors.outlineVariant.withOpacity(0.5))),
+            Expanded(
+              child: Divider(color: AppColors.outlineVariant.withOpacity(0.5)),
+            ),
           ],
         ),
         const SizedBox(height: 24),
@@ -393,21 +483,31 @@ class _SeccionDerecha extends StatelessWidget {
           height: 48,
           child: OutlinedButton.icon(
             style: OutlinedButton.styleFrom(
-              side: BorderSide(color: AppColors.outlineVariant.withOpacity(0.8)),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              side: BorderSide(
+                color: AppColors.outlineVariant.withOpacity(0.8),
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
               foregroundColor: AppColors.onSurfaceVariant,
               backgroundColor: AppColors.surfaceContainerLowest,
             ),
             onPressed: onToggleManual,
             icon: const Icon(Icons.person, size: 20),
-            label: const Text("Ingreso Manual", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+            label: const Text(
+              "Ingreso Manual",
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+            ),
           ),
         ),
         const SizedBox(height: 20),
         TextButton.icon(
           onPressed: () {},
           icon: const Icon(Icons.help_outline, size: 16),
-          label: const Text("¿Necesitas ayuda para vincularte?", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+          label: const Text(
+            "¿Necesitas ayuda para vincularte?",
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+          ),
         ),
       ],
     );
@@ -418,23 +518,77 @@ class _SeccionDerecha extends StatelessWidget {
     const double borderThickness = 4.0;
     const Color cornerColor = AppColors.primary;
     return [
-      Positioned(top: 0, left: 0, child: _buildCorner(top: true, left: true, size: cornerSize, thickness: borderThickness, color: cornerColor)),
-      Positioned(top: 0, right: 0, child: _buildCorner(top: true, left: false, size: cornerSize, thickness: borderThickness, color: cornerColor)),
-      Positioned(bottom: 0, left: 0, child: _buildCorner(top: false, left: true, size: cornerSize, thickness: borderThickness, color: cornerColor)),
-      Positioned(bottom: 0, right: 0, child: _buildCorner(top: false, left: false, size: cornerSize, thickness: borderThickness, color: cornerColor)),
+      Positioned(
+        top: 0,
+        left: 0,
+        child: _buildCorner(
+          top: true,
+          left: true,
+          size: cornerSize,
+          thickness: borderThickness,
+          color: cornerColor,
+        ),
+      ),
+      Positioned(
+        top: 0,
+        right: 0,
+        child: _buildCorner(
+          top: true,
+          left: false,
+          size: cornerSize,
+          thickness: borderThickness,
+          color: cornerColor,
+        ),
+      ),
+      Positioned(
+        bottom: 0,
+        left: 0,
+        child: _buildCorner(
+          top: false,
+          left: true,
+          size: cornerSize,
+          thickness: borderThickness,
+          color: cornerColor,
+        ),
+      ),
+      Positioned(
+        bottom: 0,
+        right: 0,
+        child: _buildCorner(
+          top: false,
+          left: false,
+          size: cornerSize,
+          thickness: borderThickness,
+          color: cornerColor,
+        ),
+      ),
     ];
   }
 
-  Widget _buildCorner({required bool top, required bool left, required double size, required double thickness, required Color color}) {
+  Widget _buildCorner({
+    required bool top,
+    required bool left,
+    required double size,
+    required double thickness,
+    required Color color,
+  }) {
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         border: Border(
-          top: top ? BorderSide(color: color, width: thickness) : BorderSide.none,
-          bottom: !top ? BorderSide(color: color, width: thickness) : BorderSide.none,
-          left: left ? BorderSide(color: color, width: thickness) : BorderSide.none,
-          right: !left ? BorderSide(color: color, width: thickness) : BorderSide.none,
+          top: top
+              ? BorderSide(color: color, width: thickness)
+              : BorderSide.none,
+          bottom: !top
+              ? BorderSide(color: color, width: thickness)
+              : BorderSide.none,
+          left: left
+              ? BorderSide(color: color, width: thickness)
+              : BorderSide.none,
+          right: !left
+              ? BorderSide(color: color, width: thickness)
+              : BorderSide.none,
         ),
       ),
     );
@@ -449,13 +603,17 @@ class BouncingDots extends StatefulWidget {
   State<BouncingDots> createState() => _BouncingDotsState();
 }
 
-class _BouncingDotsState extends State<BouncingDots> with SingleTickerProviderStateMixin {
+class _BouncingDotsState extends State<BouncingDots>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))..repeat();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
   }
 
   @override
@@ -473,10 +631,23 @@ class _BouncingDotsState extends State<BouncingDots> with SingleTickerProviderSt
           animation: _controller,
           builder: (context, child) {
             final double phase = (index * math.pi / 3.0);
-            final double value = math.sin((_controller.value * 2 * math.pi) - phase);
-            return Transform.translate(offset: Offset(0, (value * 3.5).clamp(-6.0, 0.0)), child: child);
+            final double value = math.sin(
+              (_controller.value * 2 * math.pi) - phase,
+            );
+            return Transform.translate(
+              offset: Offset(0, (value * 3.5).clamp(-6.0, 0.0)),
+              child: child,
+            );
           },
-          child: Container(width: 7, height: 7, margin: const EdgeInsets.symmetric(horizontal: 2), decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle)),
+          child: Container(
+            width: 7,
+            height: 7,
+            margin: const EdgeInsets.symmetric(horizontal: 2),
+            decoration: const BoxDecoration(
+              color: AppColors.primary,
+              shape: BoxShape.circle,
+            ),
+          ),
         );
       }),
     );
@@ -508,7 +679,15 @@ class _FooterSecurityBadges extends StatelessWidget {
       children: [
         Icon(icon, size: 16, color: AppColors.secondary),
         const SizedBox(width: 6),
-        Text(label, style: const TextStyle(color: AppColors.secondary, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+        Text(
+          label,
+          style: const TextStyle(
+            color: AppColors.secondary,
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.5,
+          ),
+        ),
       ],
     );
   }
