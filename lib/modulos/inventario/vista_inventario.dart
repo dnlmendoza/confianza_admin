@@ -2,6 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:confianza_admin/core/widgets/admin_layout.dart';
 import 'package:confianza_admin/core/theme/app_colors.dart';
 import 'package:confianza_admin/modulos/inventario/viewmodel_inventario.dart';
@@ -38,6 +41,7 @@ class _VistaInventarioState extends State<VistaInventario> {
 
   ProductItem? _selectedProduct;
   bool _isDetailsExpanded = false;
+  bool _isUploadingImage = false;
 
   StreamSubscription? _inventarioSub;
   StreamSubscription? _lotesSub;
@@ -50,6 +54,7 @@ class _VistaInventarioState extends State<VistaInventario> {
   late final TextEditingController _skuEditController;
   late final TextEditingController _categoryEditController;
   late final TextEditingController _minStockEditController;
+  late final TextEditingController _maxStockEditController;
   late final TextEditingController _providerEditController;
   late final TextEditingController _productTypeEditController;
   late final TextEditingController _dateEnteredEditController;
@@ -70,6 +75,7 @@ class _VistaInventarioState extends State<VistaInventario> {
     _skuEditController = TextEditingController(text: "");
     _categoryEditController = TextEditingController(text: "");
     _minStockEditController = TextEditingController(text: "1");
+    _maxStockEditController = TextEditingController(text: "100");
     _providerEditController = TextEditingController(text: "Bodega");
     _productTypeEditController = TextEditingController(text: "Normal");
     _dateEnteredEditController = TextEditingController(text: "");
@@ -79,6 +85,7 @@ class _VistaInventarioState extends State<VistaInventario> {
     _skuEditController.addListener(_onFormChanged);
     _categoryEditController.addListener(_onFormChanged);
     _minStockEditController.addListener(_onFormChanged);
+    _maxStockEditController.addListener(_onFormChanged);
     _providerEditController.addListener(_onFormChanged);
     _productTypeEditController.addListener(_onFormChanged);
     _dateEnteredEditController.addListener(_onFormChanged);
@@ -98,6 +105,7 @@ class _VistaInventarioState extends State<VistaInventario> {
     _skuEditController.dispose();
     _categoryEditController.dispose();
     _minStockEditController.dispose();
+    _maxStockEditController.dispose();
     _providerEditController.dispose();
     _productTypeEditController.dispose();
     _dateEnteredEditController.dispose();
@@ -115,6 +123,7 @@ class _VistaInventarioState extends State<VistaInventario> {
         _skuEditController.text != _selectedProduct!.sku ||
         _categoryEditController.text != _selectedProduct!.category ||
         _minStockEditController.text != _selectedProduct!.minStock.toString() ||
+        _maxStockEditController.text != _selectedProduct!.maxStock.toString() ||
         _providerEditController.text != _selectedProduct!.provider ||
         _productTypeEditController.text != _selectedProduct!.productType ||
         _dateEnteredEditController.text != _selectedProduct!.dateEntered;
@@ -129,11 +138,68 @@ class _VistaInventarioState extends State<VistaInventario> {
       _selectedProduct!.category = _categoryEditController.text.trim();
       _selectedProduct!.minStock =
           int.tryParse(_minStockEditController.text) ?? 1;
+      _selectedProduct!.maxStock =
+          int.tryParse(_maxStockEditController.text) ?? 100;
       _selectedProduct!.provider = _providerEditController.text.trim();
       _selectedProduct!.productType = _productTypeEditController.text.trim();
       _selectedProduct!.dateEntered = _dateEnteredEditController.text.trim();
     });
     _saveProductToFirestore(_selectedProduct!);
+  }
+
+  Future<void> _pickAndUploadImage() async {
+    if (_selectedProduct == null) return;
+
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile == null) return;
+
+    setState(() {
+      _isUploadingImage = true;
+    });
+
+    try {
+      final bytes = await pickedFile.readAsBytes();
+      final extension = pickedFile.name.split('.').last;
+      final fileName =
+          '${_selectedProduct!.sku}_${DateTime.now().millisecondsSinceEpoch}.$extension';
+
+      final ref = FirebaseStorage.instance.ref().child(
+        'Inventario_fotos/$fileName',
+      );
+
+      await ref.putData(
+        bytes,
+        SettableMetadata(contentType: pickedFile.mimeType ?? 'image/jpeg'),
+      );
+
+      final downloadUrl = await ref.getDownloadURL();
+
+      setState(() {
+        _selectedProduct!.imageUrl = downloadUrl;
+      });
+
+      _saveProductToFirestore(_selectedProduct!);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Imagen actualizada correctamente.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error al subir imagen: $e')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploadingImage = false;
+        });
+      }
+    }
   }
 
   void _selectProduct(ProductItem product) {
@@ -144,6 +210,7 @@ class _VistaInventarioState extends State<VistaInventario> {
       _skuEditController.text = product.sku;
       _categoryEditController.text = product.category;
       _minStockEditController.text = product.minStock.toString();
+      _maxStockEditController.text = product.maxStock.toString();
       _providerEditController.text = product.provider;
       _productTypeEditController.text = product.productType;
       _dateEnteredEditController.text = product.dateEntered;
@@ -197,43 +264,94 @@ class _VistaInventarioState extends State<VistaInventario> {
       final List<LoteItem> lotes = prodLotesRaw.map((l) {
         final stock = int.tryParse(l['cantidad']?.toString() ?? '0') ?? 0;
         final costoUnitario =
-            double.tryParse(l['costo_unitario']?.toString() ?? '0.0') ?? 0.0;
+            double.tryParse(
+              l['costo_unitario']?.toString() ??
+                  l['costoUnitario']?.toString() ??
+                  '0.0',
+            ) ??
+            0.0;
         final precioVenta =
-            double.tryParse(l['precio_venta']?.toString() ?? '0.0') ?? 0.0;
+            double.tryParse(
+              l['precio_venta']?.toString() ??
+                  l['precioVenta']?.toString() ??
+                  '0.0',
+            ) ??
+            0.0;
         final costoLote =
-            double.tryParse(l['costo_lote']?.toString() ?? '') ??
+            double.tryParse(
+              l['costo_lote']?.toString() ?? l['costoLote']?.toString() ?? '',
+            ) ??
             (costoUnitario * stock);
         final gananciaUnidad =
-            double.tryParse(l['ganancia_unidad']?.toString() ?? '') ??
+            double.tryParse(
+              l['ganancia_unidad']?.toString() ??
+                  l['gananciaUnidad']?.toString() ??
+                  '',
+            ) ??
             (precioVenta - costoUnitario);
         final gananciaLote =
-            double.tryParse(l['ganancia_lote']?.toString() ?? '') ??
+            double.tryParse(
+              l['ganancia_lote']?.toString() ??
+                  l['gananciaLote']?.toString() ??
+                  '',
+            ) ??
             (gananciaUnidad * stock);
         final danados =
-            int.tryParse(l['cantidad_danada']?.toString() ?? '0') ?? 0;
+            int.tryParse(
+              l['cantidad_danada']?.toString() ??
+                  l['cantidadDanada']?.toString() ??
+                  '0',
+            ) ??
+            0;
+
+        debugPrint('--- LOTE PARSED ---');
+        debugPrint('ID: ${l['id']}');
+        debugPrint(
+          'costo_unitario DB: ${l['costo_unitario']} -> Parsed: $costoUnitario',
+        );
+        debugPrint(
+          'precio_venta DB: ${l['precio_venta']} -> Parsed: $precioVenta',
+        );
+        debugPrint('-------------------');
 
         final String unidadId = l['unidades']?.toString() ?? 'Unid';
-        final String unidadName = _vmCatalogos.unidadesMap[unidadId] ?? unidadId;
+        final String unidadName =
+            _vmCatalogos.unidadesMap[unidadId] ?? unidadId;
 
         return LoteItem(
           id: l['id'] ?? '',
+          rawJson:
+              "DB: ${l.toString()} | Parsed: cU=$costoUnitario pV=$precioVenta",
           stock: stock,
-          fechaIngreso: l['fecha_ingreso']?.toString() ?? '',
-          fechaVencimiento: l['fecha_vencimiento']?.toString() ?? '28-02-2027',
+          fechaIngreso:
+              l['fecha_ingreso']?.toString() ??
+              l['fechaIngreso']?.toString() ??
+              '',
+          fechaVencimiento:
+              l['fecha_vencimiento']?.toString() ??
+              l['fechaVencimiento']?.toString() ??
+              '28-02-2027',
           unidades: unidadName,
           costoLote: costoLote,
           costoUnitario: costoUnitario,
           impuestoCompra:
-              double.tryParse(l['impuesto_compra']?.toString() ?? '15.0') ??
+              double.tryParse(
+                l['impuesto_compra']?.toString() ??
+                    l['impuestoCompra']?.toString() ??
+                    '15.0',
+              ) ??
               15.0,
           precioVenta: precioVenta,
           impuestoVenta:
-              double.tryParse(l['impuesto_venta']?.toString() ?? '15.0') ??
+              double.tryParse(
+                l['impuesto_venta']?.toString() ??
+                    l['impuestoVenta']?.toString() ??
+                    '15.0',
+              ) ??
               15.0,
           gananciaUnidad: gananciaUnidad,
           gananciaLote: gananciaLote,
           danados: danados,
-          ubicacion: l['ubicacion']?.toString() ?? 'Estante A1',
         );
       }).toList();
 
@@ -341,6 +459,10 @@ class _VistaInventarioState extends State<VistaInventario> {
           .key;
 
       final firestore = FirebaseFirestore.instance;
+      debugPrint(
+        "Simulando guardado de producto (Guardado deshabilitado temporalmente): ${product.sku}, catId: $catId, provId: $provId, fs: ${firestore.app.name}",
+      );
+      /*
       await firestore.collection('Inventario').doc(product.sku).set({
         'nombre': product.name,
         'descripcion': product.subtitle,
@@ -351,6 +473,7 @@ class _VistaInventarioState extends State<VistaInventario> {
         'fecha': product.dateEntered,
         'imagen': product.imageUrl,
       }, SetOptions(merge: true));
+      */
     } catch (e) {
       debugPrint("Error al guardar producto en Firestore: $e");
     }
@@ -367,6 +490,10 @@ class _VistaInventarioState extends State<VistaInventario> {
           .key;
 
       final firestore = FirebaseFirestore.instance;
+      debugPrint(
+        "Simulando guardado de lote (Guardado deshabilitado temporalmente): ${lote.id}, uniId: $uniId, fs: ${firestore.app.name}",
+      );
+      /*
       await firestore
           .collection('Inventario')
           .doc(productSku)
@@ -385,9 +512,8 @@ class _VistaInventarioState extends State<VistaInventario> {
             'costo_lote': lote.costoLote,
             'ganancia_unidad': lote.gananciaUnidad,
             'ganancia_lote': lote.gananciaLote,
-            'ubicacion': lote.ubicacion,
-            'actualizado': lote.fechaIngreso,
           }, SetOptions(merge: true));
+      */
     } catch (e) {
       debugPrint("Error al guardar lote en Firestore: $e");
     }
@@ -867,8 +993,9 @@ class _VistaInventarioState extends State<VistaInventario> {
                         });
                       },
                       itemBuilder: (BuildContext context) {
-                        return {"Todas las Categorías", ..._categories}
-                            .map((String value) {
+                        return {"Todas las Categorías", ..._categories}.map((
+                          String value,
+                        ) {
                           return PopupMenuItem<String>(
                             value: value,
                             child: Text(
@@ -900,8 +1027,9 @@ class _VistaInventarioState extends State<VistaInventario> {
                         });
                       },
                       itemBuilder: (BuildContext context) {
-                        return {"Todos los Proveedores", ..._providers}
-                            .map((String value) {
+                        return {"Todos los Proveedores", ..._providers}.map((
+                          String value,
+                        ) {
                           return PopupMenuItem<String>(
                             value: value,
                             child: Text(
@@ -959,10 +1087,87 @@ class _VistaInventarioState extends State<VistaInventario> {
                 : SingleChildScrollView(
                     child: Table(
                       columnWidths: const {
-                        0: FlexColumnWidth(5.2), // Nombre del Item
-                        1: FlexColumnWidth(2.5), // Categoría/Proveedor
+                        0: FlexColumnWidth(
+                          5.0,
+                        ), // Artículo (Nombre + Subtítulo)
+                        1: FlexColumnWidth(
+                          2.5,
+                        ), // Categoría / Proveedor (Chips)
+                        2: FlexColumnWidth(2.2), // Stock (Badge)
                       },
                       children: [
+                        // Cabecera de Tabla
+                        TableRow(
+                          decoration: const BoxDecoration(
+                            color: AppColors.surfaceContainerLow,
+                            border: Border(
+                              bottom: BorderSide(
+                                color: AppColors.outlineVariant,
+                                width: 1.0,
+                              ),
+                            ),
+                          ),
+                          children: [
+                            TableCell(
+                              verticalAlignment:
+                                  TableCellVerticalAlignment.middle,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16.0,
+                                  vertical: 10.0,
+                                ),
+                                child: Text(
+                                  "ARTÍCULO",
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.onSurfaceVariant,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            TableCell(
+                              verticalAlignment:
+                                  TableCellVerticalAlignment.middle,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16.0,
+                                  vertical: 10.0,
+                                ),
+                                child: Text(
+                                  "CATEGORÍA / PROV",
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.onSurfaceVariant,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            TableCell(
+                              verticalAlignment:
+                                  TableCellVerticalAlignment.middle,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16.0,
+                                  vertical: 10.0,
+                                ),
+                                child: Text(
+                                  "STOCK",
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.onSurfaceVariant,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        // Filas de Artículos
                         ...filtered.map((item) {
                           final isSelected = _selectedProduct == item;
 
@@ -973,13 +1178,15 @@ class _VistaInventarioState extends State<VistaInventario> {
                                   : null,
                               border: Border(
                                 bottom: BorderSide(
-                                  color: AppColors.outlineVariant,
+                                  color: AppColors.outlineVariant.withValues(
+                                    alpha: 0.5,
+                                  ),
                                   width: 0.5,
                                 ),
                               ),
                             ),
                             children: [
-                              // Nombre del Item + Descripcion
+                              // Artículo (Nombre + Descripción)
                               TableCell(
                                 verticalAlignment:
                                     TableCellVerticalAlignment.middle,
@@ -997,18 +1204,20 @@ class _VistaInventarioState extends State<VistaInventario> {
                                       children: [
                                         Text(
                                           item.name,
-                                          style: const TextStyle(
+                                          style: GoogleFonts.outfit(
                                             color: AppColors.onSurface,
-                                            fontSize: 15,
+                                            fontSize: 13.5,
                                             fontWeight: FontWeight.bold,
                                           ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
                                         const SizedBox(height: 2),
                                         Text(
                                           item.subtitle,
                                           style: const TextStyle(
                                             color: AppColors.onSurfaceVariant,
-                                            fontSize: 12,
+                                            fontSize: 11,
                                           ),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
@@ -1019,7 +1228,7 @@ class _VistaInventarioState extends State<VistaInventario> {
                                 ),
                               ),
 
-                              // Categoría y Proveedor
+                              // Categoría y Proveedor (Chips)
                               TableCell(
                                 verticalAlignment:
                                     TableCellVerticalAlignment.middle,
@@ -1036,54 +1245,159 @@ class _VistaInventarioState extends State<VistaInventario> {
                                           CrossAxisAlignment.start,
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            const Icon(
-                                              Icons.category_outlined,
-                                              size: 14,
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.primary.withValues(
+                                              alpha: 0.08,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              6,
+                                            ),
+                                            border: Border.all(
+                                              color: AppColors.primary
+                                                  .withValues(alpha: 0.15),
+                                            ),
+                                          ),
+                                          child: Text(
+                                            item.category.toUpperCase(),
+                                            style: GoogleFonts.outfit(
                                               color: AppColors.primary,
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.bold,
+                                              letterSpacing: 0.3,
                                             ),
-                                            const SizedBox(width: 6),
-                                            Flexible(
-                                              child: Text(
-                                                item.category,
-                                                style: const TextStyle(
-                                                  color: AppColors.onSurface,
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                          ],
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
                                         ),
-                                        const SizedBox(height: 6),
-                                        Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            const Icon(
-                                              Icons.local_shipping_outlined,
-                                              size: 14,
+                                        const SizedBox(height: 5),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.onSurfaceVariant
+                                                .withValues(alpha: 0.08),
+                                            borderRadius: BorderRadius.circular(
+                                              6,
+                                            ),
+                                            border: Border.all(
+                                              color: AppColors.onSurfaceVariant
+                                                  .withValues(alpha: 0.15),
+                                            ),
+                                          ),
+                                          child: Text(
+                                            item.provider,
+                                            style: GoogleFonts.outfit(
                                               color: AppColors.onSurfaceVariant,
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w500,
                                             ),
-                                            const SizedBox(width: 6),
-                                            Flexible(
-                                              child: Text(
-                                                item.provider,
-                                                style: const TextStyle(
-                                                  color: AppColors
-                                                      .onSurfaceVariant,
-                                                  fontSize: 12,
-                                                ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                          ],
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
                                         ),
                                       ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+
+                              // Stock (Badge Dinámico)
+                              TableCell(
+                                verticalAlignment:
+                                    TableCellVerticalAlignment.middle,
+                                child: GestureDetector(
+                                  onTap: () => _selectProduct(item),
+                                  behavior: HitTestBehavior.opaque,
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16.0,
+                                      vertical: 10.0,
+                                    ),
+                                    child: Builder(
+                                      builder: (context) {
+                                        final stock = item.stock;
+                                        final minStock = item.minStock;
+
+                                        Color badgeColor;
+                                        Color badgeBg;
+                                        String statusLabel;
+
+                                        if (stock == 0) {
+                                          badgeColor = const Color(0xFFBA1A1A);
+                                          badgeBg = const Color(0xFFFFDAD6);
+                                          statusLabel = "Agotado";
+                                        } else if (stock < minStock) {
+                                          badgeColor = const Color(0xFF8E6A00);
+                                          badgeBg = const Color(0xFFFFEDC8);
+                                          statusLabel = "Bajo Stock";
+                                        } else {
+                                          badgeColor = const Color(0xFF10B981);
+                                          badgeBg = const Color(0xFFECFDF5);
+                                          statusLabel = "Disponible";
+                                        }
+
+                                        return Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.baseline,
+                                              textBaseline:
+                                                  TextBaseline.alphabetic,
+                                              children: [
+                                                Text(
+                                                  "$stock",
+                                                  style: GoogleFonts.outfit(
+                                                    color: AppColors.onSurface,
+                                                    fontSize: 13.5,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 2),
+                                                const Text(
+                                                  "uds",
+                                                  style: TextStyle(
+                                                    color: AppColors
+                                                        .onSurfaceVariant,
+                                                    fontSize: 9.5,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 6,
+                                                    vertical: 2,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: badgeBg,
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
+                                              ),
+                                              child: Text(
+                                                statusLabel,
+                                                style: GoogleFonts.outfit(
+                                                  color: badgeColor,
+                                                  fontSize: 8.5,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        );
+                                      },
                                     ),
                                   ),
                                 ),
@@ -1220,46 +1534,72 @@ class _VistaInventarioState extends State<VistaInventario> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Container(
-                      width: 130,
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceContainerLow,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.04),
-                            blurRadius: 8,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                        border: Border.all(
-                          color: AppColors.outlineVariant.withValues(
-                            alpha: 0.3,
+                    GestureDetector(
+                      onTap: _isUploadingImage ? null : _pickAndUploadImage,
+                      child: Container(
+                        width: 130,
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceContainerLow,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.04),
+                              blurRadius: 8,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                          border: Border.all(
+                            color: AppColors.outlineVariant.withValues(
+                              alpha: 0.3,
+                            ),
                           ),
                         ),
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: _selectedProduct!.imageUrl.isNotEmpty
-                          ? Image.network(
-                              _selectedProduct!.imageUrl,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return const Center(
-                                  child: Icon(
-                                    Icons.image,
-                                    color: AppColors.outlineVariant,
-                                    size: 32,
+                        clipBehavior: Clip.antiAlias,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            if (_selectedProduct!.imageUrl.isNotEmpty)
+                              CachedNetworkImage(
+                                imageUrl: _selectedProduct!.imageUrl,
+                                fit: BoxFit.cover,
+                                placeholder: (context, url) => Container(
+                                  color: AppColors.surfaceContainerLowest,
+                                  child: const Center(
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
                                   ),
-                                );
-                              },
-                            )
-                          : const Center(
-                              child: Icon(
-                                Icons.image,
-                                color: AppColors.outlineVariant,
-                                size: 32,
+                                ),
+                                errorWidget: (context, url, error) =>
+                                    const Center(
+                                      child: Icon(
+                                        Icons.image,
+                                        color: AppColors.outlineVariant,
+                                        size: 32,
+                                      ),
+                                    ),
+                              )
+                            else
+                              const Center(
+                                child: Icon(
+                                  Icons.image,
+                                  color: AppColors.outlineVariant,
+                                  size: 32,
+                                ),
                               ),
-                            ),
+                            if (_isUploadingImage)
+                              Container(
+                                color: Colors.black.withValues(alpha: 0.5),
+                                child: const Center(
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -1267,12 +1607,12 @@ class _VistaInventarioState extends State<VistaInventario> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           _buildFormField(
-                            label: "Nombre del Producto",
+                            label: "Nombre del Articulo",
                             controller: _nameEditController,
                             visible: true,
                           ),
                           _buildFormField(
-                            label: "Descripción / Subtítulo",
+                            label: "Descripción",
                             controller: _subtitleEditController,
                             visible: true,
                           ),
@@ -1377,10 +1717,12 @@ class _VistaInventarioState extends State<VistaInventario> {
                 Row(
                   children: [
                     Expanded(
-                      child: _buildDatePickerFormField(
+                      child: _buildFormField(
                         label: "Fecha Ingresado",
                         controller: _dateEnteredEditController,
                         visible: true,
+                        readOnly: true,
+                        prefixIcon: Icons.calendar_today_rounded,
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -1594,109 +1936,7 @@ class _VistaInventarioState extends State<VistaInventario> {
                 borderSide: const BorderSide(color: AppColors.primary),
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDatePickerFormField({
-    required String label,
-    required TextEditingController controller,
-    required bool visible,
-  }) {
-    if (!visible) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6.0),
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 11,
-                color: AppColors.onSurfaceVariant,
-              ),
             ),
-          ),
-          TextFormField(
-            controller: controller,
-            readOnly: false,
-            keyboardType: TextInputType.datetime,
-            style: const TextStyle(fontSize: 13, color: AppColors.onSurface),
-            decoration: InputDecoration(
-              isDense: true,
-              hintText: "Ingrese $label",
-              hintStyle: const TextStyle(
-                color: AppColors.outlineVariant,
-                fontSize: 12,
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 12,
-              ),
-              suffixIcon: IconButton(
-                icon: const Icon(
-                  Icons.calendar_today,
-                  size: 16,
-                  color: AppColors.onSurfaceVariant,
-                ),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                onPressed: () async {
-                  DateTime initialDate = DateTime.now();
-                  try {
-                    final parsed = _parseDate(controller.text);
-                    int year = parsed.year;
-                    if (year < 100) {
-                      year += 2000;
-                    }
-                    final adjustedDate = DateTime(
-                      year,
-                      parsed.month,
-                      parsed.day,
-                    );
-                    final first = DateTime(2020);
-                    final last = DateTime(2035);
-                    if (!adjustedDate.isBefore(first) &&
-                        !adjustedDate.isAfter(last)) {
-                      initialDate = adjustedDate;
-                    }
-                  } catch (_) {}
-
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: initialDate,
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime(2035),
-                  );
-                  if (picked != null) {
-                    controller.text =
-                        "${picked.day.toString().padLeft(2, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.year}";
-                  }
-                },
-              ),
-              suffixIconConstraints: const BoxConstraints(
-                minWidth: 32,
-                minHeight: 32,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: AppColors.outlineVariant),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: AppColors.outlineVariant),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: AppColors.primary),
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -1850,6 +2090,7 @@ class _VistaInventarioState extends State<VistaInventario> {
                       final isActive =
                           activeLot != null && lote.id == activeLot.id;
                       return _InteractiveLoteRow(
+                        key: ValueKey('${_selectedProduct!.sku}_${lote.id}'),
                         lote: lote,
                         isActiveLot: isActive,
                         units: _units,
@@ -2814,6 +3055,7 @@ class _InteractiveLoteRow extends StatefulWidget {
   final VoidCallback onChanged;
 
   const _InteractiveLoteRow({
+    super.key,
     required this.lote,
     required this.isActiveLot,
     required this.units,
@@ -2839,7 +3081,29 @@ class _InteractiveLoteRowState extends State<_InteractiveLoteRow> {
   late final TextEditingController _gananciaUnidadController;
   late final TextEditingController _gananciaLoteController;
 
+  late final FocusNode _costoUnitarioFocusNode;
+  late final FocusNode _precioVentaFocusNode;
+  late final FocusNode _costoLoteFocusNode;
+  late final FocusNode _impuestoCompraFocusNode;
+  late final FocusNode _impuestoVentaFocusNode;
+
   late String _unidades;
+
+  double parsePercent(String text) {
+    final clean = text.replaceAll('%', '').trim();
+    return double.tryParse(clean) ?? 0.0;
+  }
+
+  double parseMoney(String text) {
+    final clean = text
+        .replaceAll('L.', '')
+        .replaceAll('L', '')
+        .replaceAll('%', '')
+        .replaceAll(' ', '')
+        .replaceAll(',', '.')
+        .trim();
+    return double.tryParse(clean) ?? 0.0;
+  }
 
   @override
   void initState() {
@@ -2852,16 +3116,16 @@ class _InteractiveLoteRowState extends State<_InteractiveLoteRow> {
     );
 
     _costoUnitarioController = TextEditingController(
-      text: widget.lote.costoUnitario.toString(),
+      text: widget.lote.costoUnitario.toStringAsFixed(2),
     );
     _precioVentaController = TextEditingController(
-      text: widget.lote.precioVenta.toString(),
+      text: widget.lote.precioVenta.toStringAsFixed(2),
     );
     _impuestoCompraController = TextEditingController(
-      text: widget.lote.impuestoCompra.toStringAsFixed(0),
+      text: "${widget.lote.impuestoCompra.toStringAsFixed(0)}%",
     );
     _impuestoVentaController = TextEditingController(
-      text: widget.lote.impuestoVenta.toStringAsFixed(0),
+      text: "${widget.lote.impuestoVenta.toStringAsFixed(0)}%",
     );
 
     _costoLoteController = TextEditingController(
@@ -2873,6 +3137,47 @@ class _InteractiveLoteRowState extends State<_InteractiveLoteRow> {
     _gananciaLoteController = TextEditingController(
       text: widget.lote.gananciaLote.toStringAsFixed(2),
     );
+
+    _costoUnitarioFocusNode = FocusNode();
+    _precioVentaFocusNode = FocusNode();
+    _costoLoteFocusNode = FocusNode();
+    _impuestoCompraFocusNode = FocusNode();
+    _impuestoVentaFocusNode = FocusNode();
+
+    _costoUnitarioFocusNode.addListener(() {
+      if (!_costoUnitarioFocusNode.hasFocus) {
+        final val = parseMoney(_costoUnitarioController.text);
+        _costoUnitarioController.text = val.toStringAsFixed(2);
+      }
+    });
+
+    _precioVentaFocusNode.addListener(() {
+      if (!_precioVentaFocusNode.hasFocus) {
+        final val = parseMoney(_precioVentaController.text);
+        _precioVentaController.text = val.toStringAsFixed(2);
+      }
+    });
+
+    _costoLoteFocusNode.addListener(() {
+      if (!_costoLoteFocusNode.hasFocus) {
+        final val = parseMoney(_costoLoteController.text);
+        _costoLoteController.text = val.toStringAsFixed(2);
+      }
+    });
+
+    _impuestoCompraFocusNode.addListener(() {
+      if (!_impuestoCompraFocusNode.hasFocus) {
+        final val = parsePercent(_impuestoCompraController.text);
+        _impuestoCompraController.text = "${val.toStringAsFixed(0)}%";
+      }
+    });
+
+    _impuestoVentaFocusNode.addListener(() {
+      if (!_impuestoVentaFocusNode.hasFocus) {
+        final val = parsePercent(_impuestoVentaController.text);
+        _impuestoVentaController.text = "${val.toStringAsFixed(0)}%";
+      }
+    });
 
     _unidades = widget.lote.unidades;
     if (!widget.units.contains(_unidades) && widget.units.isNotEmpty) {
@@ -2893,6 +3198,57 @@ class _InteractiveLoteRowState extends State<_InteractiveLoteRow> {
   }
 
   @override
+  void didUpdateWidget(_InteractiveLoteRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.lote != oldWidget.lote) {
+      if ((int.tryParse(_stockController.text) ?? -1) != widget.lote.stock) {
+        _stockController.text = widget.lote.stock.toString();
+      }
+      if ((int.tryParse(_danadosController.text) ?? -1) !=
+          widget.lote.danados) {
+        _danadosController.text = widget.lote.danados.toString();
+      }
+      if (parseMoney(_costoUnitarioController.text) !=
+          widget.lote.costoUnitario) {
+        _costoUnitarioController.text = widget.lote.costoUnitario.toStringAsFixed(2);
+      }
+      if (parsePercent(_impuestoCompraController.text) !=
+          widget.lote.impuestoCompra) {
+        _impuestoCompraController.text = "${widget.lote.impuestoCompra.toStringAsFixed(0)}%";
+      }
+      if (parseMoney(_precioVentaController.text) !=
+          widget.lote.precioVenta) {
+        _precioVentaController.text = widget.lote.precioVenta.toStringAsFixed(2);
+      }
+      if (parsePercent(_impuestoVentaController.text) !=
+          widget.lote.impuestoVenta) {
+        _impuestoVentaController.text = "${widget.lote.impuestoVenta.toStringAsFixed(0)}%";
+      }
+      if (parseMoney(_costoLoteController.text) !=
+          widget.lote.costoLote) {
+        _costoLoteController.text = widget.lote.costoLote.toStringAsFixed(2);
+      }
+      if (parseMoney(_gananciaUnidadController.text) !=
+          widget.lote.gananciaUnidad) {
+        _gananciaUnidadController.text = widget.lote.gananciaUnidad
+            .toStringAsFixed(2);
+      }
+      if (parseMoney(_gananciaLoteController.text) !=
+          widget.lote.gananciaLote) {
+        _gananciaLoteController.text = widget.lote.gananciaLote.toStringAsFixed(
+          2,
+        );
+      }
+      if (_unidades != widget.lote.unidades) {
+        _unidades = widget.lote.unidades;
+        if (!widget.units.contains(_unidades) && widget.units.isNotEmpty) {
+          _unidades = widget.units.first;
+        }
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _stockController.dispose();
     _danadosController.dispose();
@@ -2905,6 +3261,13 @@ class _InteractiveLoteRowState extends State<_InteractiveLoteRow> {
     _costoLoteController.dispose();
     _gananciaUnidadController.dispose();
     _gananciaLoteController.dispose();
+
+    _costoUnitarioFocusNode.dispose();
+    _precioVentaFocusNode.dispose();
+    _costoLoteFocusNode.dispose();
+    _impuestoCompraFocusNode.dispose();
+    _impuestoVentaFocusNode.dispose();
+
     super.dispose();
   }
 
@@ -2914,13 +3277,13 @@ class _InteractiveLoteRowState extends State<_InteractiveLoteRow> {
       widget.lote.danados = int.tryParse(_danadosController.text) ?? 0;
 
       widget.lote.costoUnitario =
-          double.tryParse(_costoUnitarioController.text) ?? 0.0;
+          parseMoney(_costoUnitarioController.text);
       widget.lote.precioVenta =
-          double.tryParse(_precioVentaController.text) ?? 0.0;
+          parseMoney(_precioVentaController.text);
       widget.lote.impuestoCompra =
-          double.tryParse(_impuestoCompraController.text) ?? 0.0;
+          parsePercent(_impuestoCompraController.text);
       widget.lote.impuestoVenta =
-          double.tryParse(_impuestoVentaController.text) ?? 0.0;
+          parsePercent(_impuestoVentaController.text);
       widget.lote.unidades = _unidades;
 
       // Derived calculations
@@ -2949,13 +3312,11 @@ class _InteractiveLoteRowState extends State<_InteractiveLoteRow> {
 
   void _onDerivedFieldsChanged() {
     widget.lote.costoLote =
-        double.tryParse(_costoLoteController.text) ?? widget.lote.costoLote;
+        parseMoney(_costoLoteController.text);
     widget.lote.gananciaUnidad =
-        double.tryParse(_gananciaUnidadController.text) ??
-        widget.lote.gananciaUnidad;
+        parseMoney(_gananciaUnidadController.text);
     widget.lote.gananciaLote =
-        double.tryParse(_gananciaLoteController.text) ??
-        widget.lote.gananciaLote;
+        parseMoney(_gananciaLoteController.text);
     widget.onChanged();
   }
 
@@ -3044,6 +3405,9 @@ class _InteractiveLoteRowState extends State<_InteractiveLoteRow> {
     required TextEditingController controller,
     required IconData icon,
     TextInputType keyboardType = TextInputType.text,
+    bool isMoney = false,
+    String? suffixText,
+    FocusNode? focusNode,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -3060,12 +3424,99 @@ class _InteractiveLoteRowState extends State<_InteractiveLoteRow> {
         TextFormField(
           controller: controller,
           keyboardType: keyboardType,
+          focusNode: focusNode,
           style: const TextStyle(fontSize: 13),
           decoration: InputDecoration(
             prefixIcon: Icon(icon, size: 16),
+            prefixText: isMoney ? "L. " : null,
+            prefixStyle: isMoney ? GoogleFonts.outfit(fontWeight: FontWeight.bold) : null,
+            suffixText: suffixText,
+            suffixStyle: suffixText != null ? GoogleFonts.outfit(fontWeight: FontWeight.bold) : null,
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 8,
               vertical: 8,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: AppColors.outlineVariant),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: AppColors.outlineVariant),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: AppColors.primary),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInlineTaxCounterField({
+    required String label,
+    required TextEditingController controller,
+    required FocusNode focusNode,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.outfit(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: AppColors.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          focusNode: focusNode,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 13, color: AppColors.onSurface),
+          decoration: InputDecoration(
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 8,
+            ),
+            prefixIcon: IconButton(
+              icon: const Icon(
+                Icons.remove,
+                size: 16,
+                color: AppColors.onSurfaceVariant,
+              ),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+              onPressed: () {
+                final val = parsePercent(controller.text).toInt();
+                if (val > 0) {
+                  controller.text = "${val - 1}%";
+                }
+              },
+            ),
+            prefixIconConstraints: const BoxConstraints(
+              minWidth: 40,
+              minHeight: 40,
+            ),
+            suffixIcon: IconButton(
+              icon: const Icon(
+                Icons.add,
+                size: 16,
+                color: AppColors.onSurfaceVariant,
+              ),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+              onPressed: () {
+                final val = parsePercent(controller.text).toInt();
+                controller.text = "${val + 1}%";
+              },
+            ),
+            suffixIconConstraints: const BoxConstraints(
+              minWidth: 40,
+              minHeight: 40,
             ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
@@ -3283,7 +3734,7 @@ class _InteractiveLoteRowState extends State<_InteractiveLoteRow> {
                       Text(
                         "$signStr${pctValue.toStringAsFixed(1)}%",
                         style: GoogleFonts.outfit(
-                          fontSize: 10,
+                          fontSize: 13,
                           fontWeight: FontWeight.bold,
                           color: textColor,
                         ),
@@ -3305,13 +3756,13 @@ class _InteractiveLoteRowState extends State<_InteractiveLoteRow> {
 
     // Calcular ganancias y porcentajes dinámicos para los indicadores interactivos
     final stockVal = int.tryParse(_stockController.text) ?? 0;
-    final costoUnitVal = double.tryParse(_costoUnitarioController.text) ?? 0.0;
-    final precioVentaVal = double.tryParse(_precioVentaController.text) ?? 0.0;
+    final costoUnitVal = parseMoney(_costoUnitarioController.text);
+    final precioVentaVal = parseMoney(_precioVentaController.text);
     final gainUnidadVal = precioVentaVal - costoUnitVal;
     final gainLoteVal = gainUnidadVal * stockVal;
     final pctVal = costoUnitVal > 0
         ? (gainUnidadVal / costoUnitVal) * 100
-        : 0.0;
+        : (precioVentaVal > 0 ? 100.0 : 0.0);
     final statusColor = hasStock
         ? const Color(0xFF10B981)
         : const Color(0xFFBA1A1A);
@@ -3479,90 +3930,122 @@ class _InteractiveLoteRowState extends State<_InteractiveLoteRow> {
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 children: [
-                  GridView.count(
-                    crossAxisCount: 2,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: 2.8,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // 1. Cantidad (móvil)
-                      _buildInlineCounterField(
-                        label: "Cantidad",
-                        controller: _stockController,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildInlineCounterField(
+                              label: "Cantidad",
+                              controller: _stockController,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildInlineDropdownField(
+                              label: "Unidades",
+                              value: widget.units.contains(_unidades)
+                                  ? _unidades
+                                  : (widget.units.isNotEmpty
+                                        ? widget.units.first
+                                        : _unidades),
+                              options: widget.units,
+                              onChanged: (val) {
+                                if (val != null) {
+                                  _unidades = val;
+                                  _onFieldsChanged();
+                                }
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildInlineCounterField(
+                              label: "Cant. Dañada",
+                              controller: _danadosController,
+                            ),
+                          ),
+                        ],
                       ),
-                      // 2. Unidades (móvil)
-                      _buildInlineDropdownField(
-                        label: "Unidades",
-                        value: widget.units.contains(_unidades)
-                            ? _unidades
-                            : (widget.units.isNotEmpty
-                                  ? widget.units.first
-                                  : _unidades),
-                        options: widget.units,
-                        onChanged: (val) {
-                          if (val != null) {
-                            _unidades = val;
-                            _onFieldsChanged();
-                          }
-                        },
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildInlineInputField(
+                              label: "Precio Costo Lote",
+                              controller: _costoLoteController,
+                              icon: Icons.calculate_outlined,
+                              isMoney: true,
+                              focusNode: _costoLoteFocusNode,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildInlineInputField(
+                              label: "Costo Unitario",
+                              controller: _costoUnitarioController,
+                              icon: Icons.payments_outlined,
+                              isMoney: true,
+                              focusNode: _costoUnitarioFocusNode,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildInlineInputField(
+                              label: "Precio Venta",
+                              controller: _precioVentaController,
+                              icon: Icons.sell_outlined,
+                              isMoney: true,
+                              focusNode: _precioVentaFocusNode,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                            ),
+                          ),
+                        ],
                       ),
-                      // 3. Costo Lote
-                      _buildInlineInputField(
-                        label: "Precio Costo Lote",
-                        controller: _costoLoteController,
-                        icon: Icons.calculate_outlined,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                      ),
-                      // 4. Costo unitario
-                      _buildInlineInputField(
-                        label: "Costo Unitario",
-                        controller: _costoUnitarioController,
-                        icon: Icons.payments_outlined,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                      ),
-                      // 5. Impuesto compra
-                      _buildInlineInputField(
-                        label: "Impuesto Compra %",
-                        controller: _impuestoCompraController,
-                        icon: Icons.receipt_long_outlined,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                      ),
-                      // 6. Impuesto venta
-                      _buildInlineInputField(
-                        label: "Impuesto Venta %",
-                        controller: _impuestoVentaController,
-                        icon: Icons.receipt_long_outlined,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                      ),
-                      // 7. Precio Venta
-                      _buildInlineInputField(
-                        label: "Precio Venta",
-                        controller: _precioVentaController,
-                        icon: Icons.sell_outlined,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                      ),
-                      // 8. Fecha Vencimiento
-                      _buildInlineDateField(
-                        label: "Fecha Vencimiento",
-                        dateStr: widget.lote.fechaVencimiento,
-                        onSelected: (val) {
-                          setState(() {
-                            widget.lote.fechaVencimiento = val;
-                          });
-                          _onFieldsChanged();
-                        },
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildInlineTaxCounterField(
+                              label: "Imp. Compra",
+                              controller: _impuestoCompraController,
+                              focusNode: _impuestoCompraFocusNode,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildInlineTaxCounterField(
+                              label: "Imp. Venta",
+                              controller: _impuestoVentaController,
+                              focusNode: _impuestoVentaFocusNode,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildInlineDateField(
+                              label: "Fecha Vencimiento",
+                              dateStr: widget.lote.fechaVencimiento,
+                              onSelected: (val) {
+                                setState(() {
+                                  widget.lote.fechaVencimiento = val;
+                                });
+                                _onFieldsChanged();
+                              },
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -3612,11 +4095,12 @@ class _AddLoteDialogState extends State<_AddLoteDialog> {
 
   late final TextEditingController _idController;
   final _stockController = TextEditingController(text: "1");
+  final _danadosController = TextEditingController(text: "0");
 
   final _costoUnitarioController = TextEditingController(text: "0.00");
   final _precioVentaController = TextEditingController(text: "0.00");
-  final _impuestoCompraController = TextEditingController(text: "15");
-  final _impuestoVentaController = TextEditingController(text: "15");
+  final _impuestoCompraController = TextEditingController(text: "15%");
+  final _impuestoVentaController = TextEditingController(text: "15%");
 
   String _unidades = "Unid";
   String _fechaIngreso = "";
@@ -3625,6 +4109,19 @@ class _AddLoteDialogState extends State<_AddLoteDialog> {
   final _costoLoteController = TextEditingController(text: "0.00");
   final _gananciaUnidadController = TextEditingController(text: "0.00");
   final _gananciaLoteController = TextEditingController(text: "0.00");
+
+  late final FocusNode _costoUnitarioFocusNode;
+  late final FocusNode _precioVentaFocusNode;
+  late final FocusNode _costoLoteFocusNode;
+  late final FocusNode _gananciaUnidadFocusNode;
+  late final FocusNode _gananciaLoteFocusNode;
+  late final FocusNode _impuestoCompraFocusNode;
+  late final FocusNode _impuestoVentaFocusNode;
+
+  double parsePercent(String text) {
+    final clean = text.replaceAll('%', '').trim();
+    return double.tryParse(clean) ?? 0.0;
+  }
 
   @override
   void initState() {
@@ -3639,6 +4136,63 @@ class _AddLoteDialogState extends State<_AddLoteDialog> {
     _fechaIngreso =
         "${today.day.toString().padLeft(2, '0')}-${today.month.toString().padLeft(2, '0')}-${today.year}";
 
+    _costoUnitarioFocusNode = FocusNode();
+    _precioVentaFocusNode = FocusNode();
+    _costoLoteFocusNode = FocusNode();
+    _gananciaUnidadFocusNode = FocusNode();
+    _gananciaLoteFocusNode = FocusNode();
+    _impuestoCompraFocusNode = FocusNode();
+    _impuestoVentaFocusNode = FocusNode();
+
+    _costoUnitarioFocusNode.addListener(() {
+      if (!_costoUnitarioFocusNode.hasFocus) {
+        final val = double.tryParse(_costoUnitarioController.text) ?? 0.0;
+        _costoUnitarioController.text = val.toStringAsFixed(2);
+      }
+    });
+
+    _precioVentaFocusNode.addListener(() {
+      if (!_precioVentaFocusNode.hasFocus) {
+        final val = double.tryParse(_precioVentaController.text) ?? 0.0;
+        _precioVentaController.text = val.toStringAsFixed(2);
+      }
+    });
+
+    _costoLoteFocusNode.addListener(() {
+      if (!_costoLoteFocusNode.hasFocus) {
+        final val = double.tryParse(_costoLoteController.text) ?? 0.0;
+        _costoLoteController.text = val.toStringAsFixed(2);
+      }
+    });
+
+    _gananciaUnidadFocusNode.addListener(() {
+      if (!_gananciaUnidadFocusNode.hasFocus) {
+        final val = double.tryParse(_gananciaUnidadController.text) ?? 0.0;
+        _gananciaUnidadController.text = val.toStringAsFixed(2);
+      }
+    });
+
+    _gananciaLoteFocusNode.addListener(() {
+      if (!_gananciaLoteFocusNode.hasFocus) {
+        final val = double.tryParse(_gananciaLoteController.text) ?? 0.0;
+        _gananciaLoteController.text = val.toStringAsFixed(2);
+      }
+    });
+
+    _impuestoCompraFocusNode.addListener(() {
+      if (!_impuestoCompraFocusNode.hasFocus) {
+        final val = parsePercent(_impuestoCompraController.text);
+        _impuestoCompraController.text = "${val.toStringAsFixed(0)}%";
+      }
+    });
+
+    _impuestoVentaFocusNode.addListener(() {
+      if (!_impuestoVentaFocusNode.hasFocus) {
+        final val = parsePercent(_impuestoVentaController.text);
+        _impuestoVentaController.text = "${val.toStringAsFixed(0)}%";
+      }
+    });
+
     _stockController.addListener(_calculateCostsAndGains);
     _costoUnitarioController.addListener(_calculateCostsAndGains);
     _precioVentaController.addListener(_calculateCostsAndGains);
@@ -3649,6 +4203,7 @@ class _AddLoteDialogState extends State<_AddLoteDialog> {
   void dispose() {
     _idController.dispose();
     _stockController.dispose();
+    _danadosController.dispose();
 
     _costoUnitarioController.dispose();
     _precioVentaController.dispose();
@@ -3658,6 +4213,14 @@ class _AddLoteDialogState extends State<_AddLoteDialog> {
     _costoLoteController.dispose();
     _gananciaUnidadController.dispose();
     _gananciaLoteController.dispose();
+
+    _costoUnitarioFocusNode.dispose();
+    _precioVentaFocusNode.dispose();
+    _costoLoteFocusNode.dispose();
+    _gananciaUnidadFocusNode.dispose();
+    _gananciaLoteFocusNode.dispose();
+    _impuestoCompraFocusNode.dispose();
+    _impuestoVentaFocusNode.dispose();
 
     super.dispose();
   }
@@ -3688,15 +4251,23 @@ class _AddLoteDialogState extends State<_AddLoteDialog> {
     required String hint,
     TextInputType keyboardType = TextInputType.text,
     String? Function(String?)? validator,
+    bool isMoney = false,
+    String? suffixText,
+    FocusNode? focusNode,
   }) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
       validator: validator,
+      focusNode: focusNode,
       style: const TextStyle(fontSize: 13),
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
+        prefixText: isMoney ? "L. " : null,
+        prefixStyle: isMoney ? GoogleFonts.outfit(fontWeight: FontWeight.bold) : null,
+        suffixText: suffixText,
+        suffixStyle: suffixText != null ? GoogleFonts.outfit(fontWeight: FontWeight.bold) : null,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 12,
           vertical: 10,
@@ -3743,7 +4314,7 @@ class _AddLoteDialogState extends State<_AddLoteDialog> {
           constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
           onPressed: () {
             final val = int.tryParse(controller.text) ?? 0;
-            if (val > 1) {
+            if (val > 0) {
               controller.text = (val - 1).toString();
             }
           },
@@ -3763,6 +4334,76 @@ class _AddLoteDialogState extends State<_AddLoteDialog> {
           onPressed: () {
             final val = int.tryParse(controller.text) ?? 0;
             controller.text = (val + 1).toString();
+          },
+        ),
+        suffixIconConstraints: const BoxConstraints(
+          minWidth: 40,
+          minHeight: 40,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: AppColors.outlineVariant),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: AppColors.outlineVariant),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: AppColors.primary),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTaxCounterField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required FocusNode focusNode,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: TextInputType.number,
+      validator: validator,
+      focusNode: focusNode,
+      textAlign: TextAlign.center,
+      style: const TextStyle(fontSize: 13),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        contentPadding: const EdgeInsets.symmetric(vertical: 10),
+        prefixIcon: IconButton(
+          icon: const Icon(
+            Icons.remove,
+            size: 16,
+            color: AppColors.onSurfaceVariant,
+          ),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+          onPressed: () {
+            final val = parsePercent(controller.text).toInt();
+            if (val > 0) {
+              controller.text = "${val - 1}%";
+            }
+          },
+        ),
+        prefixIconConstraints: const BoxConstraints(
+          minWidth: 40,
+          minHeight: 40,
+        ),
+        suffixIcon: IconButton(
+          icon: const Icon(
+            Icons.add,
+            size: 16,
+            color: AppColors.onSurfaceVariant,
+          ),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+          onPressed: () {
+            final val = parsePercent(controller.text).toInt();
+            controller.text = "${val + 1}%";
           },
         ),
         suffixIconConstraints: const BoxConstraints(
@@ -3927,6 +4568,14 @@ class _AddLoteDialogState extends State<_AddLoteDialog> {
                         },
                       ),
                     ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildCounterTextField(
+                        controller: _danadosController,
+                        label: "Cant. Dañada",
+                        hint: "0",
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -3937,6 +4586,8 @@ class _AddLoteDialogState extends State<_AddLoteDialog> {
                         controller: _costoUnitarioController,
                         label: "Costo Unitario (L.)",
                         hint: "0.00",
+                        isMoney: true,
+                        focusNode: _costoUnitarioFocusNode,
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
                         ),
@@ -3948,6 +4599,8 @@ class _AddLoteDialogState extends State<_AddLoteDialog> {
                         controller: _precioVentaController,
                         label: "Precio de Venta (L.)",
                         hint: "0.00",
+                        isMoney: true,
+                        focusNode: _precioVentaFocusNode,
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
                         ),
@@ -3959,11 +4612,20 @@ class _AddLoteDialogState extends State<_AddLoteDialog> {
                 Row(
                   children: [
                     Expanded(
-                      child: _buildDateField(
-                        label: "Fecha Ingreso",
-                        dateStr: _fechaIngreso,
-                        onSelected: (val) =>
-                            setState(() => _fechaIngreso = val),
+                      child: _buildTaxCounterField(
+                        controller: _impuestoCompraController,
+                        label: "Imp. Compra",
+                        hint: "15",
+                        focusNode: _impuestoCompraFocusNode,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildTaxCounterField(
+                        controller: _impuestoVentaController,
+                        label: "Imp. Venta",
+                        hint: "15",
+                        focusNode: _impuestoVentaFocusNode,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -3988,6 +4650,8 @@ class _AddLoteDialogState extends State<_AddLoteDialog> {
                         controller: _costoLoteController,
                         label: "Costo Lote",
                         hint: "0.00",
+                        isMoney: true,
+                        focusNode: _costoLoteFocusNode,
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
                         ),
@@ -3999,6 +4663,8 @@ class _AddLoteDialogState extends State<_AddLoteDialog> {
                         controller: _gananciaUnidadController,
                         label: "Ganancia/Unidad",
                         hint: "0.00",
+                        isMoney: true,
+                        focusNode: _gananciaUnidadFocusNode,
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
                         ),
@@ -4010,6 +4676,8 @@ class _AddLoteDialogState extends State<_AddLoteDialog> {
                         controller: _gananciaLoteController,
                         label: "Ganancia Lote",
                         hint: "0.00",
+                        isMoney: true,
+                        focusNode: _gananciaLoteFocusNode,
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
                         ),
@@ -4042,13 +4710,14 @@ class _AddLoteDialogState extends State<_AddLoteDialog> {
                 precioVenta:
                     double.tryParse(_precioVentaController.text) ?? 0.0,
                 impuestoCompra:
-                    double.tryParse(_impuestoCompraController.text) ?? 15.0,
+                    parsePercent(_impuestoCompraController.text),
                 impuestoVenta:
-                    double.tryParse(_impuestoVentaController.text) ?? 15.0,
+                    parsePercent(_impuestoVentaController.text),
                 gananciaUnidad:
                     double.tryParse(_gananciaUnidadController.text) ?? 0.0,
                 gananciaLote:
                     double.tryParse(_gananciaLoteController.text) ?? 0.0,
+                danados: int.tryParse(_danadosController.text) ?? 0,
               );
               Navigator.pop(context, newLote);
             }

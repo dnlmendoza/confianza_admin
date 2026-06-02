@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 class LoteItem {
   String id;
+  String rawJson;
   int stock;
   String fechaIngreso;
   String fechaVencimiento;
@@ -14,23 +15,22 @@ class LoteItem {
   double gananciaUnidad;
   double gananciaLote;
   int danados;
-  String ubicacion;
 
   LoteItem({
     required this.id,
+    this.rawJson = '',
     required this.stock,
     required this.fechaIngreso,
     this.fechaVencimiento = "28-02-2027",
     this.unidades = "Unid",
-    this.costoLote = 108.75,
-    this.costoUnitario = 36.25,
-    this.impuestoCompra = 15.0,
-    this.precioVenta = 42.0,
-    this.impuestoVenta = 15.0,
-    this.gananciaUnidad = 5.75,
-    this.gananciaLote = 17.25,
+    this.costoLote = 0.0,
+    this.costoUnitario = 0.0,
+    this.impuestoCompra = 0.0,
+    this.precioVenta = 0.0,
+    this.impuestoVenta = 0.0,
+    this.gananciaUnidad = 0.0,
+    this.gananciaLote = 0.0,
     this.danados = 0,
-    this.ubicacion = "Estante A1",
   });
 }
 
