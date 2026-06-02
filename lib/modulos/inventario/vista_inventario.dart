@@ -212,12 +212,15 @@ class _VistaInventarioState extends State<VistaInventario> {
         final danados =
             int.tryParse(l['cantidad_danada']?.toString() ?? '0') ?? 0;
 
+        final String unidadId = l['unidades']?.toString() ?? 'Unid';
+        final String unidadName = _vmCatalogos.unidadesMap[unidadId] ?? unidadId;
+
         return LoteItem(
           id: l['id'] ?? '',
           stock: stock,
           fechaIngreso: l['fecha_ingreso']?.toString() ?? '',
           fechaVencimiento: l['fecha_vencimiento']?.toString() ?? '28-02-2027',
-          unidades: l['unidades']?.toString() ?? 'Unid',
+          unidades: unidadName,
           costoLote: costoLote,
           costoUnitario: costoUnitario,
           impuestoCompra:
@@ -355,6 +358,14 @@ class _VistaInventarioState extends State<VistaInventario> {
 
   Future<void> _saveLoteToFirestore(String productSku, LoteItem lote) async {
     try {
+      final String uniName = lote.unidades;
+      final String uniId = _vmCatalogos.unidadesMap.entries
+          .firstWhere(
+            (e) => e.value == uniName,
+            orElse: () => MapEntry(uniName, uniName),
+          )
+          .key;
+
       final firestore = FirebaseFirestore.instance;
       await firestore
           .collection('Inventario')
@@ -368,7 +379,7 @@ class _VistaInventarioState extends State<VistaInventario> {
             'precio_venta': lote.precioVenta,
             'impuesto_compra': lote.impuestoCompra,
             'impuesto_venta': lote.impuestoVenta,
-            'unidades': lote.unidades,
+            'unidades': uniId,
             'fecha_vencimiento': lote.fechaVencimiento,
             'fecha_ingreso': lote.fechaIngreso,
             'costo_lote': lote.costoLote,
@@ -787,7 +798,6 @@ class _VistaInventarioState extends State<VistaInventario> {
                 Row(
                   children: [
                     Expanded(
-                      flex: 2,
                       child: Container(
                         height: 40,
                         decoration: BoxDecoration(
@@ -801,6 +811,7 @@ class _VistaInventarioState extends State<VistaInventario> {
                         ),
                         child: TextField(
                           controller: _searchController,
+                          textAlignVertical: TextAlignVertical.center,
                           onChanged: (_) {
                             setState(() {}); // Actualiza la tabla al buscar
                           },
@@ -810,10 +821,15 @@ class _VistaInventarioState extends State<VistaInventario> {
                               color: AppColors.onSurfaceVariant,
                               fontSize: 13,
                             ),
+                            isDense: true,
                             prefixIcon: const Icon(
                               Icons.search,
                               size: 18,
                               color: AppColors.onSurfaceVariant,
+                            ),
+                            prefixIconConstraints: const BoxConstraints(
+                              minWidth: 40,
+                              minHeight: 40,
                             ),
                             suffixIcon: _searchController.text.isNotEmpty
                                 ? IconButton(
@@ -825,118 +841,83 @@ class _VistaInventarioState extends State<VistaInventario> {
                                     },
                                   )
                                 : null,
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(
-                              vertical: 12,
+                            suffixIconConstraints: const BoxConstraints(
+                              minWidth: 40,
+                              minHeight: 40,
                             ),
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.zero,
                           ),
                           style: const TextStyle(fontSize: 13),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 1,
-                      child: Container(
-                        height: 40,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceContainerLowest,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: AppColors.outlineVariant.withValues(
-                              alpha: 0.5,
-                            ),
-                          ),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: _selectedCategory,
-                            isExpanded: true,
-                            icon: const Icon(
-                              Icons.keyboard_arrow_down,
-                              size: 18,
-                              color: AppColors.onSurfaceVariant,
-                            ),
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: AppColors.onSurface,
-                            ),
-                            onChanged: (String? newValue) {
-                              if (newValue != null) {
-                                setState(() {
-                                  _selectedCategory = newValue;
-                                });
-                              }
-                            },
-                            items: ["Todas las Categorías", ..._categories]
-                                .toSet()
-                                .toList()
-                                .map<DropdownMenuItem<String>>((String value) {
-                                  return DropdownMenuItem<String>(
-                                    value: value,
-                                    child: Text(
-                                      value,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  );
-                                })
-                                .toList(),
-                          ),
-                        ),
+                    const SizedBox(width: 8),
+                    PopupMenuButton<String>(
+                      tooltip: "Filtrar por Categoría",
+                      icon: Icon(
+                        Icons.category_outlined,
+                        color: _selectedCategory != "Todas las Categorías"
+                            ? AppColors.primary
+                            : AppColors.onSurfaceVariant,
                       ),
+                      onSelected: (String newValue) {
+                        setState(() {
+                          _selectedCategory = newValue;
+                        });
+                      },
+                      itemBuilder: (BuildContext context) {
+                        return {"Todas las Categorías", ..._categories}
+                            .map((String value) {
+                          return PopupMenuItem<String>(
+                            value: value,
+                            child: Text(
+                              value,
+                              style: TextStyle(
+                                fontWeight: _selectedCategory == value
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                color: _selectedCategory == value
+                                    ? AppColors.primary
+                                    : AppColors.onSurface,
+                              ),
+                            ),
+                          );
+                        }).toList();
+                      },
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 1,
-                      child: Container(
-                        height: 40,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceContainerLowest,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: AppColors.outlineVariant.withValues(
-                              alpha: 0.5,
-                            ),
-                          ),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: _selectedProvider,
-                            isExpanded: true,
-                            icon: const Icon(
-                              Icons.keyboard_arrow_down,
-                              size: 18,
-                              color: AppColors.onSurfaceVariant,
-                            ),
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: AppColors.onSurface,
-                            ),
-                            onChanged: (String? newValue) {
-                              if (newValue != null) {
-                                setState(() {
-                                  _selectedProvider = newValue;
-                                });
-                              }
-                            },
-                            items: ["Todos los Proveedores", ..._providers]
-                                .toSet()
-                                .toList()
-                                .map<DropdownMenuItem<String>>((String value) {
-                                  return DropdownMenuItem<String>(
-                                    value: value,
-                                    child: Text(
-                                      value,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  );
-                                })
-                                .toList(),
-                          ),
-                        ),
+                    PopupMenuButton<String>(
+                      tooltip: "Filtrar por Proveedor",
+                      icon: Icon(
+                        Icons.local_shipping_outlined,
+                        color: _selectedProvider != "Todos los Proveedores"
+                            ? AppColors.primary
+                            : AppColors.onSurfaceVariant,
                       ),
+                      onSelected: (String newValue) {
+                        setState(() {
+                          _selectedProvider = newValue;
+                        });
+                      },
+                      itemBuilder: (BuildContext context) {
+                        return {"Todos los Proveedores", ..._providers}
+                            .map((String value) {
+                          return PopupMenuItem<String>(
+                            value: value,
+                            child: Text(
+                              value,
+                              style: TextStyle(
+                                fontWeight: _selectedProvider == value
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                color: _selectedProvider == value
+                                    ? AppColors.primary
+                                    : AppColors.onSurface,
+                              ),
+                            ),
+                          );
+                        }).toList();
+                      },
                     ),
                   ],
                 ),
@@ -978,8 +959,8 @@ class _VistaInventarioState extends State<VistaInventario> {
                 : SingleChildScrollView(
                     child: Table(
                       columnWidths: const {
-                        0: FlexColumnWidth(4.6), // Nombre del Item
-                        1: FlexColumnWidth(3.0), // Categoría/Proveedor
+                        0: FlexColumnWidth(5.2), // Nombre del Item
+                        1: FlexColumnWidth(2.5), // Categoría/Proveedor
                       },
                       children: [
                         ...filtered.map((item) {
@@ -3365,11 +3346,21 @@ class _InteractiveLoteRowState extends State<_InteractiveLoteRow> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
-                  Icon(
-                    Icons.layers_outlined,
-                    color: widget.isActiveLot
-                        ? AppColors.primary
-                        : AppColors.onSurfaceVariant,
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: widget.isActiveLot
+                          ? AppColors.primary.withValues(alpha: 0.1)
+                          : AppColors.surfaceContainerLow,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.layers_outlined,
+                      size: 20,
+                      color: widget.isActiveLot
+                          ? AppColors.primary
+                          : AppColors.onSurfaceVariant,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -3380,43 +3371,18 @@ class _InteractiveLoteRowState extends State<_InteractiveLoteRow> {
                           children: [
                             Flexible(
                               child: Text(
-                                widget.lote.id,
+                                "Lote: ${widget.lote.id}",
                                 style: GoogleFonts.outfit(
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 14,
+                                  fontSize: 13,
                                 ),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                            if (widget.isActiveLot)
-                              Container(
-                                margin: const EdgeInsets.only(left: 8),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary.withValues(
-                                    alpha: 0.1,
-                                  ),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: const Text(
-                                  "FIFO Activo",
-                                  style: TextStyle(
-                                    color: AppColors.primary,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
                           ],
                         ),
-                        const SizedBox(height: 6),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 4,
-                          crossAxisAlignment: WrapCrossAlignment.center,
+                        const SizedBox(height: 4),
+                        Row(
                           children: [
                             Container(
                               padding: const EdgeInsets.symmetric(
@@ -3436,18 +3402,11 @@ class _InteractiveLoteRowState extends State<_InteractiveLoteRow> {
                                 ),
                               ),
                             ),
+                            const SizedBox(width: 8),
                             Text(
-                              "${widget.lote.stock} ${widget.lote.unidades}",
+                              "Ingreso: ${widget.lote.fechaIngreso}",
                               style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.onSurface,
-                              ),
-                            ),
-                            Text(
-                              "• Ingreso: ${widget.lote.fechaIngreso}",
-                              style: const TextStyle(
-                                fontSize: 12,
+                                fontSize: 11,
                                 color: AppColors.onSurfaceVariant,
                               ),
                             ),
@@ -3456,7 +3415,57 @@ class _InteractiveLoteRowState extends State<_InteractiveLoteRow> {
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (widget.isActiveLot)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            "FIFO Activo",
+                            style: TextStyle(
+                              color: AppColors.primary,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Text(
+                            "${widget.lote.stock}",
+                            style: GoogleFonts.outfit(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.onSurface,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            widget.lote.unidades,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 12),
                   Icon(
                     _isExpanded ? Icons.expand_less : Icons.expand_more,
                     color: AppColors.onSurfaceVariant,
