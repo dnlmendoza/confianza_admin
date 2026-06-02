@@ -83,63 +83,7 @@ class ViewModelInventario extends ChangeNotifier {
     notifyListeners();
   }
 
-  final List<ProductItem> products = [
-    ProductItem(
-      name: "Studio Pro Wireless",
-      subtitle: "Over-ear active noise cancelling",
-      sku: "STP-882-BLU",
-      category: "Electrónica",
-      stock: 156,
-      maxStock: 200,
-      price: 299.00,
-      imageUrl: "https://lh3.googleusercontent.com/aida/ADBb0uhDGSJL6EQq__ES4O2BHuQPLhIu-v_4g9dOUZIK7_T_C3IqAudQPDnEnlH7hHQzst4S2rPl3Mts12ht5Y-_SbdPQUu1ub7GUcjjeYWFhomHxPINBqpxAJBKO90Kswd3b-3rivbPXBAgoRs_1GjMw7pxg8GwrO_1Xbaj96ZaNyENfufKBpOtyMNO8himPTyt-B8P8C6IoXm4_AFO45XaoFL_OjYQdCZP053oRa4BQhctwEdru2Sq18tQtzpUlRRrtCpnf1nIIrF_",
-      lotes: [
-        LoteItem(id: "L-8012", stock: 80, fechaIngreso: "12-04-2026"),
-        LoteItem(id: "L-8013", stock: 76, fechaIngreso: "28-04-2026"),
-      ],
-    ),
-    ProductItem(
-      name: "Mechanic K1 Keyboard",
-      subtitle: "RGB Backlit Mechanical Switches",
-      sku: "MK-K1-744",
-      category: "Periféricos",
-      stock: 12,
-      maxStock: 100,
-      price: 149.50,
-      imageUrl: "https://lh3.googleusercontent.com/aida/ADBb0uie9aXo1SLfhg9oUGqFi4nj1R8WsE7bT8hS8vdtDW1ECX8pNL-Rs-qEps1ft0cRqFODMqLGSDXutWEiHblqTxlePbkM7J1ag0U1jYhlT6NzJ91Um7oobtKxw1OsJxhJQ_7_9VfA-LFK1hQHzAgQy9y6yiGGW1MGZGnFnws73dmYfLqbK30MdXcUhAZ1WGfR1gUjpbzN19DA1IAVrbZN_jgFGMYwIMofXIqznfNk3_ib9SomYPmsyKJkn1iqRjorMszaPyTriM1KZQ",
-      lotes: [
-        LoteItem(id: "L-5021", stock: 12, fechaIngreso: "05-05-2026"),
-      ],
-    ),
-    ProductItem(
-      name: "UltraWide 34\" Display",
-      subtitle: "IPS Panel 144Hz HDR400",
-      sku: "UW-34-DSPL",
-      category: "Monitores",
-      stock: 45,
-      maxStock: 100,
-      price: 599.99,
-      imageUrl: "https://lh3.googleusercontent.com/aida/ADBb0uh4Tj2eAXE_OWkZULpzK2h_Q8kPH-6MKNSC3wbUiSjuIeQFgke68asTEoP-OwydyJR-vHaoOza7-NbITPCUY5rVOcE1mVdRPQtX9q0SG1qsAzcLthOhHL7RXQrKwN5MUn190NZySmD45LzmuuocLrnRLtLizsFeVJg17xPdRcoksECY2NRTFBwqGF1qSGBRE0u6S_sNW2K1Y2G-WbYFAKgssRVf1iBWY9t6Y0HlbB1OPEA5Hd3iBoWqR_H4Vf3RS36pKAheDSSlQg",
-      lotes: [
-        LoteItem(id: "L-1090", stock: 30, fechaIngreso: "20-04-2026"),
-        LoteItem(id: "L-1091", stock: 15, fechaIngreso: "10-05-2026"),
-      ],
-    ),
-    ProductItem(
-      name: "ErgoChair X-series",
-      subtitle: "Breathable mesh with lumbar support",
-      sku: "CH-ERG-881",
-      category: "Mobiliario",
-      stock: 210,
-      maxStock: 250,
-      price: 425.00,
-      imageUrl: "https://lh3.googleusercontent.com/aida/ADBb0uj8I9f53CpSj40cca_fxt6KDo57B4z5FBtDqrwX6YOaNbbsU1WX7mEhu5cunyifZXLih2dswdROV7dw0Js73dJ6-qs5F2VgSeZBUVN4YFIaVu_oLsBL2c-rstYiGoQhE-uY0TM2gcuR09ryDxDAHAGOxRwKRDsshuF-3NnsAIx7hHyVwi16RaRRLlSy9jG1gnABu5nQv53OELiPWAR5XPkb_VxkSsTmeuvRyhFfaZfhzRVU6MflDLaPguo-x9gcLMgro1_ligRf5Q",
-      lotes: [
-        LoteItem(id: "L-3033", stock: 110, fechaIngreso: "01-04-2026"),
-        LoteItem(id: "L-3034", stock: 100, fechaIngreso: "15-04-2026"),
-      ],
-    ),
-  ];
+  final List<ProductItem> products = [];
 
   ViewModelInventario() {
     searchController.addListener(notifyListeners);

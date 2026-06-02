@@ -6,8 +6,11 @@ class VMCatalogos extends ChangeNotifier {
   final ServicioCatalogos _servicio = ServicioCatalogos();
 
   List<String> categorias = [];
+  Map<String, String> categoriasMap = {};
   List<String> proveedores = [];
+  Map<String, String> proveedoresMap = {};
   List<String> unidades = [];
+  Map<String, String> unidadesMap = {};
 
   StreamSubscription? _subCategorias;
   StreamSubscription? _subProveedores;
@@ -19,17 +22,20 @@ class VMCatalogos extends ChangeNotifier {
 
   void _initStreams() {
     _subCategorias = _servicio.streamCategorias().listen((data) {
-      categorias = data;
+      categoriasMap = { for (var e in data) e.key: e.value };
+      categorias = data.map((e) => e.value).toList();
       notifyListeners();
     });
 
     _subProveedores = _servicio.streamProveedores().listen((data) {
-      proveedores = data;
+      proveedoresMap = { for (var e in data) e.key: e.value };
+      proveedores = data.map((e) => e.value).toList();
       notifyListeners();
     });
 
     _subUnidades = _servicio.streamUnidades().listen((data) {
-      unidades = data;
+      unidadesMap = { for (var e in data) e.key: e.value };
+      unidades = data.map((e) => e.value).toList();
       notifyListeners();
     });
   }

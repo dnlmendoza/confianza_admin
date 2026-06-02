@@ -5,23 +5,24 @@ class ServicioCatalogos {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // Streams genéricos para no repetir código
-  Stream<List<String>> _streamColeccion(String collectionPath, {String fieldName = 'Nombre'}) {
+  Stream<List<MapEntry<String, String>>> _streamColeccion(String collectionPath, {String fieldName = 'Nombre'}) {
     return _firestore.collection(collectionPath).snapshots().map((snapshot) {
       return snapshot.docs.map((doc) {
         final data = doc.data();
         final String? nombre = data[fieldName] as String?;
-        return (nombre != null && nombre.isNotEmpty) ? nombre : doc.id;
-      }).toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+        final String nameVal = (nombre != null && nombre.isNotEmpty) ? nombre : doc.id;
+        return MapEntry(doc.id, nameVal);
+      }).toList()..sort((a, b) => a.value.toLowerCase().compareTo(b.value.toLowerCase()));
     }).handleError((error) {
       debugPrint("DEBUG: ERROR en stream $collectionPath: $error");
-      return <String>[];
+      return <MapEntry<String, String>>[];
     });
   }
 
   // Streams
-  Stream<List<String>> streamCategorias() => _streamColeccion('Categorias');
-  Stream<List<String>> streamProveedores() => _streamColeccion('Proveedores');
-  Stream<List<String>> streamUnidades() => _streamColeccion('Unidades', fieldName: 'Tipo');
+  Stream<List<MapEntry<String, String>>> streamCategorias() => _streamColeccion('Categorias');
+  Stream<List<MapEntry<String, String>>> streamProveedores() => _streamColeccion('Proveedores');
+  Stream<List<MapEntry<String, String>>> streamUnidades() => _streamColeccion('Unidades', fieldName: 'Tipo');
 
   // Operaciones genéricas
   Future<void> _addDoc(String collectionPath, String nombre, {String fieldName = 'Nombre'}) async {
