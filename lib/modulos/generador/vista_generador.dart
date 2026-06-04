@@ -296,85 +296,66 @@ class _VistaGeneradorState extends State<VistaGenerador>
     return AdminLayout(
       activeRoute: '/generador',
       title: 'Códigos de Barras',
-      centerWidget: SegmentedButton<int>(
-        segments: [
-          ButtonSegment<int>(
-            value: 0,
-            icon: const Icon(Icons.calendar_view_week_outlined, size: 18),
-            label: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  "Generar Código",
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(99),
-                  ),
-                  child: Text(
-                    "${_generatedCodes.length + _reprintCodes.length}",
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+      centerWidget: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildCustomTab(
+            0,
+            "Generar Código",
           ),
-          ButtonSegment<int>(
-            value: 1,
-            icon: const Icon(Icons.print, size: 18),
-            label: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  "Cola de Impresión",
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                ),
-                if (_printQueue.isNotEmpty) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.error,
-                      borderRadius: BorderRadius.circular(99),
-                    ),
-                    child: Text(
-                      "${_printQueue.length}",
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
+          const SizedBox(width: 12),
+          _buildCustomTab(
+            1,
+            "Cola de Impresión",
           ),
         ],
-        selected: {_tabController.index},
-        onSelectionChanged: (v) {
-          _tabController.animateTo(v.first);
-        },
-        showSelectedIcon: false,
-        style: const ButtonStyle(visualDensity: VisualDensity.compact),
       ),
       child: TabBarView(
         controller: _tabController,
         children: [_buildGenerateTab(), _buildPrintQueueTab()],
+      ),
+    );
+  }
+
+  Widget _buildCustomTab(int index, String label, {Widget? badge}) {
+    final isSelected = _tabController.index == index;
+    return GestureDetector(
+      onTap: () {
+        _tabController.animateTo(index);
+        setState(() {});
+      },
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: isSelected ? AppColors.primary : Colors.transparent,
+              width: 2.5,
+            ),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOut,
+              style: TextStyle(
+                color: isSelected ? AppColors.primary : AppColors.onSurfaceVariant,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                fontSize: 13.5,
+              ),
+              child: Text(label),
+            ),
+            if (badge != null) ...[
+              const SizedBox(width: 8),
+              badge,
+            ],
+          ],
+        ),
       ),
     );
   }

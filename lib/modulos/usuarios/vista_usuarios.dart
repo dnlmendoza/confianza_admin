@@ -68,7 +68,7 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     // Bento Grid de Métricas
-                    _buildBentoStatsGrid(context),
+                    _buildBentoStatsGrid(context, constraints),
                     const SizedBox(height: 24),
 
                     // Tabla de Datos Principal
@@ -87,47 +87,94 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
     );
   }
 
-  Widget _buildBentoStatsGrid(BuildContext context) {
-    final isMobile = MediaQuery.of(context).size.width < 600;
+  Widget _buildBentoStatsGrid(BuildContext context, BoxConstraints constraints) {
+    final isMobile = constraints.maxWidth < 600;
 
-    return GridView.count(
-      crossAxisCount: isMobile ? 1 : 4,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 16,
-      crossAxisSpacing: 16,
-      childAspectRatio: isMobile ? 3.2 : 1.45,
-      children: [
-        _buildBentoStatCard(
-          title: "Total Usuarios",
-          value: "${_viewModel.users.length}",
-          subtitle: "Nuevos este mes",
-          icon: Icons.group,
-          iconColor: colorPrimary,
-          iconBgColor: const Color(0xFFCCE5FF),
-          subtitleColor: const Color(0xFF10B981),
-          isTrend: true,
-        ),
-        _buildBentoStatCard(
-          title: "Sesiones Activas",
-          value: "0",
-          subtitle: "Tiempo real",
-          icon: Icons.bolt,
-          iconColor: const Color(0xFF4E6073),
-          iconBgColor: const Color(0xFFD1E4FB),
-          subtitleColor: colorOnSurfaceVariant,
-        ),
-        _buildBentoStatCard(
-          title: "Solicitudes",
-          value: "${_viewModel.users.where((u) => u.status == 'Pendiente' || u.status == 'Aprobado').length}",
-          subtitle: "Pendientes de aprobación",
-          icon: Icons.person_add_alt_1,
-          iconColor: const Color(0xFF8E6A00),
-          iconBgColor: const Color(0xFFFFEDC8),
-          subtitleColor: colorOnSurfaceVariant,
-        ),
-        _buildSecurityAuditCard(context),
-      ],
+    if (isMobile) {
+      return Column(
+        children: [
+          _buildBentoStatCard(
+            title: "Total Usuarios",
+            value: "${_viewModel.users.length}",
+            subtitle: "Nuevos este mes",
+            icon: Icons.group,
+            iconColor: colorPrimary,
+            iconBgColor: const Color(0xFFCCE5FF),
+            subtitleColor: const Color(0xFF10B981),
+            isTrend: true,
+          ),
+          const SizedBox(height: 12),
+          _buildBentoStatCard(
+            title: "Sesiones Activas",
+            value: "0",
+            subtitle: "Tiempo real",
+            icon: Icons.bolt,
+            iconColor: const Color(0xFF4E6073),
+            iconBgColor: const Color(0xFFD1E4FB),
+            subtitleColor: colorOnSurfaceVariant,
+          ),
+          const SizedBox(height: 12),
+          _buildBentoStatCard(
+            title: "Solicitudes",
+            value: "${_viewModel.users.where((u) => u.status == 'Pendiente' || u.status == 'Aprobado').length}",
+            subtitle: "Pendientes de aprobación",
+            icon: Icons.person_add_alt_1,
+            iconColor: const Color(0xFF8E6A00),
+            iconBgColor: const Color(0xFFFFEDC8),
+            subtitleColor: colorOnSurfaceVariant,
+          ),
+          const SizedBox(height: 12),
+          _buildSecurityAuditCard(context),
+        ],
+      );
+    }
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: _buildBentoStatCard(
+              title: "Total Usuarios",
+              value: "${_viewModel.users.length}",
+              subtitle: "Nuevos este mes",
+              icon: Icons.group,
+              iconColor: colorPrimary,
+              iconBgColor: const Color(0xFFCCE5FF),
+              subtitleColor: const Color(0xFF10B981),
+              isTrend: true,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: _buildBentoStatCard(
+              title: "Sesiones Activas",
+              value: "0",
+              subtitle: "Tiempo real",
+              icon: Icons.bolt,
+              iconColor: const Color(0xFF4E6073),
+              iconBgColor: const Color(0xFFD1E4FB),
+              subtitleColor: colorOnSurfaceVariant,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: _buildBentoStatCard(
+              title: "Solicitudes",
+              value: "${_viewModel.users.where((u) => u.status == 'Pendiente' || u.status == 'Aprobado').length}",
+              subtitle: "Pendientes de aprobación",
+              icon: Icons.person_add_alt_1,
+              iconColor: const Color(0xFF8E6A00),
+              iconBgColor: const Color(0xFFFFEDC8),
+              subtitleColor: colorOnSurfaceVariant,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: _buildSecurityAuditCard(context),
+          ),
+        ],
+      ),
     );
   }
 
@@ -142,7 +189,7 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
     bool isTrend = false,
   }) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: colorSurfaceContainerLowest,
         borderRadius: BorderRadius.circular(12),
@@ -934,7 +981,7 @@ class _VistaUsuariosState extends State<VistaUsuarios> {
 
   Widget _buildSecurityAuditCard(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: colorPrimary,
         borderRadius: BorderRadius.circular(12),
