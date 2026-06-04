@@ -28,12 +28,26 @@ class ProductoPedido {
   String sku;
   double costo;
   List<BodegaDistribucion> bodegas;
+  String descripcion;
+  String codigoBarra;
+  String categoria;
+  String proveedor;
+  int cantidadMinima;
+  String tipoProducto;
+  String fechaIngresado;
 
   ProductoPedido({
     required this.nombre,
     required this.sku,
     required this.costo,
     required this.bodegas,
+    this.descripcion = '',
+    this.codigoBarra = '',
+    this.categoria = 'General',
+    this.proveedor = '',
+    this.cantidadMinima = 1,
+    this.tipoProducto = 'Normal',
+    this.fechaIngresado = '',
   });
 
   int get totalStock => bodegas.fold(0, (total, b) => total + b.cantidad);
@@ -44,6 +58,13 @@ class ProductoPedido {
     'sku': sku,
     'costo': costo,
     'bodegas': bodegas.map((b) => b.toMap()).toList(),
+    'descripcion': descripcion,
+    'codigoBarra': codigoBarra,
+    'categoria': categoria,
+    'proveedor': proveedor,
+    'cantidadMinima': cantidadMinima,
+    'tipoProducto': tipoProducto,
+    'fechaIngresado': fechaIngresado,
   };
 
   factory ProductoPedido.fromMap(Map<String, dynamic> map) {
@@ -58,6 +79,13 @@ class ProductoPedido {
               )
               .toList() ??
           [],
+      descripcion: map['descripcion'] ?? '',
+      codigoBarra: map['codigoBarra'] ?? '',
+      categoria: map['categoria'] ?? 'General',
+      proveedor: map['proveedor'] ?? '',
+      cantidadMinima: map['cantidadMinima'] ?? 1,
+      tipoProducto: map['tipoProducto'] ?? 'Normal',
+      fechaIngresado: map['fechaIngresado'] ?? '',
     );
   }
 }
@@ -69,6 +97,10 @@ class LotePedido {
   String fechaVencimiento;
   double costo;
   double precioVenta;
+  String unidades;
+  double costoLote;
+  double impuestoCompra;
+  double impuestoVenta;
 
   LotePedido({
     required this.codigo,
@@ -77,7 +109,11 @@ class LotePedido {
     required this.fechaVencimiento,
     required this.costo,
     required this.precioVenta,
-  });
+    this.unidades = 'UNIDAD',
+    double? costoLote,
+    this.impuestoCompra = 15.0,
+    this.impuestoVenta = 15.0,
+  }) : costoLote = costoLote ?? (costo * stock);
 
   Map<String, dynamic> toMap() => {
     'codigo': codigo,
@@ -86,16 +122,26 @@ class LotePedido {
     'fechaVencimiento': fechaVencimiento,
     'costo': costo,
     'precioVenta': precioVenta,
+    'unidades': unidades,
+    'costoLote': costoLote,
+    'impuestoCompra': impuestoCompra,
+    'impuestoVenta': impuestoVenta,
   };
 
   factory LotePedido.fromMap(Map<String, dynamic> map) {
+    final c = (map['costo'] as num?)?.toDouble() ?? 0.0;
+    final s = map['stock'] ?? 0;
     return LotePedido(
       codigo: map['codigo'] ?? '',
-      stock: map['stock'] ?? 0,
+      stock: s,
       fechaIngreso: map['fechaIngreso'] ?? '',
       fechaVencimiento: map['fechaVencimiento'] ?? '',
-      costo: (map['costo'] as num?)?.toDouble() ?? 0.0,
+      costo: c,
       precioVenta: (map['precioVenta'] as num?)?.toDouble() ?? 0.0,
+      unidades: map['unidades'] ?? 'UNIDAD',
+      costoLote: (map['costoLote'] as num?)?.toDouble() ?? (c * s),
+      impuestoCompra: (map['impuestoCompra'] as num?)?.toDouble() ?? 15.0,
+      impuestoVenta: (map['impuestoVenta'] as num?)?.toDouble() ?? 15.0,
     );
   }
 }
@@ -200,6 +246,8 @@ class _VistaInventarioState extends State<VistaInventario> {
   // State for Inventory Orders Tab (Local state only, no Firestore stream)
   List<PedidoInventario> _pedidos = [];
   PedidoInventario? _selectedPedido;
+  int _activeDetailTab = 0; // 0: Datos Artículos, 1: Datos Lotes
+  int _selectedLoteIndex = 0;
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -245,7 +293,7 @@ class _VistaInventarioState extends State<VistaInventario> {
         envio: 123.50,
         productos: [
           ProductoPedido(
-            nombre: 'Cargadoras de Ruedas Compactas',
+            nombre: 'Studio Pro Wireless',
             sku: 'SKU-131200238',
             costo: 188.00,
             bodegas: [
@@ -253,30 +301,39 @@ class _VistaInventarioState extends State<VistaInventario> {
               BodegaDistribucion(nombre: 'Warehously', cantidad: 10),
               BodegaDistribucion(nombre: 'Pod Capital', cantidad: 10),
             ],
+            descripcion: 'Over-ear active noise cancelling',
+            codigoBarra: 'STP-882-BLU',
+            categoria: 'Electrónica',
+            proveedor: 'Bodega',
+            cantidadMinima: 1,
+            tipoProducto: 'Normal',
+            fechaIngresado: '19-05-26',
           ),
           ProductoPedido(
             nombre: 'Desbrozadoras de Maleza',
-            sku: 'SKU-131200238',
+            sku: 'SKU-DESB-002',
             costo: 117.99,
             bodegas: [BodegaDistribucion(nombre: 'Brand Depot', cantidad: 88)],
+            descripcion: 'Elimina maleza densa y vegetación descontrolada con facilidad.',
+            codigoBarra: 'STP-900-BLU',
+            categoria: 'Herramientas',
+            proveedor: 'General',
+            cantidadMinima: 5,
+            tipoProducto: 'Normal',
+            fechaIngresado: '12-04-26',
           ),
           ProductoPedido(
             nombre: 'Paralelo de Acoplamiento de Cargador',
-            sku: 'SKU-131200238',
+            sku: 'SKU-PARA-003',
             costo: 789.00,
             bodegas: [BodegaDistribucion(nombre: 'Pod Capital', cantidad: 39)],
-          ),
-          ProductoPedido(
-            nombre: 'Desbrozadoras de Maleza',
-            sku: 'SKU-131200238',
-            costo: 117.99,
-            bodegas: [BodegaDistribucion(nombre: 'Brand Depot', cantidad: 88)],
-          ),
-          ProductoPedido(
-            nombre: 'Cucharas de Grata',
-            sku: 'SKU-131200238',
-            costo: 789.00,
-            bodegas: [BodegaDistribucion(nombre: 'Pod Capital', cantidad: 39)],
+            descripcion: 'Acoplamiento robusto para cargadoras y excavadoras de alto tonelaje.',
+            codigoBarra: 'STP-121-Z',
+            categoria: 'Tractores',
+            proveedor: 'Catpillar',
+            cantidadMinima: 2,
+            tipoProducto: 'Normal',
+            fechaIngresado: '13-03-17',
           ),
         ],
         lotes: [
@@ -320,9 +377,16 @@ class _VistaInventarioState extends State<VistaInventario> {
         productos: [
           ProductoPedido(
             nombre: 'Cucharas de Grata',
-            sku: 'SKU-7772299',
+            sku: 'SKU-GRAB-004',
             costo: 250.00,
             bodegas: [BodegaDistribucion(nombre: 'Brand Depot', cantidad: 10)],
+            descripcion: 'Para sujetar y transportar material empacado.',
+            codigoBarra: 'STP-777-GRB',
+            categoria: 'Herramientas',
+            proveedor: 'General',
+            cantidadMinima: 1,
+            tipoProducto: 'Normal',
+            fechaIngresado: '15-04-26',
           ),
         ],
         lotes: [
@@ -350,9 +414,16 @@ class _VistaInventarioState extends State<VistaInventario> {
         productos: [
           ProductoPedido(
             nombre: 'Paralelo de Acoplamiento de Cargador',
-            sku: 'SKU-8822001',
+            sku: 'SKU-PARA-005',
             costo: 800.00,
             bodegas: [BodegaDistribucion(nombre: 'Warehously', cantidad: 1)],
+            descripcion: 'Cargador de varillaje en Z optimizado por Cat.',
+            codigoBarra: 'STP-882-Z',
+            categoria: 'Tractores',
+            proveedor: 'Catpillar',
+            cantidadMinima: 1,
+            tipoProducto: 'Normal',
+            fechaIngresado: '20-05-26',
           ),
         ],
         lotes: [
@@ -1261,6 +1332,7 @@ class _VistaInventarioState extends State<VistaInventario> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildProductTableHeader() {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
@@ -1321,6 +1393,7 @@ class _VistaInventarioState extends State<VistaInventario> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildProductTableRow(
     ProductoPedido prod,
     int index,
@@ -1671,74 +1744,89 @@ class _VistaInventarioState extends State<VistaInventario> {
                   itemCount: pedido.lotes.length,
                   itemBuilder: (context, index) {
                     final lote = pedido.lotes[index];
+                    final isLoteSelected = _selectedLoteIndex == index;
                     return Card(
-                      color: AppColors.surfaceContainerLow,
+                      color: isLoteSelected
+                          ? AppColors.primary.withValues(alpha: 0.05)
+                          : AppColors.surfaceContainerLow,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                         side: BorderSide(
-                          color: AppColors.outlineVariant.withValues(alpha: 0.5),
+                          color: isLoteSelected
+                              ? AppColors.primary
+                              : AppColors.outlineVariant.withValues(alpha: 0.5),
+                          width: isLoteSelected ? 1.5 : 1,
                         ),
                       ),
                       margin: const EdgeInsets.only(bottom: 8.0),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(Icons.qr_code, size: 16, color: AppColors.primary),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      lote.codigo,
-                                      style: GoogleFonts.outfit(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.onSurface,
+                      child: InkWell(
+                        onTap: () {
+                          setState(() {
+                            _selectedLoteIndex = index;
+                            _activeDetailTab = 1; // Ir a Datos Lotes
+                          });
+                        },
+                        borderRadius: BorderRadius.circular(8),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.qr_code, size: 16, color: AppColors.primary),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        lote.codigo,
+                                        style: GoogleFonts.outfit(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.onSurface,
+                                        ),
                                       ),
+                                    ],
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(4),
                                     ),
-                                  ],
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: Colors.green.withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(4),
+                                    child: Text(
+                                      "Activo",
+                                      style: TextStyle(color: Colors.green[700], fontSize: 10, fontWeight: FontWeight.bold),
+                                    ),
                                   ),
-                                  child: Text(
-                                    "Activo",
-                                    style: TextStyle(color: Colors.green[700], fontSize: 10, fontWeight: FontWeight.bold),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              _buildLoteDetailRow("Stock disponible:", "${lote.stock} Unid"),
+                              _buildLoteDetailRow("Ingreso:", lote.fechaIngreso),
+                              _buildLoteDetailRow("Vencimiento:", lote.fechaVencimiento),
+                              const Divider(height: 12),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    "Costo: L. ${lote.costo.toStringAsFixed(2)}",
+                                    style: TextStyle(fontSize: 11, color: AppColors.onSurfaceVariant),
                                   ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            _buildLoteDetailRow("Stock disponible:", "${lote.stock} Unid"),
-                            _buildLoteDetailRow("Ingreso:", lote.fechaIngreso),
-                            _buildLoteDetailRow("Vencimiento:", lote.fechaVencimiento),
-                            const Divider(height: 12),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  "Costo: L. ${lote.costo.toStringAsFixed(2)}",
-                                  style: TextStyle(fontSize: 11, color: AppColors.onSurfaceVariant),
-                                ),
-                                Text(
-                                  "Venta: L. ${lote.precioVenta.toStringAsFixed(2)}",
-                                  style: GoogleFonts.outfit(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.primary,
+                                  Text(
+                                    "Venta: L. ${lote.precioVenta.toStringAsFixed(2)}",
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.primary,
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ],
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     );
@@ -1762,78 +1850,880 @@ class _VistaInventarioState extends State<VistaInventario> {
     );
   }
 
+
+  Widget _buildDetailTabButton(int index, String label, IconData icon) {
+    final isSelected = _activeDetailTab == index;
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _activeDetailTab = index;
+        });
+      },
+      borderRadius: BorderRadius.circular(20),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? AppColors.primary : AppColors.outlineVariant.withValues(alpha: 0.6),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: isSelected ? Colors.white : AppColors.onSurfaceVariant,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: GoogleFonts.outfit(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: isSelected ? Colors.white : AppColors.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailFormTextField({
+    required String label,
+    required String initialValue,
+    required ValueKey key,
+    required Function(String) onChanged,
+    IconData? suffixIcon,
+    IconData? prefixIcon,
+    bool readOnly = false,
+    TextInputType keyboardType = TextInputType.text,
+    VoidCallback? onTap,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.outfit(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: AppColors.onSurfaceVariant.withValues(alpha: 0.9),
+          ),
+        ),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: 38,
+          child: TextFormField(
+            key: key,
+            initialValue: initialValue,
+            readOnly: readOnly,
+            keyboardType: keyboardType,
+            onTap: onTap,
+            onChanged: onChanged,
+            style: GoogleFonts.outfit(
+              fontSize: 13,
+              color: AppColors.onSurface,
+            ),
+            decoration: InputDecoration(
+              prefixIcon: prefixIcon != null
+                  ? Icon(
+                      prefixIcon,
+                      size: 16,
+                      color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
+                    )
+                  : null,
+              suffixIcon: suffixIcon != null
+                  ? Icon(
+                      suffixIcon,
+                      size: 16,
+                      color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
+                    )
+                  : null,
+              filled: true,
+              fillColor: AppColors.surfaceContainerLow.withValues(alpha: 0.3),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 8,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(
+                  color: AppColors.outlineVariant.withValues(alpha: 0.4),
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(
+                  color: AppColors.outlineVariant.withValues(alpha: 0.4),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(
+                  color: AppColors.primary,
+                  width: 1.5,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCantidadField(LotePedido lote, String keyPrefix) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Cantidad",
+          style: GoogleFonts.outfit(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: AppColors.onSurfaceVariant.withValues(alpha: 0.9),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            InkWell(
+              onTap: () {
+                if (lote.stock > 1) {
+                  setState(() {
+                    lote.stock--;
+                    lote.costoLote = lote.costo * lote.stock;
+                  });
+                }
+              },
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceContainerLow.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: AppColors.outlineVariant.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: const Icon(Icons.remove, size: 16, color: AppColors.onSurfaceVariant),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: SizedBox(
+                height: 38,
+                child: TextFormField(
+                  key: ValueKey('$keyPrefix-stock-${lote.stock}'),
+                  initialValue: lote.stock.toString(),
+                  keyboardType: TextInputType.number,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.outfit(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.onSurface,
+                  ),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: AppColors.surfaceContainerLow.withValues(alpha: 0.3),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 8,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(
+                        color: AppColors.outlineVariant.withValues(alpha: 0.4),
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(
+                        color: AppColors.outlineVariant.withValues(alpha: 0.4),
+                      ),
+                    ),
+                  ),
+                  onChanged: (val) {
+                    final newStock = int.tryParse(val) ?? 0;
+                    setState(() {
+                      lote.stock = newStock;
+                      lote.costoLote = lote.costo * lote.stock;
+                    });
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            InkWell(
+              onTap: () {
+                setState(() {
+                  lote.stock++;
+                  lote.costoLote = lote.costo * lote.stock;
+                });
+              },
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceContainerLow.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: AppColors.outlineVariant.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: const Icon(Icons.add, size: 16, color: AppColors.onSurfaceVariant),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildUnidadesDropdown(LotePedido lote, String keyPrefix) {
+    final list = _units.isEmpty ? ['UNIDAD', '2X1', 'CAJA'] : List<String>.from(_units);
+    if (!list.contains(lote.unidades)) {
+      list.insert(0, lote.unidades);
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Unidades",
+          style: GoogleFonts.outfit(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: AppColors.onSurfaceVariant.withValues(alpha: 0.9),
+          ),
+        ),
+        const SizedBox(height: 6),
+        PopupMenuButton<String>(
+          onSelected: (val) {
+            setState(() {
+              lote.unidades = val;
+            });
+          },
+          itemBuilder: (BuildContext context) {
+            return list.map((String val) {
+              return PopupMenuItem<String>(
+                value: val,
+                child: Text(
+                  val,
+                  style: GoogleFonts.outfit(fontSize: 13),
+                ),
+              );
+            }).toList();
+          },
+          child: Container(
+            height: 38,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceContainerLow.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: AppColors.outlineVariant.withValues(alpha: 0.4),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  lote.unidades,
+                  style: GoogleFonts.outfit(fontSize: 13, color: AppColors.onSurface),
+                ),
+                Icon(
+                  Icons.arrow_drop_down,
+                  color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDatosArticulosTab(PedidoInventario pedido) {
+    if (pedido.productos.isEmpty) {
+      return Center(
+        child: Text(
+          "No hay productos en este pedido.",
+          style: GoogleFonts.outfit(color: AppColors.onSurfaceVariant),
+        ),
+      );
+    }
+    final prod = pedido.productos.first;
+    final keyPrefix = "${pedido.id}-${prod.sku}";
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(right: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.outlineVariant.withValues(alpha: 0.5),
+                  ),
+                ),
+                child: Center(
+                  child: Icon(
+                    Icons.image_outlined,
+                    size: 36,
+                    color: AppColors.onSurfaceVariant.withValues(alpha: 0.4),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  children: [
+                    _buildDetailFormTextField(
+                      label: "Nombre del Producto",
+                      initialValue: prod.nombre,
+                      key: ValueKey('$keyPrefix-nombre-${prod.nombre}'),
+                      onChanged: (val) {
+                        setState(() {
+                          prod.nombre = val;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _buildDetailFormTextField(
+                      label: "Descripción / Subtítulo",
+                      initialValue: prod.descripcion,
+                      key: ValueKey('$keyPrefix-desc-${prod.descripcion}'),
+                      onChanged: (val) {
+                        setState(() {
+                          prod.descripcion = val;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              final itemWidth = (width - 16) / 2;
+              return Wrap(
+                spacing: 16,
+                runSpacing: 12,
+                children: [
+                  SizedBox(
+                    width: itemWidth,
+                    child: _buildDetailFormTextField(
+                      label: "Código de Barra",
+                      initialValue: prod.codigoBarra,
+                      key: ValueKey('$keyPrefix-barcode-${prod.codigoBarra}'),
+                      onChanged: (val) {
+                        setState(() {
+                          prod.codigoBarra = val;
+                        });
+                      },
+                    ),
+                  ),
+                  SizedBox(
+                    width: itemWidth,
+                    child: _buildDetailFormTextField(
+                      label: "Categoría",
+                      initialValue: prod.categoria,
+                      key: ValueKey('$keyPrefix-cat-${prod.categoria}'),
+                      onChanged: (val) {
+                        setState(() {
+                          prod.categoria = val;
+                        });
+                      },
+                    ),
+                  ),
+                  SizedBox(
+                    width: itemWidth,
+                    child: _buildDetailFormTextField(
+                      label: "Proveedor",
+                      initialValue: prod.proveedor,
+                      key: ValueKey('$keyPrefix-prov-${prod.proveedor}'),
+                      onChanged: (val) {
+                        setState(() {
+                          prod.proveedor = val;
+                        });
+                      },
+                    ),
+                  ),
+                  SizedBox(
+                    width: itemWidth,
+                    child: _buildDetailFormTextField(
+                      label: "Cantidad Mínima",
+                      initialValue: prod.cantidadMinima.toString(),
+                      key: ValueKey('$keyPrefix-minQty-${prod.cantidadMinima}'),
+                      keyboardType: TextInputType.number,
+                      onChanged: (val) {
+                        setState(() {
+                          prod.cantidadMinima = int.tryParse(val) ?? 1;
+                        });
+                      },
+                    ),
+                  ),
+                  SizedBox(
+                    width: itemWidth,
+                    child: _buildDetailFormTextField(
+                      label: "Tipo de Producto",
+                      initialValue: prod.tipoProducto,
+                      key: ValueKey('$keyPrefix-type-${prod.tipoProducto}'),
+                      onChanged: (val) {
+                        setState(() {
+                          prod.tipoProducto = val;
+                        });
+                      },
+                    ),
+                  ),
+                  SizedBox(
+                    width: itemWidth,
+                    child: _buildDetailFormTextField(
+                      label: "Fecha Ingresado",
+                      initialValue: prod.fechaIngresado,
+                      key: ValueKey('$keyPrefix-date-${prod.fechaIngresado}'),
+                      suffixIcon: Icons.calendar_month,
+                      onTap: () async {
+                        final date = await showDatePicker(
+                          context: context,
+                          initialDate: DateTime.now(),
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2100),
+                        );
+                        if (date != null) {
+                          final formatted = "${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year.toString().substring(2)}";
+                          setState(() {
+                            prod.fechaIngresado = formatted;
+                          });
+                        }
+                      },
+                      onChanged: (val) {
+                        setState(() {
+                          prod.fechaIngresado = val;
+                        });
+                      },
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDatosLotesTab(PedidoInventario pedido) {
+    if (pedido.lotes.isEmpty) {
+      return Center(
+        child: Text(
+          "No hay lotes en este pedido.",
+          style: GoogleFonts.outfit(color: AppColors.onSurfaceVariant),
+        ),
+      );
+    }
+    final int index = _selectedLoteIndex.clamp(0, pedido.lotes.length - 1);
+    final lote = pedido.lotes[index];
+    final keyPrefix = "${pedido.id}-lote-${lote.codigo}";
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(right: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: AppColors.outlineVariant.withValues(alpha: 0.5),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.layers_outlined,
+                    size: 20,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          lote.codigo,
+                          style: GoogleFonts.outfit(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.onSurface,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            "FIFO Activo",
+                            style: GoogleFonts.outfit(
+                              color: Colors.blue[800],
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      "Ingreso: ${lote.fechaIngreso}",
+                      style: GoogleFonts.outfit(
+                        fontSize: 11,
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            "Disponible",
+                            style: GoogleFonts.outfit(
+                              color: Colors.green[800],
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          "${lote.stock} Unid",
+                          style: GoogleFonts.outfit(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 8),
+                const Icon(
+                  Icons.keyboard_arrow_up,
+                  size: 20,
+                  color: AppColors.onSurfaceVariant,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              final itemWidth = (width - 16) / 2;
+              return Wrap(
+                spacing: 16,
+                runSpacing: 12,
+                children: [
+                  SizedBox(
+                    width: itemWidth,
+                    child: _buildCantidadField(lote, keyPrefix),
+                  ),
+                  SizedBox(
+                    width: itemWidth,
+                    child: _buildUnidadesDropdown(lote, keyPrefix),
+                  ),
+                  SizedBox(
+                    width: itemWidth,
+                    child: _buildDetailFormTextField(
+                      label: "Fecha Ingreso",
+                      initialValue: lote.fechaIngreso,
+                      key: ValueKey('$keyPrefix-fechaIngreso-${lote.fechaIngreso}'),
+                      suffixIcon: Icons.calendar_month,
+                      onTap: () async {
+                        final date = await showDatePicker(
+                          context: context,
+                          initialDate: DateTime.now(),
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2100),
+                        );
+                        if (date != null) {
+                          final formatted = "${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year.toString().substring(2)}";
+                          setState(() {
+                            lote.fechaIngreso = formatted;
+                          });
+                        }
+                      },
+                      onChanged: (val) {
+                        setState(() {
+                          lote.fechaIngreso = val;
+                        });
+                      },
+                    ),
+                  ),
+                  SizedBox(
+                    width: itemWidth,
+                    child: _buildDetailFormTextField(
+                      label: "Costo Lote",
+                      initialValue: lote.costoLote.toStringAsFixed(2),
+                      key: ValueKey('$keyPrefix-costoLote-${lote.costoLote.toStringAsFixed(2)}'),
+                      prefixIcon: Icons.calculate_outlined,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      onChanged: (val) {
+                        final parsed = double.tryParse(val) ?? 0.0;
+                        setState(() {
+                          lote.costoLote = parsed;
+                          lote.costo = lote.stock > 0 ? (parsed / lote.stock) : 0.0;
+                        });
+                      },
+                    ),
+                  ),
+                  SizedBox(
+                    width: itemWidth,
+                    child: _buildDetailFormTextField(
+                      label: "Costo Unitario",
+                      initialValue: lote.costo.toStringAsFixed(2),
+                      key: ValueKey('$keyPrefix-costoUnitario-${lote.costo.toStringAsFixed(2)}'),
+                      prefixIcon: Icons.payments_outlined,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      onChanged: (val) {
+                        final parsed = double.tryParse(val) ?? 0.0;
+                        setState(() {
+                          lote.costo = parsed;
+                          lote.costoLote = parsed * lote.stock;
+                        });
+                      },
+                    ),
+                  ),
+                  SizedBox(
+                    width: itemWidth,
+                    child: _buildDetailFormTextField(
+                      label: "Impuesto Compra %",
+                      initialValue: lote.impuestoCompra.toStringAsFixed(0),
+                      key: ValueKey('$keyPrefix-impuestoCompra-${lote.impuestoCompra}'),
+                      prefixIcon: Icons.percent,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      onChanged: (val) {
+                        final parsed = double.tryParse(val) ?? 0.0;
+                        setState(() {
+                          lote.impuestoCompra = parsed;
+                        });
+                      },
+                    ),
+                  ),
+                  SizedBox(
+                    width: itemWidth,
+                    child: _buildDetailFormTextField(
+                      label: "Precio Venta",
+                      initialValue: lote.precioVenta.toStringAsFixed(2),
+                      key: ValueKey('$keyPrefix-precioVenta-${lote.precioVenta.toStringAsFixed(2)}'),
+                      prefixIcon: Icons.local_offer_outlined,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      onChanged: (val) {
+                        final parsed = double.tryParse(val) ?? 0.0;
+                        setState(() {
+                          lote.precioVenta = parsed;
+                        });
+                      },
+                    ),
+                  ),
+                  SizedBox(
+                    width: itemWidth,
+                    child: _buildDetailFormTextField(
+                      label: "Impuesto Venta %",
+                      initialValue: lote.impuestoVenta.toStringAsFixed(0),
+                      key: ValueKey('$keyPrefix-impuestoVenta-${lote.impuestoVenta}'),
+                      prefixIcon: Icons.percent,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      onChanged: (val) {
+                        final parsed = double.tryParse(val) ?? 0.0;
+                        setState(() {
+                          lote.impuestoVenta = parsed;
+                        });
+                      },
+                    ),
+                  ),
+                  SizedBox(
+                    width: itemWidth,
+                    child: _buildDetailFormTextField(
+                      label: "Ganancia Unidad",
+                      initialValue: (lote.precioVenta - lote.costo).toStringAsFixed(2),
+                      key: ValueKey('$keyPrefix-gananciaUnidad-${(lote.precioVenta - lote.costo).toStringAsFixed(2)}'),
+                      prefixIcon: Icons.calculate_outlined,
+                      readOnly: true,
+                      onChanged: (val) {},
+                    ),
+                  ),
+                  SizedBox(
+                    width: itemWidth,
+                    child: _buildDetailFormTextField(
+                      label: "Ganancia Lote",
+                      initialValue: ((lote.precioVenta - lote.costo) * lote.stock).toStringAsFixed(2),
+                      key: ValueKey('$keyPrefix-gananciaLote-${((lote.precioVenta - lote.costo) * lote.stock).toStringAsFixed(2)}'),
+                      prefixIcon: Icons.calculate_outlined,
+                      readOnly: true,
+                      onChanged: (val) {},
+                    ),
+                  ),
+                  SizedBox(
+                    width: itemWidth,
+                    child: _buildDetailFormTextField(
+                      label: "Fecha Vencimiento",
+                      initialValue: lote.fechaVencimiento,
+                      key: ValueKey('$keyPrefix-fechaVencimiento-${lote.fechaVencimiento}'),
+                      suffixIcon: Icons.calendar_month,
+                      onTap: () async {
+                        final date = await showDatePicker(
+                          context: context,
+                          initialDate: DateTime.now(),
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2100),
+                        );
+                        if (date != null) {
+                          final formatted = "${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year.toString().substring(2)}";
+                          setState(() {
+                            lote.fechaVencimiento = formatted;
+                          });
+                        }
+                      },
+                      onChanged: (val) {
+                        setState(() {
+                          lote.fechaVencimiento = val;
+                        });
+                      },
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildProductosYTotalesSection(PedidoInventario pedido) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildProductTableHeader(),
-        Expanded(
-          child: pedido.productos.isEmpty
-              ? Center(
-                  child: Text(
-                    "No hay productos en este pedido.",
-                    style: TextStyle(color: AppColors.onSurfaceVariant),
-                  ),
-                )
-              : ListView.builder(
-                  padding: EdgeInsets.zero,
-                  itemCount: pedido.productos.length,
-                  itemBuilder: (context, index) {
-                    return _buildProductTableRow(
-                      pedido.productos[index],
-                      index,
-                      pedido,
-                    );
-                  },
-                ),
-        ),
-        const SizedBox(height: 16),
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            TextButton.icon(
-              onPressed: () => _showAddProductDialog(pedido),
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text("Añadir nuevo producto"),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.primary,
-                textStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold),
-              ),
+            Expanded(
+              child: _buildDetailTabButton(0, "Datos Artículos", Icons.inventory_2_outlined),
             ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                _buildSummaryRow(
-                  "DESCUENTO RECIBIDO (I-I)",
-                  "L. ${pedido.descuento.toStringAsFixed(2)}",
-                  () => _showEditSummaryDialog(
-                    pedido,
-                    'descuento',
-                    pedido.descuento,
-                  ),
-                ),
-                _buildSummaryRow(
-                  "IMPUESTO DE VENTA PAGADO",
-                  "L. ${pedido.impuesto.toStringAsFixed(2)}",
-                  () => _showEditSummaryDialog(
-                    pedido,
-                    'impuesto',
-                    pedido.impuesto,
-                  ),
-                ),
-                _buildSummaryRow(
-                  "ENVÍO PAGADO",
-                  "L. ${pedido.envio.toStringAsFixed(2)}",
-                  () =>
-                      _showEditSummaryDialog(pedido, 'envio', pedido.envio),
-                ),
-                const SizedBox(height: 8),
-                const SizedBox(width: 250, child: Divider()),
-                _buildGrandTotalRow(pedido.totalGeneral),
-              ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildDetailTabButton(1, "Datos Lotes", Icons.layers_outlined),
             ),
           ],
+        ),
+        const SizedBox(height: 16),
+        Expanded(
+          child: _activeDetailTab == 0
+              ? _buildDatosArticulosTab(pedido)
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: _buildDatosLotesTab(pedido),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TextButton.icon(
+                          onPressed: () => _showAddProductDialog(pedido),
+                          icon: const Icon(Icons.add, size: 18),
+                          label: const Text("Añadir nuevo producto"),
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppColors.primary,
+                            textStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            _buildSummaryRow(
+                              "DESCUENTO RECIBIDO (I-I)",
+                              "L. ${pedido.descuento.toStringAsFixed(2)}",
+                              () => _showEditSummaryDialog(
+                                pedido,
+                                'descuento',
+                                pedido.descuento,
+                              ),
+                            ),
+                            _buildSummaryRow(
+                              "IMPUESTO DE VENTA PAGADO",
+                              "L. ${pedido.impuesto.toStringAsFixed(2)}",
+                              () => _showEditSummaryDialog(
+                                pedido,
+                                'impuesto',
+                                pedido.impuesto,
+                              ),
+                            ),
+                            _buildSummaryRow(
+                              "ENVÍO PAGADO",
+                              "L. ${pedido.envio.toStringAsFixed(2)}",
+                              () =>
+                                  _showEditSummaryDialog(pedido, 'envio', pedido.envio),
+                            ),
+                            const SizedBox(height: 8),
+                            const SizedBox(width: 250, child: Divider()),
+                            _buildGrandTotalRow(pedido.totalGeneral),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
         ),
       ],
     );
@@ -2051,6 +2941,8 @@ class _VistaInventarioState extends State<VistaInventario> {
                               onTap: () {
                                 setState(() {
                                   _selectedPedido = pedido;
+                                  _selectedLoteIndex = 0;
+                                  _activeDetailTab = 0;
                                 });
                               },
                               child: AnimatedContainer(

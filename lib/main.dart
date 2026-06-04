@@ -38,8 +38,7 @@ class MyApp extends StatelessWidget {
             ),
             useMaterial3: true,
           ),
-          // Si el usuario ya está autenticado, vamos a /inicio, si no a /
-          initialRoute: snapshot.hasData ? '/inicio' : '/',
+          initialRoute: '/inventario',
           routes: {
             '/': (context) => const VistaSesion(),
             '/inicio': (context) => const VistaInicio(),
