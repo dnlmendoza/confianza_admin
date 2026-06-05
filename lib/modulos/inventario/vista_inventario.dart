@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:confianza_admin/core/widgets/admin_layout.dart';
 import 'package:confianza_admin/core/theme/app_colors.dart';
@@ -1604,6 +1605,86 @@ class _VistaInventarioState extends State<VistaInventario> {
     );
   }
 
+  Widget _buildDropdownField({
+    required String label,
+    required String currentValue,
+    required List<String> items,
+    required ValueChanged<String> onSelected,
+    IconData? prefixIcon,
+  }) {
+    final list = List<String>.from(items);
+    if (currentValue.isNotEmpty && !list.contains(currentValue)) {
+      list.insert(0, currentValue);
+    }
+    if (list.isEmpty) {
+      list.add('General');
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.outfit(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: AppColors.onSurfaceVariant.withValues(alpha: 0.9),
+          ),
+        ),
+        const SizedBox(height: 6),
+        PopupMenuButton<String>(
+          onSelected: onSelected,
+          itemBuilder: (BuildContext context) {
+            return list.map((String val) {
+              return PopupMenuItem<String>(
+                value: val,
+                child: Text(val, style: GoogleFonts.outfit(fontSize: 13)),
+              );
+            }).toList();
+          },
+          child: Container(
+            height: 38,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceContainerLow.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: AppColors.outlineVariant.withValues(alpha: 0.4),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                if (prefixIcon != null) ...[
+                  Icon(
+                    prefixIcon,
+                    size: 16,
+                    color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                Expanded(
+                  child: Text(
+                    currentValue.isEmpty ? 'General' : currentValue,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.outfit(
+                      fontSize: 13,
+                      color: AppColors.onSurface,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_drop_down,
+                  color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildDatosArticulosTab(PedidoInventario pedido) {
     if (pedido.productos.isEmpty) {
       return Center(
@@ -1625,8 +1706,8 @@ class _VistaInventarioState extends State<VistaInventario> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 100,
-                height: 100,
+                width: 130,
+                height: 136,
                 decoration: BoxDecoration(
                   color: AppColors.surfaceContainerLow,
                   borderRadius: BorderRadius.circular(12),
@@ -1647,9 +1728,10 @@ class _VistaInventarioState extends State<VistaInventario> {
                 child: Column(
                   children: [
                     _buildDetailFormTextField(
-                      label: "Nombre del Producto",
+                      label: "Nombre de Articulo",
                       initialValue: prod.nombre,
                       key: ValueKey('$keyPrefix-nombre-${prod.nombre}'),
+                      prefixIcon: Icons.label_outlined,
                       onChanged: (val) {
                         setState(() {
                           prod.nombre = val;
@@ -1658,9 +1740,10 @@ class _VistaInventarioState extends State<VistaInventario> {
                     ),
                     const SizedBox(height: 12),
                     _buildDetailFormTextField(
-                      label: "Descripción / Subtítulo",
+                      label: "Descripción del Articulo",
                       initialValue: prod.descripcion,
                       key: ValueKey('$keyPrefix-desc-${prod.descripcion}'),
+                      prefixIcon: Icons.subject_outlined,
                       onChanged: (val) {
                         setState(() {
                           prod.descripcion = val;
@@ -1687,6 +1770,8 @@ class _VistaInventarioState extends State<VistaInventario> {
                       label: "Código de Barra",
                       initialValue: prod.codigoBarra,
                       key: ValueKey('$keyPrefix-barcode-${prod.codigoBarra}'),
+                      prefixIcon: Icons.view_week_outlined,
+                      readOnly: true,
                       onChanged: (val) {
                         setState(() {
                           prod.codigoBarra = val;
@@ -1697,10 +1782,264 @@ class _VistaInventarioState extends State<VistaInventario> {
                   SizedBox(
                     width: itemWidth,
                     child: _buildDetailFormTextField(
-                      label: "Categoría",
-                      initialValue: prod.categoria,
-                      key: ValueKey('$keyPrefix-cat-${prod.categoria}'),
+                      label: "Fecha Ingreso",
+                      initialValue: prod.fechaIngresado,
+                      key: ValueKey('$keyPrefix-date-${prod.fechaIngresado}'),
+                      suffixIcon: Icons.calendar_month,
+                      readOnly: true,
                       onChanged: (val) {
+                        setState(() {
+                          prod.fechaIngresado = val;
+                        });
+                      },
+                    ),
+                  ),
+                  SizedBox(
+                    width: itemWidth,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Tipo de Articulo",
+                          style: GoogleFonts.outfit(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.onSurfaceVariant.withValues(
+                              alpha: 0.9,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceContainerLow.withValues(
+                              alpha: 0.3,
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: AppColors.outlineVariant.withValues(
+                                alpha: 0.4,
+                              ),
+                            ),
+                          ),
+                          padding: const EdgeInsets.all(3),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      prod.tipoProducto = "Normal";
+                                    });
+                                  },
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    decoration: BoxDecoration(
+                                      color: prod.tipoProducto == "Normal"
+                                          ? AppColors.primary
+                                          : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.inventory_2_outlined,
+                                          size: 15,
+                                          color: prod.tipoProducto == "Normal"
+                                              ? Colors.white
+                                              : AppColors.onSurfaceVariant,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          "Normal",
+                                          style: GoogleFonts.outfit(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold,
+                                            color: prod.tipoProducto == "Normal"
+                                                ? Colors.white
+                                                : AppColors.onSurfaceVariant,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      prod.tipoProducto = "Pesado";
+                                    });
+                                  },
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    decoration: BoxDecoration(
+                                      color: prod.tipoProducto == "Pesado"
+                                          ? AppColors.primary
+                                          : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.scale_outlined,
+                                          size: 15,
+                                          color: prod.tipoProducto == "Pesado"
+                                              ? Colors.white
+                                              : AppColors.onSurfaceVariant,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          "Pesado",
+                                          style: GoogleFonts.outfit(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold,
+                                            color: prod.tipoProducto == "Pesado"
+                                                ? Colors.white
+                                                : AppColors.onSurfaceVariant,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(
+                    width: itemWidth,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Cantidad Mínima",
+                          style: GoogleFonts.outfit(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.onSurfaceVariant.withValues(
+                              alpha: 0.9,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        SizedBox(
+                          height: 38,
+                          child: TextFormField(
+                            key: ValueKey(
+                              '$keyPrefix-minQty-${prod.cantidadMinima}',
+                            ),
+                            initialValue: prod.cantidadMinima.toString(),
+                            keyboardType: TextInputType.number,
+                            textAlign: TextAlign.center,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            onChanged: (val) {
+                              final parsed = int.tryParse(val) ?? 1;
+                              prod.cantidadMinima = parsed;
+                            },
+                            style: GoogleFonts.outfit(
+                              fontSize: 13,
+                              color: AppColors.onSurface,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            decoration: InputDecoration(
+                              prefixIcon: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () {
+                                  if (prod.cantidadMinima > 1) {
+                                    setState(() {
+                                      prod.cantidadMinima--;
+                                    });
+                                  }
+                                },
+                                child: Icon(
+                                  Icons.remove,
+                                  size: 16,
+                                  color: AppColors.onSurfaceVariant.withValues(
+                                    alpha: 0.7,
+                                  ),
+                                ),
+                              ),
+                              suffixIcon: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () {
+                                  setState(() {
+                                    prod.cantidadMinima++;
+                                  });
+                                },
+                                child: Icon(
+                                  Icons.add,
+                                  size: 16,
+                                  color: AppColors.onSurfaceVariant.withValues(
+                                    alpha: 0.7,
+                                  ),
+                                ),
+                              ),
+                              prefixIconConstraints: const BoxConstraints(
+                                minWidth: 36,
+                                minHeight: 38,
+                              ),
+                              suffixIconConstraints: const BoxConstraints(
+                                minWidth: 36,
+                                minHeight: 38,
+                              ),
+                              filled: true,
+                              fillColor: AppColors.surfaceContainerLow
+                                  .withValues(alpha: 0.3),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 0,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(
+                                  color: AppColors.outlineVariant.withValues(
+                                    alpha: 0.4,
+                                  ),
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(
+                                  color: AppColors.outlineVariant.withValues(
+                                    alpha: 0.4,
+                                  ),
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: const BorderSide(
+                                  color: AppColors.primary,
+                                  width: 1.5,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(
+                    width: itemWidth,
+                    child: _buildDropdownField(
+                      label: "Categoría",
+                      currentValue: prod.categoria,
+                      items: _vmCatalogos.categorias,
+                      prefixIcon: Icons.category_outlined,
+                      onSelected: (val) {
                         setState(() {
                           prod.categoria = val;
                         });
@@ -1709,69 +2048,14 @@ class _VistaInventarioState extends State<VistaInventario> {
                   ),
                   SizedBox(
                     width: itemWidth,
-                    child: _buildDetailFormTextField(
+                    child: _buildDropdownField(
                       label: "Proveedor",
-                      initialValue: prod.proveedor,
-                      key: ValueKey('$keyPrefix-prov-${prod.proveedor}'),
-                      onChanged: (val) {
+                      currentValue: prod.proveedor,
+                      items: _vmCatalogos.proveedores,
+                      prefixIcon: Icons.local_shipping_outlined,
+                      onSelected: (val) {
                         setState(() {
                           prod.proveedor = val;
-                        });
-                      },
-                    ),
-                  ),
-                  SizedBox(
-                    width: itemWidth,
-                    child: _buildDetailFormTextField(
-                      label: "Cantidad Mínima",
-                      initialValue: prod.cantidadMinima.toString(),
-                      key: ValueKey('$keyPrefix-minQty-${prod.cantidadMinima}'),
-                      keyboardType: TextInputType.number,
-                      onChanged: (val) {
-                        setState(() {
-                          prod.cantidadMinima = int.tryParse(val) ?? 1;
-                        });
-                      },
-                    ),
-                  ),
-                  SizedBox(
-                    width: itemWidth,
-                    child: _buildDetailFormTextField(
-                      label: "Tipo de Producto",
-                      initialValue: prod.tipoProducto,
-                      key: ValueKey('$keyPrefix-type-${prod.tipoProducto}'),
-                      onChanged: (val) {
-                        setState(() {
-                          prod.tipoProducto = val;
-                        });
-                      },
-                    ),
-                  ),
-                  SizedBox(
-                    width: itemWidth,
-                    child: _buildDetailFormTextField(
-                      label: "Fecha Ingresado",
-                      initialValue: prod.fechaIngresado,
-                      key: ValueKey('$keyPrefix-date-${prod.fechaIngresado}'),
-                      suffixIcon: Icons.calendar_month,
-                      onTap: () async {
-                        final date = await showDatePicker(
-                          context: context,
-                          initialDate: DateTime.now(),
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime(2100),
-                        );
-                        if (date != null) {
-                          final formatted =
-                              "${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year.toString().substring(2)}";
-                          setState(() {
-                            prod.fechaIngresado = formatted;
-                          });
-                        }
-                      },
-                      onChanged: (val) {
-                        setState(() {
-                          prod.fechaIngresado = val;
                         });
                       },
                     ),
