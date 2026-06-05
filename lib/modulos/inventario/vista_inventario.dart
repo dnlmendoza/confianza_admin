@@ -1199,6 +1199,31 @@ class _VistaInventarioState extends State<VistaInventario> {
                                           color: AppColors.onSurface,
                                         ),
                                       ),
+                                      if (index == 0) ...[
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.blue.withValues(
+                                              alpha: 0.1,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              6,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            "FIFO Activo",
+                                            style: GoogleFonts.outfit(
+                                              color: Colors.blue[800],
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ],
                                   ),
                                   Container(
@@ -1349,6 +1374,8 @@ class _VistaInventarioState extends State<VistaInventario> {
     bool readOnly = false,
     TextInputType keyboardType = TextInputType.text,
     VoidCallback? onTap,
+    TextAlign textAlign = TextAlign.start,
+    String? prefixText,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1371,8 +1398,15 @@ class _VistaInventarioState extends State<VistaInventario> {
             keyboardType: keyboardType,
             onTap: onTap,
             onChanged: onChanged,
+            textAlign: textAlign,
             style: GoogleFonts.outfit(fontSize: 13, color: AppColors.onSurface),
             decoration: InputDecoration(
+              prefixText: prefixText,
+              prefixStyle: GoogleFonts.outfit(
+                fontSize: 13,
+                color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
+                fontWeight: FontWeight.w500,
+              ),
               prefixIcon: prefixIcon != null
                   ? Icon(
                       prefixIcon,
@@ -1432,110 +1466,111 @@ class _VistaInventarioState extends State<VistaInventario> {
           ),
         ),
         const SizedBox(height: 6),
-        Row(
-          children: [
-            InkWell(
-              onTap: () {
-                if (lote.stock > 1) {
-                  setState(() {
-                    lote.stock--;
-                    lote.costoLote = lote.costo * lote.stock;
-                  });
-                }
-              },
-              borderRadius: BorderRadius.circular(10),
-              child: Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceContainerLow.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: AppColors.outlineVariant.withValues(alpha: 0.4),
-                  ),
-                ),
-                child: const Icon(
-                  Icons.remove,
-                  size: 16,
-                  color: AppColors.onSurfaceVariant,
-                ),
-              ),
+        SizedBox(
+          height: 38,
+          child: TextFormField(
+            key: ValueKey('$keyPrefix-stock-${lote.stock}'),
+            initialValue: lote.stock.toString(),
+            keyboardType: TextInputType.number,
+            textAlign: TextAlign.center,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            onChanged: (val) {
+              final newStock = int.tryParse(val) ?? 0;
+              setState(() {
+                lote.stock = newStock;
+                lote.costoLote = lote.costo * lote.stock;
+              });
+            },
+            style: GoogleFonts.outfit(
+              fontSize: 13,
+              color: AppColors.onSurface,
+              fontWeight: FontWeight.bold,
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: SizedBox(
-                height: 38,
-                child: TextFormField(
-                  key: ValueKey('$keyPrefix-stock-${lote.stock}'),
-                  initialValue: lote.stock.toString(),
-                  keyboardType: TextInputType.number,
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.outfit(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.onSurface,
-                  ),
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: AppColors.surfaceContainerLow.withValues(
-                      alpha: 0.3,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 8,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(
-                        color: AppColors.outlineVariant.withValues(alpha: 0.4),
-                      ),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(
-                        color: AppColors.outlineVariant.withValues(alpha: 0.4),
-                      ),
-                    ),
-                  ),
-                  onChanged: (val) {
-                    final newStock = int.tryParse(val) ?? 0;
+            decoration: InputDecoration(
+              prefixIcon: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  if (lote.stock > 1) {
                     setState(() {
-                      lote.stock = newStock;
+                      lote.stock--;
                       lote.costoLote = lote.costo * lote.stock;
                     });
-                  },
+                  }
+                },
+                child: Icon(
+                  Icons.remove,
+                  size: 16,
+                  color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            InkWell(
-              onTap: () {
-                setState(() {
-                  lote.stock++;
-                  lote.costoLote = lote.costo * lote.stock;
-                });
-              },
-              borderRadius: BorderRadius.circular(10),
-              child: Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceContainerLow.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: AppColors.outlineVariant.withValues(alpha: 0.4),
-                  ),
-                ),
-                child: const Icon(
+              suffixIcon: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  setState(() {
+                    lote.stock++;
+                    lote.costoLote = lote.costo * lote.stock;
+                  });
+                },
+                child: Icon(
                   Icons.add,
                   size: 16,
-                  color: AppColors.onSurfaceVariant,
+                  color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
+                ),
+              ),
+              prefixIconConstraints: const BoxConstraints(
+                minWidth: 36,
+                minHeight: 38,
+              ),
+              suffixIconConstraints: const BoxConstraints(
+                minWidth: 36,
+                minHeight: 38,
+              ),
+              filled: true,
+              fillColor: AppColors.surfaceContainerLow.withValues(alpha: 0.3),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 0,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(
+                  color: AppColors.outlineVariant.withValues(alpha: 0.4),
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(
+                  color: AppColors.outlineVariant.withValues(alpha: 0.4),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(
+                  color: AppColors.primary,
+                  width: 1.5,
                 ),
               ),
             ),
-          ],
+          ),
         ),
       ],
+    );
+  }
+
+  Widget _buildInteractiveTaxField({
+    required String label,
+    required double value,
+    required String keyPrefix,
+    required String fieldKey,
+    required Function(double) onChanged,
+  }) {
+    return InteractiveTaxField(
+      key: ValueKey('$keyPrefix-$fieldKey'),
+      label: label,
+      value: value,
+      keyPrefix: keyPrefix,
+      fieldKey: fieldKey,
+      onChanged: onChanged,
     );
   }
 
@@ -2124,25 +2159,6 @@ class _VistaInventarioState extends State<VistaInventario> {
                             color: AppColors.onSurface,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            "FIFO Activo",
-                            style: GoogleFonts.outfit(
-                              color: Colors.blue[800],
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
                       ],
                     ),
                     const SizedBox(height: 2),
@@ -2156,47 +2172,23 @@ class _VistaInventarioState extends State<VistaInventario> {
                   ],
                 ),
                 const Spacer(),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.green.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            "Disponible",
-                            style: GoogleFonts.outfit(
-                              color: Colors.green[800],
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          "${lote.stock} Unid",
-                          style: GoogleFonts.outfit(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    "Disponible",
+                    style: GoogleFonts.outfit(
+                      color: Colors.green[800],
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
                     ),
-                  ],
-                ),
-                const SizedBox(width: 8),
-                const Icon(
-                  Icons.keyboard_arrow_up,
-                  size: 20,
-                  color: AppColors.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -2216,41 +2208,6 @@ class _VistaInventarioState extends State<VistaInventario> {
                   ),
                   SizedBox(
                     width: itemWidth,
-                    child: _buildUnidadesDropdown(lote, keyPrefix),
-                  ),
-                  SizedBox(
-                    width: itemWidth,
-                    child: _buildDetailFormTextField(
-                      label: "Fecha Ingreso",
-                      initialValue: lote.fechaIngreso,
-                      key: ValueKey(
-                        '$keyPrefix-fechaIngreso-${lote.fechaIngreso}',
-                      ),
-                      suffixIcon: Icons.calendar_month,
-                      onTap: () async {
-                        final date = await showDatePicker(
-                          context: context,
-                          initialDate: DateTime.now(),
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime(2100),
-                        );
-                        if (date != null) {
-                          final formatted =
-                              "${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year.toString().substring(2)}";
-                          setState(() {
-                            lote.fechaIngreso = formatted;
-                          });
-                        }
-                      },
-                      onChanged: (val) {
-                        setState(() {
-                          lote.fechaIngreso = val;
-                        });
-                      },
-                    ),
-                  ),
-                  SizedBox(
-                    width: itemWidth,
                     child: _buildDetailFormTextField(
                       label: "Costo Lote",
                       initialValue: lote.costoLote.toStringAsFixed(2),
@@ -2258,6 +2215,8 @@ class _VistaInventarioState extends State<VistaInventario> {
                         '$keyPrefix-costoLote-${lote.costoLote.toStringAsFixed(2)}',
                       ),
                       prefixIcon: Icons.calculate_outlined,
+                      textAlign: TextAlign.center,
+                      prefixText: "L. ",
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
@@ -2272,114 +2231,88 @@ class _VistaInventarioState extends State<VistaInventario> {
                       },
                     ),
                   ),
+
+                  SizedBox(
+                    width: width,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _buildUnidadesDropdown(lote, keyPrefix),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _buildDetailFormTextField(
+                            label: "Costo Unitario",
+                            initialValue: lote.costo.toStringAsFixed(2),
+                            key: ValueKey(
+                              '$keyPrefix-costoUnitario-${lote.costo.toStringAsFixed(2)}',
+                            ),
+                            prefixIcon: Icons.payments_outlined,
+                            textAlign: TextAlign.center,
+                            prefixText: "L. ",
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            onChanged: (val) {
+                              final parsed = double.tryParse(val) ?? 0.0;
+                              setState(() {
+                                lote.costo = parsed;
+                                lote.costoLote = parsed * lote.stock;
+                              });
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _buildDetailFormTextField(
+                            label: "Precio Venta",
+                            initialValue: lote.precioVenta.toStringAsFixed(2),
+                            key: ValueKey(
+                              '$keyPrefix-precioVenta-${lote.precioVenta.toStringAsFixed(2)}',
+                            ),
+                            prefixIcon: Icons.local_offer_outlined,
+                            textAlign: TextAlign.center,
+                            prefixText: "L. ",
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            onChanged: (val) {
+                              final parsed = double.tryParse(val) ?? 0.0;
+                              setState(() {
+                                lote.precioVenta = parsed;
+                              });
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   SizedBox(
                     width: itemWidth,
-                    child: _buildDetailFormTextField(
-                      label: "Costo Unitario",
-                      initialValue: lote.costo.toStringAsFixed(2),
-                      key: ValueKey(
-                        '$keyPrefix-costoUnitario-${lote.costo.toStringAsFixed(2)}',
-                      ),
-                      prefixIcon: Icons.payments_outlined,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
+                    child: _buildInteractiveTaxField(
+                      label: "Impuesto Compra",
+                      value: lote.impuestoCompra,
+                      keyPrefix: keyPrefix,
+                      fieldKey: 'impuestoCompra',
                       onChanged: (val) {
-                        final parsed = double.tryParse(val) ?? 0.0;
                         setState(() {
-                          lote.costo = parsed;
-                          lote.costoLote = parsed * lote.stock;
+                          lote.impuestoCompra = val;
                         });
                       },
                     ),
                   ),
                   SizedBox(
                     width: itemWidth,
-                    child: _buildDetailFormTextField(
-                      label: "Impuesto Compra %",
-                      initialValue: lote.impuestoCompra.toStringAsFixed(0),
-                      key: ValueKey(
-                        '$keyPrefix-impuestoCompra-${lote.impuestoCompra}',
-                      ),
-                      prefixIcon: Icons.percent,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
+                    child: _buildInteractiveTaxField(
+                      label: "Impuesto Venta",
+                      value: lote.impuestoVenta,
+                      keyPrefix: keyPrefix,
+                      fieldKey: 'impuestoVenta',
                       onChanged: (val) {
-                        final parsed = double.tryParse(val) ?? 0.0;
                         setState(() {
-                          lote.impuestoCompra = parsed;
+                          lote.impuestoVenta = val;
                         });
                       },
-                    ),
-                  ),
-                  SizedBox(
-                    width: itemWidth,
-                    child: _buildDetailFormTextField(
-                      label: "Precio Venta",
-                      initialValue: lote.precioVenta.toStringAsFixed(2),
-                      key: ValueKey(
-                        '$keyPrefix-precioVenta-${lote.precioVenta.toStringAsFixed(2)}',
-                      ),
-                      prefixIcon: Icons.local_offer_outlined,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      onChanged: (val) {
-                        final parsed = double.tryParse(val) ?? 0.0;
-                        setState(() {
-                          lote.precioVenta = parsed;
-                        });
-                      },
-                    ),
-                  ),
-                  SizedBox(
-                    width: itemWidth,
-                    child: _buildDetailFormTextField(
-                      label: "Impuesto Venta %",
-                      initialValue: lote.impuestoVenta.toStringAsFixed(0),
-                      key: ValueKey(
-                        '$keyPrefix-impuestoVenta-${lote.impuestoVenta}',
-                      ),
-                      prefixIcon: Icons.percent,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      onChanged: (val) {
-                        final parsed = double.tryParse(val) ?? 0.0;
-                        setState(() {
-                          lote.impuestoVenta = parsed;
-                        });
-                      },
-                    ),
-                  ),
-                  SizedBox(
-                    width: itemWidth,
-                    child: _buildDetailFormTextField(
-                      label: "Ganancia Unidad",
-                      initialValue: (lote.precioVenta - lote.costo)
-                          .toStringAsFixed(2),
-                      key: ValueKey(
-                        '$keyPrefix-gananciaUnidad-${(lote.precioVenta - lote.costo).toStringAsFixed(2)}',
-                      ),
-                      prefixIcon: Icons.calculate_outlined,
-                      readOnly: true,
-                      onChanged: (val) {},
-                    ),
-                  ),
-                  SizedBox(
-                    width: itemWidth,
-                    child: _buildDetailFormTextField(
-                      label: "Ganancia Lote",
-                      initialValue:
-                          ((lote.precioVenta - lote.costo) * lote.stock)
-                              .toStringAsFixed(2),
-                      key: ValueKey(
-                        '$keyPrefix-gananciaLote-${((lote.precioVenta - lote.costo) * lote.stock).toStringAsFixed(2)}',
-                      ),
-                      prefixIcon: Icons.calculate_outlined,
-                      readOnly: true,
-                      onChanged: (val) {},
                     ),
                   ),
                   SizedBox(
@@ -2413,6 +2346,155 @@ class _VistaInventarioState extends State<VistaInventario> {
                       },
                     ),
                   ),
+                  Builder(
+                    builder: (context) {
+                      final gananciaUnidad = lote.precioVenta - lote.costo;
+                      final esGanancia = gananciaUnidad >= 0;
+                      final themeColor = esGanancia ? Colors.green : Colors.red;
+                      final darkColor = esGanancia
+                          ? Colors.green[800]!
+                          : Colors.red[800]!;
+                      final mediumColor = esGanancia
+                          ? Colors.green[700]!
+                          : Colors.red[700]!;
+
+                      return SizedBox(
+                        width: width,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: themeColor.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: themeColor.withValues(alpha: 0.2),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      "Ganancia Unidad",
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                        color: AppColors.onSurfaceVariant
+                                            .withValues(alpha: 0.8),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text.rich(
+                                      TextSpan(
+                                        children: [
+                                          TextSpan(
+                                            text:
+                                                "L. ${gananciaUnidad.toStringAsFixed(2)}",
+                                            style: GoogleFonts.outfit(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.bold,
+                                              color: darkColor,
+                                            ),
+                                          ),
+                                          const TextSpan(text: "  "),
+                                          WidgetSpan(
+                                            child: Icon(
+                                              esGanancia
+                                                  ? Icons.trending_up
+                                                  : Icons.trending_down,
+                                              color: darkColor,
+                                              size: 16,
+                                            ),
+                                            alignment:
+                                                PlaceholderAlignment.middle,
+                                          ),
+                                          const TextSpan(text: " "),
+                                          TextSpan(
+                                            text:
+                                                "${(lote.costo > 0 ? (gananciaUnidad / lote.costo * 100) : 0.0).toStringAsFixed(1)}%",
+                                            style: GoogleFonts.outfit(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w500,
+                                              color: mediumColor,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                height: 30,
+                                width: 1,
+                                color: themeColor.withValues(alpha: 0.15),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      "Ganancia Lote",
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                        color: AppColors.onSurfaceVariant
+                                            .withValues(alpha: 0.8),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text.rich(
+                                      TextSpan(
+                                        children: [
+                                          TextSpan(
+                                            text:
+                                                "L. ${(gananciaUnidad * lote.stock).toStringAsFixed(2)}",
+                                            style: GoogleFonts.outfit(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.bold,
+                                              color: darkColor,
+                                            ),
+                                          ),
+                                          const TextSpan(text: "  "),
+                                          WidgetSpan(
+                                            child: Icon(
+                                              esGanancia
+                                                  ? Icons.trending_up
+                                                  : Icons.trending_down,
+                                              color: darkColor,
+                                              size: 16,
+                                            ),
+                                            alignment:
+                                                PlaceholderAlignment.middle,
+                                          ),
+                                          const TextSpan(text: " "),
+                                          TextSpan(
+                                            text:
+                                                "${(lote.costo > 0 ? (gananciaUnidad / lote.costo * 100) : 0.0).toStringAsFixed(1)}%",
+                                            style: GoogleFonts.outfit(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w500,
+                                              color: mediumColor,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ],
               );
             },
@@ -2431,7 +2513,7 @@ class _VistaInventarioState extends State<VistaInventario> {
             Expanded(
               child: _buildDetailTabButton(
                 0,
-                "Datos Generales",
+                "Identificacion",
                 Icons.inventory_2_outlined,
               ),
             ),
@@ -2440,7 +2522,7 @@ class _VistaInventarioState extends State<VistaInventario> {
               child: _buildDetailTabButton(
                 1,
                 "Datos Lote",
-                Icons.calculate_outlined,
+                Icons.layers_outlined,
               ),
             ),
             const SizedBox(width: 12),
@@ -2448,7 +2530,7 @@ class _VistaInventarioState extends State<VistaInventario> {
               child: _buildDetailTabButton(
                 2,
                 "Contabilidad",
-                Icons.layers_outlined,
+                Icons.calculate_outlined,
               ),
             ),
           ],
@@ -2817,6 +2899,187 @@ class _VistaInventarioState extends State<VistaInventario> {
       activeRoute: '/inventario',
       title: 'Inventario',
       child: _buildInventoryOrdersView(context),
+    );
+  }
+}
+
+class InteractiveTaxField extends StatefulWidget {
+  final String label;
+  final double value;
+  final String keyPrefix;
+  final String fieldKey;
+  final Function(double) onChanged;
+
+  const InteractiveTaxField({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.keyPrefix,
+    required this.fieldKey,
+    required this.onChanged,
+  });
+
+  @override
+  State<InteractiveTaxField> createState() => _InteractiveTaxFieldState();
+}
+
+class _InteractiveTaxFieldState extends State<InteractiveTaxField> {
+  late FocusNode _focusNode;
+  late TextEditingController _controller;
+  bool _isFocused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode = FocusNode();
+    _focusNode.addListener(_onFocusChange);
+    _controller = TextEditingController(text: widget.value.toStringAsFixed(0));
+  }
+
+  @override
+  void didUpdateWidget(covariant InteractiveTaxField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.value != oldWidget.value) {
+      final currentTextVal = double.tryParse(_controller.text) ?? 0.0;
+      if (currentTextVal != widget.value) {
+        _controller.text = widget.value.toStringAsFixed(0);
+      }
+    }
+  }
+
+  void _onFocusChange() {
+    if (_focusNode.hasFocus != _isFocused) {
+      setState(() {
+        _isFocused = _focusNode.hasFocus;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textLength = _controller.text.length;
+    final fieldWidth = (textLength * 8.0 + 8.0).clamp(20.0, 50.0);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          widget.label,
+          style: GoogleFonts.outfit(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: AppColors.onSurfaceVariant.withValues(alpha: 0.9),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          height: 38,
+          decoration: BoxDecoration(
+            color: AppColors.surfaceContainerLow.withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: _isFocused
+                  ? AppColors.primary
+                  : AppColors.outlineVariant.withValues(alpha: 0.4),
+              width: _isFocused ? 1.5 : 1.0,
+            ),
+          ),
+          child: Row(
+            children: [
+              // Minus button
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  if (widget.value > 0) {
+                    widget.onChanged(widget.value - 1);
+                  }
+                },
+                child: SizedBox(
+                  width: 36,
+                  height: 38,
+                  child: Icon(
+                    Icons.remove,
+                    size: 16,
+                    color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
+                  ),
+                ),
+              ),
+              // Centered number + %
+              Expanded(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: fieldWidth,
+                      child: TextFormField(
+                        focusNode: _focusNode,
+                        controller: _controller,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        textAlign: TextAlign.center,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
+                        onChanged: (val) {
+                          final parsed = double.tryParse(val) ?? 0.0;
+                          widget.onChanged(parsed);
+                        },
+                        style: GoogleFonts.outfit(
+                          fontSize: 13,
+                          color: AppColors.onSurface,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        decoration: const InputDecoration(
+                          isDense: true,
+                          contentPadding: EdgeInsets.zero,
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      "%",
+                      style: GoogleFonts.outfit(
+                        fontSize: 13,
+                        color: AppColors.onSurfaceVariant.withValues(
+                          alpha: 0.7,
+                        ),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Plus button
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  widget.onChanged(widget.value + 1);
+                },
+                child: SizedBox(
+                  width: 36,
+                  height: 38,
+                  child: Icon(
+                    Icons.add,
+                    size: 16,
+                    color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

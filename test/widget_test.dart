@@ -55,11 +55,11 @@ void main() {
     }
 
     // Verify basic fields are visible in "Datos Artículos" tab (default)
-    expect(findFormField("Nombre del Producto"), findsOneWidget);
-    expect(findFormField("Descripción / Subtítulo"), findsOneWidget);
+    expect(findFormField("Nombre de Articulo"), findsOneWidget);
+    expect(findFormField("Descripción del Articulo"), findsOneWidget);
 
     // Edit the product name field and check it changes the text
-    final nameField = findFormField("Nombre del Producto");
+    final nameField = findFormField("Nombre de Articulo");
     await tester.enterText(nameField, "Updated Product Name");
     await tester.pumpAndSettle();
 
