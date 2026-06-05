@@ -19,7 +19,7 @@ void main() {
     } catch (_) {}
   });
 
-  testWidgets('VistaInventario - Collapse/Expand details and save changes', (WidgetTester tester) async {
+  testWidgets('VistaInventario - Tab navigation and editing', (WidgetTester tester) async {
     // Ignore layout overflow errors in test environment
     final originalOnError = FlutterError.onError;
     FlutterError.onError = (FlutterErrorDetails details) {
@@ -44,59 +44,47 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Verify "Datos de Artículo" title is present
-    expect(find.text("Datos de Artículo"), findsOneWidget);
+    // Verify "Datos Articulo" title is present
+    expect(find.text("Datos Articulo"), findsOneWidget);
 
     // Helper to findFormField by its label
     Finder findFormField(String label) {
       final textFinder = find.text(label);
-      final paddingFinder = find.ancestor(of: textFinder, matching: find.byType(Padding)).first;
-      final columnFinder = find.ancestor(of: paddingFinder, matching: find.byType(Column)).first;
+      final columnFinder = find.ancestor(of: textFinder, matching: find.byType(Column)).first;
       return find.descendant(of: columnFinder, matching: find.byType(TextFormField));
     }
 
-    // Verify basic fields are visible (Nombre del Producto and Descripción / Subtítulo)
+    // Verify basic fields are visible in "Datos Artículos" tab (default)
     expect(findFormField("Nombre del Producto"), findsOneWidget);
     expect(findFormField("Descripción / Subtítulo"), findsOneWidget);
 
-    // Verify collapsable fields (e.g., Código de Barra / SKU) are NOT visible by default
-    expect(find.text("Código de Barra / SKU"), findsNothing);
-
-    // Find the toggle expand/collapse button
-    final Finder toggleButton = find.byTooltip("Mostrar detalles");
-    expect(toggleButton, findsOneWidget);
-
-    // Tap it to expand the details
-    await tester.tap(toggleButton);
-    await tester.pumpAndSettle();
-
-    // Now, the "Código de Barra / SKU" field should be visible
-    expect(findFormField("Código de Barra / SKU"), findsOneWidget);
-
-    // The button "Guardar" should NOT be visible yet since no edits were made (not dirty)
-    expect(find.text("Guardar"), findsNothing);
-
-    // Edit the product name field to make the form dirty
+    // Edit the product name field and check it changes the text
     final nameField = findFormField("Nombre del Producto");
-    await tester.enterText(nameField, "Updated Name");
+    await tester.enterText(nameField, "Updated Product Name");
     await tester.pumpAndSettle();
 
-    // The "Guardar" button should now be visible because the details are expanded AND the form is dirty
-    expect(find.text("Guardar"), findsOneWidget);
+    // Verify it updated successfully
+    expect(find.text("Updated Product Name"), findsOneWidget);
 
-    // Tap the "Guardar" button to save changes
-    await tester.tap(find.text("Guardar"));
+    // Now tap the "Datos Lote" tab to check accounting fields
+    final datosLoteTab = find.text("Datos Lote");
+    expect(datosLoteTab, findsOneWidget);
+    await tester.tap(datosLoteTab);
     await tester.pumpAndSettle();
 
-    // The "Guardar" button should be hidden again as the form is no longer dirty (saved)
-    expect(find.text("Guardar"), findsNothing);
+    // Verify accounting fields are now visible
+    expect(findFormField("Costo Unitario"), findsOneWidget);
+    expect(findFormField("Precio Venta"), findsOneWidget);
+    expect(findFormField("Impuesto Compra %"), findsOneWidget);
 
-    // Collapse the details again
-    await tester.tap(find.byTooltip("Ocultar detalles"));
+    // Tap the "Contabilidad" tab to verify
+    final contabilidadTab = find.text("Contabilidad");
+    expect(contabilidadTab, findsOneWidget);
+    await tester.tap(contabilidadTab);
     await tester.pumpAndSettle();
 
-    // Additional fields should be gone
-    expect(find.text("Código de Barra / SKU"), findsNothing);
+    // Verify "Añadir nuevo producto" button is visible under Contabilidad tab
+    expect(find.text("Añadir nuevo producto"), findsOneWidget);
 
     // Reset physical size and restore onError
     tester.view.resetPhysicalSize();

@@ -103,6 +103,19 @@ class Sidebar extends StatelessWidget {
               ),
               _buildNavItem(
                 context: context,
+                icon: Icons.category_outlined,
+                label: "Catálogos",
+                isActive: activeRoute == '/catalogos',
+                onTap: () {
+                  if (isDrawer) Navigator.pop(context);
+                  if (activeRoute != '/catalogos') {
+                    Navigator.pushReplacementNamed(context, '/catalogos');
+                  }
+                },
+                isCollapsed: SidebarState.isCollapsed && !isDrawer,
+              ),
+              _buildNavItem(
+                context: context,
                 icon: Icons.smartphone,
                 label: "Instalador",
                 isActive: activeRoute == '/pos',
