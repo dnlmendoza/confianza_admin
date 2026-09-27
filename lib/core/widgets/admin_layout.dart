@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:confianza_admin/core/theme/app_colors.dart';
 import 'package:confianza_admin/core/widgets/sidebar.dart';
 import 'package:confianza_admin/core/widgets/header.dart';
-import 'package:confianza_admin/core/data/global_notification_store.dart';
 import 'package:confianza_admin/main.dart'; // For SidebarState
 
 class AdminLayout extends StatefulWidget {
@@ -85,8 +84,7 @@ class _AdminLayoutState extends State<AdminLayout> {
                       onSearchChanged: widget.onSearchChanged,
                       centerWidget: widget.centerWidget,
                       notifications:
-                          widget.notifications ??
-                          GlobalNotificationStore.defaultMockNotifications,
+                          widget.notifications ?? [],
                     ),
 
                     // Cuerpo de la Vista

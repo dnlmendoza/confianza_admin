@@ -4,7 +4,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:confianza_admin/core/widgets/admin_layout.dart';
 import 'package:confianza_admin/core/theme/app_colors.dart';
 import 'package:confianza_admin/modulos/catalogos/vm_catalogos.dart';
-import 'package:confianza_admin/modulos/inventario/datos_inventario.dart';
 
 // --- MODELOS DE DATOS ---
 
@@ -236,7 +235,7 @@ class _VistaInventarioState extends State<VistaInventario> {
   List<String> get _units => _vmCatalogos.unidades;
 
   // State for Inventory Orders Tab (Local state only, no Firestore stream)
-  List<PedidoInventario> _pedidos = [];
+  final List<PedidoInventario> _pedidos = [];
   PedidoInventario? _selectedPedido;
   int _activeDetailTab =
       0; // 0: Datos Artículos, 1: Contabilidad, 2: Datos Lotes
@@ -252,12 +251,6 @@ class _VistaInventarioState extends State<VistaInventario> {
           setState(() {});
         }
       });
-
-    // Populate initial local state immediately
-    _pedidos = getInitialMockData();
-    if (_pedidos.isNotEmpty) {
-      _selectedPedido = _pedidos.first;
-    }
   }
 
   @override

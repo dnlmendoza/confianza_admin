@@ -39,7 +39,7 @@ class MyApp extends StatelessWidget {
             ),
             useMaterial3: true,
           ),
-          initialRoute: '/inventario',
+          initialRoute: snapshot.hasData ? '/inventario' : '/',
           routes: {
             '/': (context) => const VistaSesion(),
             '/inicio': (context) => const VistaInicio(),
