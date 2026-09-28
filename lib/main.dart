@@ -3,63 +3,47 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:confianza_admin/firebase_options.dart';
-import 'package:confianza_admin/modulos/sesion/vista_sesion.dart';
-import 'package:confianza_admin/modulos/inicio/vista_inicio.dart';
-import 'package:confianza_admin/modulos/generador/vista_generador.dart';
-import 'package:confianza_admin/modulos/inventario/vista_inventario.dart';
-import 'package:confianza_admin/modulos/cierre/vista_cierre.dart';
-import 'package:confianza_admin/modulos/usuarios/vista_usuarios.dart';
-import 'package:confianza_admin/modulos/pos/vista_pos.dart';
-import 'package:confianza_admin/modulos/catalogos/vista_catalogos.dart';
+import 'package:confianza_admin/core/enrutador.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  runApp(const MyApp());
+  runApp(
+    // NÚCLEO: ProviderScope inicializa el motor de Riverpod
+    const ProviderScope(
+      child: MyApp(),
+    ),
+  );
 }
 
-final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
-
-class MyApp extends StatelessWidget {
+// MyApp ahora es un ConsumerWidget para poder leer los proveedores de Riverpod
+class MyApp extends ConsumerWidget {
   const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snapshot) {
-        return MaterialApp(
-          navigatorKey: navigatorKey,
-          builder: (context, child) => InactivitySignOutListener(child: child!),
-          title: 'La Confianza Admin',
-          theme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: const Color(0xFF006397),
-            ),
-            useMaterial3: true,
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Obtenemos el enrutador que ya contiene toda la seguridad y rutas
+    final enrutador = ref.watch(enrutadorProvider);
+
+    return InactivitySignOutListener(
+      child: MaterialApp.router(
+        title: 'La Confianza Admin',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFF006397),
           ),
-          initialRoute: snapshot.hasData ? '/inventario' : '/',
-          routes: {
-            '/': (context) => const VistaSesion(),
-            '/inicio': (context) => const VistaInicio(),
-            '/generador': (context) => const VistaGenerador(),
-            '/inventario': (context) => const VistaInventario(),
-            '/cierre': (context) => const VistaCierre(),
-            '/usuarios': (context) => const VistaUsuarios(),
-            '/pos': (context) => const VistaPos(),
-            '/catalogos': (context) => const VistaCatalogos(),
-          },
-        );
-      },
+          useMaterial3: true,
+        ),
+        routerConfig: enrutador, // Usamos router moderno en lugar del map de rutas viejo
+      ),
     );
   }
 }
 
-class SidebarState {
-  static bool isCollapsed = false;
-}
-
+// Escuchador de Inactividad Intacto (Solo optimizamos cómo expulsa al usuario)
 class InactivitySignOutListener extends StatefulWidget {
   final Widget child;
   const InactivitySignOutListener({super.key, required this.child});
@@ -94,12 +78,10 @@ class _InactivitySignOutListenerState extends State<InactivitySignOutListener> {
 
   void _resetTimer() {
     final now = DateTime.now();
-    // Throttle interaction updates to once every 2 seconds to avoid timer recreation overhead
     if (_timer == null ||
         now.difference(_lastInteraction) > const Duration(seconds: 2)) {
       _lastInteraction = now;
       _timer?.cancel();
-      // Temporizador de 10 minutos (600 segundos) para el comportamiento definitivo
       _timer = Timer(const Duration(minutes: 10), _signOutUser);
     }
   }
@@ -107,8 +89,9 @@ class _InactivitySignOutListenerState extends State<InactivitySignOutListener> {
   void _signOutUser() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
+      // Magia de Riverpod: Al hacer signOut, el authStateProvider cambia, 
+      // y el GoRouter detecta el cambio expulsando al usuario al '/' instantáneamente.
       await FirebaseAuth.instance.signOut();
-      navigatorKey.currentState?.pushNamedAndRemoveUntil('/', (route) => false);
     }
   }
 
@@ -123,4 +106,9 @@ class _InactivitySignOutListenerState extends State<InactivitySignOutListener> {
       child: widget.child,
     );
   }
+}
+
+// Restaurado: Estado simple de la barra lateral (Se refactorizará a Riverpod después si es necesario)
+class SidebarState {
+  static bool isCollapsed = false;
 }

@@ -22,7 +22,24 @@ class ServicioCatalogos {
   // Streams
   Stream<List<MapEntry<String, String>>> streamCategorias() => _streamColeccion('Categorias');
   Stream<List<MapEntry<String, String>>> streamProveedores() => _streamColeccion('Proveedores');
-  Stream<List<MapEntry<String, String>>> streamUnidades() => _streamColeccion('Unidades', fieldName: 'Tipo');
+  
+  // Devuelve la data completa para poder filtrar por el booleano 'mayor'
+  Stream<List<Map<String, dynamic>>> streamUnidadesData() {
+    return _firestore.collection('Unidades').snapshots().map((snapshot) {
+      final list = snapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        final String? nombre = data['nombre'] as String?;
+        data['nameVal'] = (nombre != null && nombre.isNotEmpty) ? nombre : doc.id;
+        return data;
+      }).toList();
+      list.sort((a, b) => (a['nameVal'] as String).toLowerCase().compareTo((b['nameVal'] as String).toLowerCase()));
+      return list;
+    }).handleError((error) {
+      debugPrint("DEBUG: ERROR en stream Unidades: $error");
+      return <Map<String, dynamic>>[];
+    });
+  }
 
   // Operaciones genéricas
   Future<void> _addDoc(String collectionPath, String nombre, {String fieldName = 'Nombre'}) async {

@@ -1,6 +1,13 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'modelos_generador.dart';
+import 'servicio_generador.dart';
 
-class ViewModelGenerador extends ChangeNotifier {
+class ViewModelGenerador extends Notifier<int> {
+  final ServicioGenerador _servicio = ServicioGenerador();
+  StreamSubscription<List<BarcodeEntry>>? _codigosSub;
+
   final TextEditingController productNameController = TextEditingController(
     text: "Smartphone Ultra X12 - Negro Medianoche",
   );
@@ -35,17 +42,50 @@ class ViewModelGenerador extends ChangeNotifier {
     notifyListeners();
   }
 
-  ViewModelGenerador() {
+  // Listas de datos
+  List<BarcodeEntry> generatedCodes = [];
+  List<BarcodeEntry> reprintCodes = [];
+  List<BarcodeEntry> printQueue = [];
+
+  @override
+  int build() {
     productNameController.addListener(notifyListeners);
     skuController.addListener(notifyListeners);
     priceController.addListener(notifyListeners);
+    
+    // Iniciar escucha a Firebase
+    _listenToFirebase();
+    
+    ref.onDispose(() {
+      _codigosSub?.cancel();
+      productNameController.dispose();
+      skuController.dispose();
+      priceController.dispose();
+    });
+    
+    return 0;
   }
 
-  @override
-  void dispose() {
-    productNameController.dispose();
-    skuController.dispose();
-    priceController.dispose();
-    super.dispose();
+  void _listenToFirebase() {
+    _codigosSub = _servicio.listenToCodigos().listen((codigos) {
+      generatedCodes.clear();
+      reprintCodes.clear();
+      for (var c in codigos) {
+        if (c.hasOriginalCode) {
+          reprintCodes.add(c);
+        } else {
+          generatedCodes.add(c);
+        }
+      }
+      notifyListeners();
+    });
+  }
+
+  void notifyListeners() {
+    state++;
   }
 }
+
+final generadorViewModelProvider = NotifierProvider<ViewModelGenerador, int>(() {
+  return ViewModelGenerador();
+});

@@ -1,20 +1,18 @@
 // ignore_for_file: deprecated_member_use
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:confianza_admin/core/theme/app_colors.dart';
 import 'viewmodel_sesion.dart';
 
-class VistaSesion extends StatefulWidget {
+class VistaSesion extends ConsumerStatefulWidget {
   const VistaSesion({super.key});
 
   @override
-  State<VistaSesion> createState() => _VistaSesionState();
+  ConsumerState<VistaSesion> createState() => _VistaSesionState();
 }
 
-class _VistaSesionState extends State<VistaSesion> {
-  bool _showManualLogin = false;
+class _VistaSesionState extends ConsumerState<VistaSesion> {
   bool _obscurePassword = true;
-  final ViewModelSesion _viewModel = ViewModelSesion();
 
   final TextEditingController _nombreController = TextEditingController();
   final TextEditingController _apellidoController = TextEditingController();
@@ -25,7 +23,6 @@ class _VistaSesionState extends State<VistaSesion> {
     _nombreController.dispose();
     _apellidoController.dispose();
     _passwordController.dispose();
-    _viewModel.dispose();
     super.dispose();
   }
 
@@ -33,80 +30,74 @@ class _VistaSesionState extends State<VistaSesion> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: ListenableBuilder(
-        listenable: _viewModel,
-        builder: (context, _) {
-          return LayoutBuilder(
-            builder: (context, constraints) {
-              final isDesktop = constraints.maxWidth >= 800;
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          // Cambiamos el punto de quiebre a 900 para dar más espacio a laptops pequeñas
+          final isDesktop = constraints.maxWidth >= 900;
 
-              return Stack(
-                children: [
-                  Center(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24.0,
-                        vertical: 48.0,
-                      ),
-                      child: Container(
-                        constraints: const BoxConstraints(maxWidth: 1000),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceContainerLowest,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.04),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                          border: Border.all(
-                            color: AppColors.outlineVariant.withOpacity(0.5),
+          return SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24.0,
+                  vertical: 24.0,
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      constraints: const BoxConstraints(maxWidth: 1000),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceContainerLowest,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.04),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
                           ),
+                        ],
+                        border: Border.all(
+                          color: AppColors.outlineVariant.withOpacity(0.5),
                         ),
-                        clipBehavior: Clip.antiAlias,
-                        child: IntrinsicHeight(
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              if (isDesktop)
-                                Expanded(
-                                  child: Container(
-                                    color: AppColors.inverseSurface,
-                                    padding: const EdgeInsets.all(48.0),
-                                    child: const _SeccionIzquierda(),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: isDesktop
+                          ? IntrinsicHeight(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Expanded(
+                                    child: Container(
+                                      color: AppColors.inverseSurface,
+                                      padding: const EdgeInsets.all(48.0),
+                                      child: const _SeccionIzquierda(),
+                                    ),
                                   ),
-                                ),
-                              Expanded(
-                                child: Padding(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: isDesktop ? 64.0 : 24.0,
-                                    vertical: isDesktop ? 64.0 : 48.0,
+                                  Expanded(
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(64.0),
+                                      child: _buildManualLoginForm(),
+                                    ),
                                   ),
-                                  child: _showManualLogin
-                                      ? _buildManualLoginForm()
-                                      : _SeccionDerecha(
-                                          onToggleManual: () => setState(
-                                            () => _showManualLogin = true,
-                                          ),
-                                        ),
-                                ),
+                                ],
                               ),
-                            ],
-                          ),
-                        ),
-                      ),
+                            )
+                          : Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24.0,
+                                vertical: 48.0,
+                              ),
+                              child: _buildManualLoginForm(),
+                            ),
                     ),
-                  ),
-                  const Positioned(
-                    bottom: 24,
-                    left: 0,
-                    right: 0,
-                    child: _FooterSecurityBadges(),
-                  ),
-                ],
-              );
-            },
+                    const SizedBox(height: 48),
+                    // Ahora los badges están en el flujo normal, nunca se van a superponer
+                    const _FooterSecurityBadges(),
+                  ],
+                ),
+              ),
+            ),
           );
         },
       ),
@@ -114,6 +105,8 @@ class _VistaSesionState extends State<VistaSesion> {
   }
 
   Widget _buildManualLoginForm() {
+    final loginState = ref.watch(viewModelSesionProvider);
+
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -173,10 +166,10 @@ class _VistaSesionState extends State<VistaSesion> {
           ),
         ),
 
-        if (_viewModel.errorMessage != null) ...[
+        if (loginState.errorMessage != null) ...[
           const SizedBox(height: 16),
           Text(
-            _viewModel.errorMessage!,
+            loginState.errorMessage!,
             style: const TextStyle(color: Colors.red, fontSize: 13),
             textAlign: TextAlign.center,
           ),
@@ -194,8 +187,8 @@ class _VistaSesionState extends State<VistaSesion> {
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
-            onPressed: _viewModel.isLoading ? null : _handleLogin,
-            child: _viewModel.isLoading
+            onPressed: loginState.isLoading ? null : _handleLogin,
+            child: loginState.isLoading
                 ? const SizedBox(
                     width: 20,
                     height: 20,
@@ -209,13 +202,6 @@ class _VistaSesionState extends State<VistaSesion> {
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
           ),
-        ),
-
-        const SizedBox(height: 16),
-
-        TextButton(
-          onPressed: () => setState(() => _showManualLogin = false),
-          child: const Text("Volver a Vinculación QR"),
         ),
       ],
     );
@@ -233,15 +219,15 @@ class _VistaSesionState extends State<VistaSesion> {
       return;
     }
 
-    final success = await _viewModel.loginManual(
+    // Riverpod 2.x
+    await ref.read(viewModelSesionProvider.notifier).loginManual(
       nombre: nombre,
       apellido: apellido,
       contrasena: password,
     );
-
-    if (success && mounted) {
-      Navigator.pushReplacementNamed(context, '/inicio');
-    }
+    
+    // No usamos Navigator.pushReplacementNamed('/inicio') porque el GoRouter
+    // detectará el cambio de estado de Auth automáticamente y redirigirá.
   }
 }
 
@@ -291,7 +277,7 @@ class _SeccionIzquierda extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  "Accede a tu panel de administración de forma segura sincronizando tu dispositivo móvil en segundos.",
+                  "Accede a tu panel de administración ingresando tus credenciales de usuario autorizado.",
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.7),
                     fontSize: 14,
@@ -303,16 +289,16 @@ class _SeccionIzquierda extends StatelessWidget {
             Column(
               children: [
                 _buildSecurityFeature(
-                  icon: Icons.qr_code_scanner,
-                  title: "Escaneo Seguro",
-                  subtitle: "Encriptación de punto a punto",
+                  icon: Icons.shield,
+                  title: "Acceso Restringido",
+                  subtitle: "Solo administradores autorizados",
                   iconBgColor: AppColors.primary,
                 ),
                 const SizedBox(height: 24),
                 _buildSecurityFeature(
-                  icon: Icons.verified_user,
-                  title: "Validación Biométrica",
-                  subtitle: "Requiere FaceID o Huella en el móvil",
+                  icon: Icons.security,
+                  title: "Conexión Encriptada",
+                  subtitle: "Tus datos están protegidos",
                   iconBgColor: AppColors.secondary,
                 ),
               ],
@@ -362,294 +348,6 @@ class _SeccionIzquierda extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// Sección Derecha - Formulario y Código QR
-class _SeccionDerecha extends StatelessWidget {
-  final VoidCallback onToggleManual;
-  const _SeccionDerecha({required this.onToggleManual});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const Text(
-          "Vincular Dispositivo",
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: AppColors.onSurface,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          "Abre la app móvil y escanea el código para iniciar sesión",
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: AppColors.onSurfaceVariant,
-            fontSize: 14,
-            height: 1.4,
-          ),
-        ),
-        const SizedBox(height: 32),
-        Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: AppColors.outlineVariant.withOpacity(0.5),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.02),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Stack(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  width: 200,
-                  height: 200,
-                  color: AppColors.background,
-                  child: Image.network(
-                    'https://lh3.googleusercontent.com/aida/ADBb0uhavFE_cdN_MH6UxaJ-YPDlv4eh33h9JYk6e2KNmCBzQNPuhZtiOoIhdsHI-q1wHAr6-Xl5Gd0quGqRYPONfHwjLJmWY4isWJj5LKRhI8peJyGlvQHvam4_TYbUwWYWevidMqtgPAhzsoZcVDqQakp7ADvTlLNZdLTZYm9UgBA37QPxV-AJglIFeIR8-S4qCS5rhWR-TdqMgvOwx6jfICPRc24XlXU9Zf-lu_dm_37CtwO9appUDY-lbS8O_IyXRvewqo6LIgESWQ',
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => const Center(
-                      child: Icon(
-                        Icons.qr_code,
-                        size: 120,
-                        color: AppColors.secondary,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              ..._buildFocusCorners(),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-        const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            BouncingDots(),
-            SizedBox(width: 8),
-            Text(
-              "ESPERANDO ESCANEO...",
-              style: TextStyle(
-                color: AppColors.onSurfaceVariant,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 1.5,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 32),
-        Row(
-          children: [
-            Expanded(
-              child: Divider(color: AppColors.outlineVariant.withOpacity(0.5)),
-            ),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16.0),
-              child: Text(
-                "O BIEN",
-                style: TextStyle(
-                  color: AppColors.secondary,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 1.0,
-                ),
-              ),
-            ),
-            Expanded(
-              child: Divider(color: AppColors.outlineVariant.withOpacity(0.5)),
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
-        SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              side: BorderSide(
-                color: AppColors.outlineVariant.withOpacity(0.8),
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              foregroundColor: AppColors.onSurfaceVariant,
-              backgroundColor: AppColors.surfaceContainerLowest,
-            ),
-            onPressed: onToggleManual,
-            icon: const Icon(Icons.person, size: 20),
-            label: const Text(
-              "Ingreso Manual",
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-            ),
-          ),
-        ),
-        const SizedBox(height: 20),
-        TextButton.icon(
-          onPressed: () {},
-          icon: const Icon(Icons.help_outline, size: 16),
-          label: const Text(
-            "¿Necesitas ayuda para vincularte?",
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-          ),
-        ),
-      ],
-    );
-  }
-
-  List<Widget> _buildFocusCorners() {
-    const double cornerSize = 24.0;
-    const double borderThickness = 4.0;
-    const Color cornerColor = AppColors.primary;
-    return [
-      Positioned(
-        top: 0,
-        left: 0,
-        child: _buildCorner(
-          top: true,
-          left: true,
-          size: cornerSize,
-          thickness: borderThickness,
-          color: cornerColor,
-        ),
-      ),
-      Positioned(
-        top: 0,
-        right: 0,
-        child: _buildCorner(
-          top: true,
-          left: false,
-          size: cornerSize,
-          thickness: borderThickness,
-          color: cornerColor,
-        ),
-      ),
-      Positioned(
-        bottom: 0,
-        left: 0,
-        child: _buildCorner(
-          top: false,
-          left: true,
-          size: cornerSize,
-          thickness: borderThickness,
-          color: cornerColor,
-        ),
-      ),
-      Positioned(
-        bottom: 0,
-        right: 0,
-        child: _buildCorner(
-          top: false,
-          left: false,
-          size: cornerSize,
-          thickness: borderThickness,
-          color: cornerColor,
-        ),
-      ),
-    ];
-  }
-
-  Widget _buildCorner({
-    required bool top,
-    required bool left,
-    required double size,
-    required double thickness,
-    required Color color,
-  }) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        border: Border(
-          top: top
-              ? BorderSide(color: color, width: thickness)
-              : BorderSide.none,
-          bottom: !top
-              ? BorderSide(color: color, width: thickness)
-              : BorderSide.none,
-          left: left
-              ? BorderSide(color: color, width: thickness)
-              : BorderSide.none,
-          right: !left
-              ? BorderSide(color: color, width: thickness)
-              : BorderSide.none,
-        ),
-      ),
-    );
-  }
-}
-
-/// Widget Animado de Puntos Rebotando
-class BouncingDots extends StatefulWidget {
-  const BouncingDots({super.key});
-
-  @override
-  State<BouncingDots> createState() => _BouncingDotsState();
-}
-
-class _BouncingDotsState extends State<BouncingDots>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(3, (index) {
-        return AnimatedBuilder(
-          animation: _controller,
-          builder: (context, child) {
-            final double phase = (index * math.pi / 3.0);
-            final double value = math.sin(
-              (_controller.value * 2 * math.pi) - phase,
-            );
-            return Transform.translate(
-              offset: Offset(0, (value * 3.5).clamp(-6.0, 0.0)),
-              child: child,
-            );
-          },
-          child: Container(
-            width: 7,
-            height: 7,
-            margin: const EdgeInsets.symmetric(horizontal: 2),
-            decoration: const BoxDecoration(
-              color: AppColors.primary,
-              shape: BoxShape.circle,
-            ),
-          ),
-        );
-      }),
     );
   }
 }

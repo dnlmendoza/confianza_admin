@@ -11,6 +11,8 @@ class VMCatalogos extends ChangeNotifier {
   Map<String, String> proveedoresMap = {};
   List<String> unidades = [];
   Map<String, String> unidadesMap = {};
+  List<String> unidadesMayor = [];
+  Map<String, String> unidadesMayorMap = {};
 
   StreamSubscription? _subCategorias;
   StreamSubscription? _subProveedores;
@@ -33,9 +35,25 @@ class VMCatalogos extends ChangeNotifier {
       notifyListeners();
     });
 
-    _subUnidades = _servicio.streamUnidades().listen((data) {
-      unidadesMap = { for (var e in data) e.key: e.value };
-      unidades = data.map((e) => e.value).toList();
+    _subUnidades = _servicio.streamUnidadesData().listen((data) {
+      unidadesMap = {};
+      unidadesMayorMap = {};
+      unidades = [];
+      unidadesMayor = [];
+      
+      for (var doc in data) {
+        final id = doc['id'] as String;
+        final nameVal = doc['nameVal'] as String;
+        final bool isMayor = doc['mayor'] == true;
+        
+        if (isMayor) {
+          unidadesMayorMap[id] = nameVal;
+          unidadesMayor.add(nameVal);
+        } else {
+          unidadesMap[id] = nameVal;
+          unidades.add(nameVal);
+        }
+      }
       notifyListeners();
     });
   }

@@ -1,245 +1,34 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'inventario_view_model.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:confianza_admin/core/widgets/admin_layout.dart';
 import 'package:confianza_admin/core/theme/app_colors.dart';
 import 'package:confianza_admin/modulos/catalogos/vm_catalogos.dart';
 
-// --- MODELOS DE DATOS ---
+import 'modelos_inventario.dart';
 
-class BodegaDistribucion {
-  String nombre;
-  int cantidad;
-
-  BodegaDistribucion({required this.nombre, required this.cantidad});
-
-  Map<String, dynamic> toMap() => {'nombre': nombre, 'cantidad': cantidad};
-
-  factory BodegaDistribucion.fromMap(Map<String, dynamic> map) {
-    return BodegaDistribucion(
-      nombre: map['nombre'] ?? '',
-      cantidad: map['cantidad'] ?? 0,
-    );
-  }
-}
-
-class ProductoPedido {
-  String nombre;
-  String sku;
-  double costo;
-  List<BodegaDistribucion> bodegas;
-  String descripcion;
-  String codigoBarra;
-  String categoria;
-  String proveedor;
-  int cantidadMinima;
-  String tipoProducto;
-  String fechaIngresado;
-
-  ProductoPedido({
-    required this.nombre,
-    required this.sku,
-    required this.costo,
-    required this.bodegas,
-    this.descripcion = '',
-    this.codigoBarra = '',
-    this.categoria = 'General',
-    this.proveedor = '',
-    this.cantidadMinima = 1,
-    this.tipoProducto = 'Normal',
-    this.fechaIngresado = '',
-  });
-
-  int get totalStock => bodegas.fold(0, (total, b) => total + b.cantidad);
-  double get subtotal => costo * totalStock;
-
-  Map<String, dynamic> toMap() => {
-    'nombre': nombre,
-    'sku': sku,
-    'costo': costo,
-    'bodegas': bodegas.map((b) => b.toMap()).toList(),
-    'descripcion': descripcion,
-    'codigoBarra': codigoBarra,
-    'categoria': categoria,
-    'proveedor': proveedor,
-    'cantidadMinima': cantidadMinima,
-    'tipoProducto': tipoProducto,
-    'fechaIngresado': fechaIngresado,
-  };
-
-  factory ProductoPedido.fromMap(Map<String, dynamic> map) {
-    return ProductoPedido(
-      nombre: map['nombre'] ?? '',
-      sku: map['sku'] ?? '',
-      costo: (map['costo'] as num?)?.toDouble() ?? 0.0,
-      bodegas:
-          (map['bodegas'] as List?)
-              ?.map(
-                (b) => BodegaDistribucion.fromMap(b as Map<String, dynamic>),
-              )
-              .toList() ??
-          [],
-      descripcion: map['descripcion'] ?? '',
-      codigoBarra: map['codigoBarra'] ?? '',
-      categoria: map['categoria'] ?? 'General',
-      proveedor: map['proveedor'] ?? '',
-      cantidadMinima: map['cantidadMinima'] ?? 1,
-      tipoProducto: map['tipoProducto'] ?? 'Normal',
-      fechaIngresado: map['fechaIngresado'] ?? '',
-    );
-  }
-}
-
-class LotePedido {
-  String codigo;
-  int stock;
-  String fechaIngreso;
-  String fechaVencimiento;
-  double costo;
-  double precioVenta;
-  String unidades;
-  double costoLote;
-  double impuestoCompra;
-  double impuestoVenta;
-
-  LotePedido({
-    required this.codigo,
-    required this.stock,
-    required this.fechaIngreso,
-    required this.fechaVencimiento,
-    required this.costo,
-    required this.precioVenta,
-    this.unidades = 'UNIDAD',
-    double? costoLote,
-    this.impuestoCompra = 15.0,
-    this.impuestoVenta = 15.0,
-  }) : costoLote = costoLote ?? (costo * stock);
-
-  Map<String, dynamic> toMap() => {
-    'codigo': codigo,
-    'stock': stock,
-    'fechaIngreso': fechaIngreso,
-    'fechaVencimiento': fechaVencimiento,
-    'costo': costo,
-    'precioVenta': precioVenta,
-    'unidades': unidades,
-    'costoLote': costoLote,
-    'impuestoCompra': impuestoCompra,
-    'impuestoVenta': impuestoVenta,
-  };
-
-  factory LotePedido.fromMap(Map<String, dynamic> map) {
-    final c = (map['costo'] as num?)?.toDouble() ?? 0.0;
-    final s = map['stock'] ?? 0;
-    return LotePedido(
-      codigo: map['codigo'] ?? '',
-      stock: s,
-      fechaIngreso: map['fechaIngreso'] ?? '',
-      fechaVencimiento: map['fechaVencimiento'] ?? '',
-      costo: c,
-      precioVenta: (map['precioVenta'] as num?)?.toDouble() ?? 0.0,
-      unidades: map['unidades'] ?? 'UNIDAD',
-      costoLote: (map['costoLote'] as num?)?.toDouble() ?? (c * s),
-      impuestoCompra: (map['impuestoCompra'] as num?)?.toDouble() ?? 15.0,
-      impuestoVenta: (map['impuestoVenta'] as num?)?.toDouble() ?? 15.0,
-    );
-  }
-}
-
-class PedidoInventario {
-  String id;
-  String nombre;
-  String descripcion;
-  String proveedor;
-  String fecha;
-  String pagadoPor;
-  String referencia;
-  double descuento;
-  double impuesto;
-  double envio;
-  List<ProductoPedido> productos;
-  List<LotePedido> lotes;
-
-  PedidoInventario({
-    required this.id,
-    required this.nombre,
-    required this.descripcion,
-    required this.proveedor,
-    required this.fecha,
-    required this.pagadoPor,
-    required this.referencia,
-    required this.descuento,
-    required this.impuesto,
-    required this.envio,
-    required this.productos,
-    required this.lotes,
-  });
-
-  double get subtotalProductos =>
-      productos.fold(0.0, (total, p) => total + p.subtotal);
-  double get totalGeneral => subtotalProductos - descuento + impuesto + envio;
-
-  Map<String, dynamic> toMap() => {
-    'nombre': nombre,
-    'descripcion': descripcion,
-    'proveedor': proveedor,
-    'fecha': fecha,
-    'pagadoPor': pagadoPor,
-    'referencia': referencia,
-    'descuento': descuento,
-    'impuesto': impuesto,
-    'envio': envio,
-    'productos': productos.map((p) => p.toMap()).toList(),
-    'lotes': lotes.map((l) => l.toMap()).toList(),
-  };
-
-  factory PedidoInventario.fromMap(String id, Map<String, dynamic> map) {
-    return PedidoInventario(
-      id: id,
-      nombre: map['nombre'] ?? '',
-      descripcion: map['descripcion'] ?? '',
-      proveedor: map['proveedor'] ?? '',
-      fecha: map['fecha'] ?? '',
-      pagadoPor: map['pagadoPor'] ?? '',
-      referencia: map['referencia'] ?? '',
-      descuento: (map['descuento'] as num?)?.toDouble() ?? 0.0,
-      impuesto: (map['impuesto'] as num?)?.toDouble() ?? 0.0,
-      envio: (map['envio'] as num?)?.toDouble() ?? 0.0,
-      productos:
-          (map['productos'] as List?)
-              ?.map((p) => ProductoPedido.fromMap(p as Map<String, dynamic>))
-              .toList() ??
-          [],
-      lotes:
-          (map['lotes'] as List?)
-              ?.map((l) => LotePedido.fromMap(l as Map<String, dynamic>))
-              .toList() ??
-          [],
-    );
-  }
-}
+import 'widgets/inventory_tab_articles.dart';
+import 'widgets/inventory_tab_lote.dart';
 
 // --- CLASE VISTA PRINCIPAL ---
 
-class VistaInventario extends StatefulWidget {
+class VistaInventario extends ConsumerStatefulWidget {
   const VistaInventario({super.key});
 
   @override
-  State<VistaInventario> createState() => _VistaInventarioState();
+  ConsumerState<VistaInventario> createState() => _VistaInventarioState();
 }
 
-class _VistaInventarioState extends State<VistaInventario> {
+class _VistaInventarioState extends ConsumerState<VistaInventario> {
   // Dynamic lists for catalogs (vinculados al ViewModel)
   late final VMCatalogos _vmCatalogos;
 
-  List<String> get _units => _vmCatalogos.unidades;
 
   // State for Inventory Orders Tab (Local state only, no Firestore stream)
-  final List<PedidoInventario> _pedidos = [];
-  PedidoInventario? _selectedPedido;
-  int _activeDetailTab =
-      0; // 0: Datos Artículos, 1: Contabilidad, 2: Datos Lotes
-  int _selectedLoteIndex = 0;
+  PedidoInventario? get _selectedPedido => ref.watch(inventarioViewModelProvider).selectedPedido;
+  int get _activeDetailTab => ref.watch(inventarioViewModelProvider).activeDetailTab;
+  int get _selectedLoteIndex => ref.watch(inventarioViewModelProvider).selectedLoteIndex;
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -251,6 +40,9 @@ class _VistaInventarioState extends State<VistaInventario> {
           setState(() {});
         }
       });
+    _searchController.addListener(() {
+      ref.read(inventarioViewModelProvider.notifier).setSearchQuery(_searchController.text);
+    });
   }
 
   @override
@@ -262,137 +54,10 @@ class _VistaInventarioState extends State<VistaInventario> {
 
   // --- FILTRADO ---
 
-  List<PedidoInventario> get _filteredPedidos {
-    final query = _searchController.text.trim().toLowerCase();
-    if (query.isEmpty) return _pedidos;
-    return _pedidos.where((p) {
-      return p.nombre.toLowerCase().contains(query) ||
-          p.descripcion.toLowerCase().contains(query) ||
-          p.proveedor.toLowerCase().contains(query);
-    }).toList();
-  }
+  List<PedidoInventario> get _filteredPedidos => ref.watch(inventarioViewModelProvider.notifier).filteredPedidos;
 
   // --- DIÁLOGOS Y ACCIONES INTERACTIVAS DE PEDIDOS ---
 
-  void _showAddProductDialog(PedidoInventario pedido) {
-    final nameController = TextEditingController();
-    final skuController = TextEditingController();
-    final costController = TextEditingController();
-    final warehouseNameController = TextEditingController(text: "Brand Depot");
-    final qtyController = TextEditingController(text: "1");
-    final formKey = GlobalKey<FormState>();
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: AppColors.surfaceContainerLowest,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          title: Text(
-            "Añadir Producto al Pedido",
-            style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
-          ),
-          content: Form(
-            key: formKey,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextFormField(
-                    controller: nameController,
-                    decoration: const InputDecoration(
-                      labelText: "Nombre del Producto",
-                    ),
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? "Requerido" : null,
-                  ),
-                  TextFormField(
-                    controller: skuController,
-                    decoration: const InputDecoration(labelText: "SKU"),
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? "Requerido" : null,
-                  ),
-                  TextFormField(
-                    controller: costController,
-                    decoration: const InputDecoration(
-                      labelText: "Costo Unitario (L.)",
-                    ),
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    validator: (v) => (v == null || double.tryParse(v) == null)
-                        ? "Costo inválido"
-                        : null,
-                  ),
-                  const SizedBox(height: 12),
-                  const Divider(),
-                  const SizedBox(height: 8),
-                  Text(
-                    "Distribución de Bodega Inicial",
-                    style: GoogleFonts.outfit(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
-                  ),
-                  TextFormField(
-                    controller: warehouseNameController,
-                    decoration: const InputDecoration(
-                      labelText: "Nombre de la Bodega",
-                    ),
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? "Requerido" : null,
-                  ),
-                  TextFormField(
-                    controller: qtyController,
-                    decoration: const InputDecoration(labelText: "Cantidad"),
-                    keyboardType: TextInputType.number,
-                    validator: (v) => (v == null || int.tryParse(v) == null)
-                        ? "Cantidad inválida"
-                        : null,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Cancelar"),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (formKey.currentState?.validate() ?? false) {
-                  final newProd = ProductoPedido(
-                    nombre: nameController.text.trim(),
-                    sku: skuController.text.trim(),
-                    costo: double.parse(costController.text.trim()),
-                    bodegas: [
-                      BodegaDistribucion(
-                        nombre: warehouseNameController.text.trim(),
-                        cantidad: int.parse(qtyController.text.trim()),
-                      ),
-                    ],
-                  );
-
-                  setState(() {
-                    pedido.productos.add(newProd);
-                  });
-                  Navigator.pop(context);
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text("Añadir"),
-            ),
-          ],
-        );
-      },
-    );
-  }
 
   void _showEditStockDialog(
     ProductoPedido prod,
@@ -578,85 +243,12 @@ class _VistaInventarioState extends State<VistaInventario> {
     );
   }
 
-  void _showEditSummaryDialog(
-    PedidoInventario pedido,
-    String type,
-    double currentValue,
-  ) {
-    final controller = TextEditingController(
-      text: currentValue.toStringAsFixed(2),
-    );
-    final formKey = GlobalKey<FormState>();
-    final title = type == 'descuento'
-        ? "Editar Descuento Recibido"
-        : (type == 'impuesto'
-              ? "Editar Impuesto Pagado"
-              : "Editar Costo de Envío");
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: AppColors.surfaceContainerLowest,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          title: Text(
-            title,
-            style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
-          ),
-          content: Form(
-            key: formKey,
-            child: TextFormField(
-              controller: controller,
-              decoration: const InputDecoration(labelText: "Valor (L.)"),
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              autofocus: true,
-              validator: (v) => (v == null || double.tryParse(v) == null)
-                  ? "Valor inválido"
-                  : null,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Cancelar"),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (formKey.currentState?.validate() ?? false) {
-                  final val = double.parse(controller.text.trim());
-                  setState(() {
-                    if (type == 'descuento') {
-                      pedido.descuento = val;
-                    } else if (type == 'impuesto') {
-                      pedido.impuesto = val;
-                    } else if (type == 'envio') {
-                      pedido.envio = val;
-                    }
-                  });
-                  Navigator.pop(context);
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text("Guardar"),
-            ),
-          ],
-        );
-      },
-    );
-  }
 
   // --- CONSTRUCCIÓN DE WIDGETS ---
 
   Widget _buildMetadataItem(String label, String value, IconData icon) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
           Expanded(
@@ -672,6 +264,8 @@ class _VistaInventarioState extends State<VistaInventario> {
                     color: AppColors.onSurfaceVariant.withValues(alpha: 0.6),
                     letterSpacing: 0.5,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -885,84 +479,6 @@ class _VistaInventarioState extends State<VistaInventario> {
     );
   }
 
-  Widget _buildSummaryRow(String label, String valueText, VoidCallback onTap) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          Text(
-            label,
-            style: GoogleFonts.outfit(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(width: 16),
-          InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(4),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 8.0,
-                vertical: 4.0,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    valueText,
-                    style: GoogleFonts.outfit(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.onSurface,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Icon(
-                    Icons.edit,
-                    size: 12,
-                    color: AppColors.onSurfaceVariant.withValues(alpha: 0.5),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGrandTotalRow(double grandTotal) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          Text(
-            "TOTAL GENERAL",
-            style: GoogleFonts.outfit(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: AppColors.onSurfaceVariant,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Text(
-            "L. ${grandTotal.toStringAsFixed(2)}",
-            style: GoogleFonts.outfit(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: AppColors.primary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   void _showAddLotDialog(PedidoInventario pedido) {
     final today = DateTime.now();
@@ -1162,8 +678,8 @@ class _VistaInventarioState extends State<VistaInventario> {
                       child: InkWell(
                         onTap: () {
                           setState(() {
-                            _selectedLoteIndex = index;
-                            _activeDetailTab = 1; // Ir a Contabilidad
+                            ref.read(inventarioViewModelProvider.notifier).setSelectedLoteIndex(index);
+                            ref.read(inventarioViewModelProvider.notifier).setActiveDetailTab(1); // Ir a Contabilidad
                           });
                         },
                         borderRadius: BorderRadius.circular(8),
@@ -1173,72 +689,49 @@ class _VistaInventarioState extends State<VistaInventario> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.qr_code,
-                                        size: 16,
-                                        color: AppColors.primary,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        lote.codigo,
-                                        style: GoogleFonts.outfit(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.bold,
-                                          color: AppColors.onSurface,
-                                        ),
-                                      ),
-                                      if (index == 0) ...[
-                                        const SizedBox(width: 6),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 6,
-                                            vertical: 2,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.blue.withValues(
-                                              alpha: 0.1,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              6,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            "FIFO Activo",
-                                            style: GoogleFonts.outfit(
-                                              color: Colors.blue[800],
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ],
+                                  const Icon(
+                                    Icons.layers_outlined,
+                                    size: 16,
+                                    color: AppColors.primary,
                                   ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.green.withValues(
-                                        alpha: 0.1,
-                                      ),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
                                     child: Text(
-                                      "Activo",
-                                      style: TextStyle(
-                                        color: Colors.green[700],
-                                        fontSize: 10,
+                                      lote.codigo,
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 13,
                                         fontWeight: FontWeight.bold,
+                                        color: AppColors.onSurface,
                                       ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
+                                  if (index == 0)
+                                    Padding(
+                                      padding: const EdgeInsets.only(left: 6.0),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green.withValues(
+                                            alpha: 0.1,
+                                          ),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          "FIFO Activo",
+                                          style: GoogleFonts.outfit(
+                                            color: Colors.green[700],
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
                                 ],
                               ),
                               const SizedBox(height: 8),
@@ -1260,7 +753,7 @@ class _VistaInventarioState extends State<VistaInventario> {
                                     MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
-                                    "Costo: L. ${lote.costo.toStringAsFixed(2)}",
+                                    "Costo: L. ${lote.costoLote.toStringAsFixed(2)}",
                                     style: TextStyle(
                                       fontSize: 11,
                                       color: AppColors.onSurfaceVariant,
@@ -1312,7 +805,7 @@ class _VistaInventarioState extends State<VistaInventario> {
     return GestureDetector(
       onTap: () {
         setState(() {
-          _activeDetailTab = index;
+          ref.read(inventarioViewModelProvider.notifier).setActiveDetailTab(index);
         });
       },
       behavior: HitTestBehavior.opaque,
@@ -1357,1145 +850,7 @@ class _VistaInventarioState extends State<VistaInventario> {
     );
   }
 
-  Widget _buildDetailFormTextField({
-    required String label,
-    required String initialValue,
-    required ValueKey key,
-    required Function(String) onChanged,
-    IconData? suffixIcon,
-    IconData? prefixIcon,
-    bool readOnly = false,
-    TextInputType keyboardType = TextInputType.text,
-    VoidCallback? onTap,
-    TextAlign textAlign = TextAlign.start,
-    String? prefixText,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.outfit(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            color: AppColors.onSurfaceVariant.withValues(alpha: 0.9),
-          ),
-        ),
-        const SizedBox(height: 6),
-        SizedBox(
-          height: 38,
-          child: TextFormField(
-            key: key,
-            initialValue: initialValue,
-            readOnly: readOnly,
-            keyboardType: keyboardType,
-            onTap: onTap,
-            onChanged: onChanged,
-            textAlign: textAlign,
-            style: GoogleFonts.outfit(fontSize: 13, color: AppColors.onSurface),
-            decoration: InputDecoration(
-              prefixText: prefixText,
-              prefixStyle: GoogleFonts.outfit(
-                fontSize: 13,
-                color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
-                fontWeight: FontWeight.w500,
-              ),
-              prefixIcon: prefixIcon != null
-                  ? Icon(
-                      prefixIcon,
-                      size: 16,
-                      color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
-                    )
-                  : null,
-              suffixIcon: suffixIcon != null
-                  ? Icon(
-                      suffixIcon,
-                      size: 16,
-                      color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
-                    )
-                  : null,
-              filled: true,
-              fillColor: AppColors.surfaceContainerLow.withValues(alpha: 0.3),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 8,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(
-                  color: AppColors.outlineVariant.withValues(alpha: 0.4),
-                ),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(
-                  color: AppColors.outlineVariant.withValues(alpha: 0.4),
-                ),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(
-                  color: AppColors.primary,
-                  width: 1.5,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 
-  Widget _buildCantidadField(LotePedido lote, String keyPrefix) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          "Cantidad",
-          style: GoogleFonts.outfit(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            color: AppColors.onSurfaceVariant.withValues(alpha: 0.9),
-          ),
-        ),
-        const SizedBox(height: 6),
-        SizedBox(
-          height: 38,
-          child: TextFormField(
-            key: ValueKey('$keyPrefix-stock-${lote.stock}'),
-            initialValue: lote.stock.toString(),
-            keyboardType: TextInputType.number,
-            textAlign: TextAlign.center,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            onChanged: (val) {
-              final newStock = int.tryParse(val) ?? 0;
-              setState(() {
-                lote.stock = newStock;
-                lote.costoLote = lote.costo * lote.stock;
-              });
-            },
-            style: GoogleFonts.outfit(
-              fontSize: 13,
-              color: AppColors.onSurface,
-              fontWeight: FontWeight.bold,
-            ),
-            decoration: InputDecoration(
-              prefixIcon: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () {
-                  if (lote.stock > 1) {
-                    setState(() {
-                      lote.stock--;
-                      lote.costoLote = lote.costo * lote.stock;
-                    });
-                  }
-                },
-                child: Icon(
-                  Icons.remove,
-                  size: 16,
-                  color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
-                ),
-              ),
-              suffixIcon: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () {
-                  setState(() {
-                    lote.stock++;
-                    lote.costoLote = lote.costo * lote.stock;
-                  });
-                },
-                child: Icon(
-                  Icons.add,
-                  size: 16,
-                  color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
-                ),
-              ),
-              prefixIconConstraints: const BoxConstraints(
-                minWidth: 36,
-                minHeight: 38,
-              ),
-              suffixIconConstraints: const BoxConstraints(
-                minWidth: 36,
-                minHeight: 38,
-              ),
-              filled: true,
-              fillColor: AppColors.surfaceContainerLow.withValues(alpha: 0.3),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 8,
-                vertical: 0,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(
-                  color: AppColors.outlineVariant.withValues(alpha: 0.4),
-                ),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(
-                  color: AppColors.outlineVariant.withValues(alpha: 0.4),
-                ),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(
-                  color: AppColors.primary,
-                  width: 1.5,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInteractiveTaxField({
-    required String label,
-    required double value,
-    required String keyPrefix,
-    required String fieldKey,
-    required Function(double) onChanged,
-  }) {
-    return InteractiveTaxField(
-      key: ValueKey('$keyPrefix-$fieldKey'),
-      label: label,
-      value: value,
-      keyPrefix: keyPrefix,
-      fieldKey: fieldKey,
-      onChanged: onChanged,
-    );
-  }
-
-  Widget _buildUnidadesDropdown(LotePedido lote, String keyPrefix) {
-    final list = _units.isEmpty
-        ? ['UNIDAD', '2X1', 'CAJA']
-        : List<String>.from(_units);
-    if (!list.contains(lote.unidades)) {
-      list.insert(0, lote.unidades);
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          "Unidades",
-          style: GoogleFonts.outfit(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            color: AppColors.onSurfaceVariant.withValues(alpha: 0.9),
-          ),
-        ),
-        const SizedBox(height: 6),
-        PopupMenuButton<String>(
-          onSelected: (val) {
-            setState(() {
-              lote.unidades = val;
-            });
-          },
-          itemBuilder: (BuildContext context) {
-            return list.map((String val) {
-              return PopupMenuItem<String>(
-                value: val,
-                child: Text(val, style: GoogleFonts.outfit(fontSize: 13)),
-              );
-            }).toList();
-          },
-          child: Container(
-            height: 38,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceContainerLow.withValues(alpha: 0.3),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: AppColors.outlineVariant.withValues(alpha: 0.4),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  lote.unidades,
-                  style: GoogleFonts.outfit(
-                    fontSize: 13,
-                    color: AppColors.onSurface,
-                  ),
-                ),
-                Icon(
-                  Icons.arrow_drop_down,
-                  color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
-                  size: 20,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDropdownField({
-    required String label,
-    required String currentValue,
-    required List<String> items,
-    required ValueChanged<String> onSelected,
-    IconData? prefixIcon,
-  }) {
-    final list = List<String>.from(items);
-    if (currentValue.isNotEmpty && !list.contains(currentValue)) {
-      list.insert(0, currentValue);
-    }
-    if (list.isEmpty) {
-      list.add('General');
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.outfit(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            color: AppColors.onSurfaceVariant.withValues(alpha: 0.9),
-          ),
-        ),
-        const SizedBox(height: 6),
-        PopupMenuButton<String>(
-          onSelected: onSelected,
-          itemBuilder: (BuildContext context) {
-            return list.map((String val) {
-              return PopupMenuItem<String>(
-                value: val,
-                child: Text(val, style: GoogleFonts.outfit(fontSize: 13)),
-              );
-            }).toList();
-          },
-          child: Container(
-            height: 38,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceContainerLow.withValues(alpha: 0.3),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: AppColors.outlineVariant.withValues(alpha: 0.4),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                if (prefixIcon != null) ...[
-                  Icon(
-                    prefixIcon,
-                    size: 16,
-                    color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                Expanded(
-                  child: Text(
-                    currentValue.isEmpty ? 'General' : currentValue,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.outfit(
-                      fontSize: 13,
-                      color: AppColors.onSurface,
-                    ),
-                  ),
-                ),
-                Icon(
-                  Icons.arrow_drop_down,
-                  color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
-                  size: 20,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDatosArticulosTab(PedidoInventario pedido) {
-    if (pedido.productos.isEmpty) {
-      return Center(
-        child: Text(
-          "No hay productos en este pedido.",
-          style: GoogleFonts.outfit(color: AppColors.onSurfaceVariant),
-        ),
-      );
-    }
-    final prod = pedido.productos.first;
-    final keyPrefix = "${pedido.id}-${prod.sku}";
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.only(right: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 130,
-                height: 136,
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: AppColors.outlineVariant.withValues(alpha: 0.5),
-                  ),
-                ),
-                child: Center(
-                  child: Icon(
-                    Icons.image_outlined,
-                    size: 36,
-                    color: AppColors.onSurfaceVariant.withValues(alpha: 0.4),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  children: [
-                    _buildDetailFormTextField(
-                      label: "Nombre de Articulo",
-                      initialValue: prod.nombre,
-                      key: ValueKey('$keyPrefix-nombre-${prod.nombre}'),
-                      prefixIcon: Icons.label_outlined,
-                      onChanged: (val) {
-                        setState(() {
-                          prod.nombre = val;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    _buildDetailFormTextField(
-                      label: "Descripción del Articulo",
-                      initialValue: prod.descripcion,
-                      key: ValueKey('$keyPrefix-desc-${prod.descripcion}'),
-                      prefixIcon: Icons.subject_outlined,
-                      onChanged: (val) {
-                        setState(() {
-                          prod.descripcion = val;
-                        });
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final width = constraints.maxWidth;
-              final itemWidth = (width - 16) / 2;
-              return Wrap(
-                spacing: 16,
-                runSpacing: 12,
-                children: [
-                  SizedBox(
-                    width: itemWidth,
-                    child: _buildDetailFormTextField(
-                      label: "Código de Barra",
-                      initialValue: prod.codigoBarra,
-                      key: ValueKey('$keyPrefix-barcode-${prod.codigoBarra}'),
-                      prefixIcon: Icons.view_week_outlined,
-                      readOnly: true,
-                      onChanged: (val) {
-                        setState(() {
-                          prod.codigoBarra = val;
-                        });
-                      },
-                    ),
-                  ),
-                  SizedBox(
-                    width: itemWidth,
-                    child: _buildDetailFormTextField(
-                      label: "Fecha Ingreso",
-                      initialValue: prod.fechaIngresado,
-                      key: ValueKey('$keyPrefix-date-${prod.fechaIngresado}'),
-                      suffixIcon: Icons.calendar_month,
-                      readOnly: true,
-                      onChanged: (val) {
-                        setState(() {
-                          prod.fechaIngresado = val;
-                        });
-                      },
-                    ),
-                  ),
-                  SizedBox(
-                    width: itemWidth,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Tipo de Articulo",
-                          style: GoogleFonts.outfit(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.onSurfaceVariant.withValues(
-                              alpha: 0.9,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Container(
-                          height: 38,
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceContainerLow.withValues(
-                              alpha: 0.3,
-                            ),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: AppColors.outlineVariant.withValues(
-                                alpha: 0.4,
-                              ),
-                            ),
-                          ),
-                          padding: const EdgeInsets.all(3),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: GestureDetector(
-                                  onTap: () {
-                                    setState(() {
-                                      prod.tipoProducto = "Normal";
-                                    });
-                                  },
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 200),
-                                    decoration: BoxDecoration(
-                                      color: prod.tipoProducto == "Normal"
-                                          ? AppColors.primary
-                                          : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Icon(
-                                          Icons.inventory_2_outlined,
-                                          size: 15,
-                                          color: prod.tipoProducto == "Normal"
-                                              ? Colors.white
-                                              : AppColors.onSurfaceVariant,
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          "Normal",
-                                          style: GoogleFonts.outfit(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.bold,
-                                            color: prod.tipoProducto == "Normal"
-                                                ? Colors.white
-                                                : AppColors.onSurfaceVariant,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                child: GestureDetector(
-                                  onTap: () {
-                                    setState(() {
-                                      prod.tipoProducto = "Pesado";
-                                    });
-                                  },
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 200),
-                                    decoration: BoxDecoration(
-                                      color: prod.tipoProducto == "Pesado"
-                                          ? AppColors.primary
-                                          : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Icon(
-                                          Icons.scale_outlined,
-                                          size: 15,
-                                          color: prod.tipoProducto == "Pesado"
-                                              ? Colors.white
-                                              : AppColors.onSurfaceVariant,
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          "Pesado",
-                                          style: GoogleFonts.outfit(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.bold,
-                                            color: prod.tipoProducto == "Pesado"
-                                                ? Colors.white
-                                                : AppColors.onSurfaceVariant,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(
-                    width: itemWidth,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Cantidad Mínima",
-                          style: GoogleFonts.outfit(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.onSurfaceVariant.withValues(
-                              alpha: 0.9,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        SizedBox(
-                          height: 38,
-                          child: TextFormField(
-                            key: ValueKey(
-                              '$keyPrefix-minQty-${prod.cantidadMinima}',
-                            ),
-                            initialValue: prod.cantidadMinima.toString(),
-                            keyboardType: TextInputType.number,
-                            textAlign: TextAlign.center,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly,
-                            ],
-                            onChanged: (val) {
-                              final parsed = int.tryParse(val) ?? 1;
-                              prod.cantidadMinima = parsed;
-                            },
-                            style: GoogleFonts.outfit(
-                              fontSize: 13,
-                              color: AppColors.onSurface,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            decoration: InputDecoration(
-                              prefixIcon: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTap: () {
-                                  if (prod.cantidadMinima > 1) {
-                                    setState(() {
-                                      prod.cantidadMinima--;
-                                    });
-                                  }
-                                },
-                                child: Icon(
-                                  Icons.remove,
-                                  size: 16,
-                                  color: AppColors.onSurfaceVariant.withValues(
-                                    alpha: 0.7,
-                                  ),
-                                ),
-                              ),
-                              suffixIcon: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTap: () {
-                                  setState(() {
-                                    prod.cantidadMinima++;
-                                  });
-                                },
-                                child: Icon(
-                                  Icons.add,
-                                  size: 16,
-                                  color: AppColors.onSurfaceVariant.withValues(
-                                    alpha: 0.7,
-                                  ),
-                                ),
-                              ),
-                              prefixIconConstraints: const BoxConstraints(
-                                minWidth: 36,
-                                minHeight: 38,
-                              ),
-                              suffixIconConstraints: const BoxConstraints(
-                                minWidth: 36,
-                                minHeight: 38,
-                              ),
-                              filled: true,
-                              fillColor: AppColors.surfaceContainerLow
-                                  .withValues(alpha: 0.3),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 0,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(
-                                  color: AppColors.outlineVariant.withValues(
-                                    alpha: 0.4,
-                                  ),
-                                ),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(
-                                  color: AppColors.outlineVariant.withValues(
-                                    alpha: 0.4,
-                                  ),
-                                ),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: const BorderSide(
-                                  color: AppColors.primary,
-                                  width: 1.5,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(
-                    width: itemWidth,
-                    child: _buildDropdownField(
-                      label: "Categoría",
-                      currentValue: prod.categoria,
-                      items: _vmCatalogos.categorias,
-                      prefixIcon: Icons.category_outlined,
-                      onSelected: (val) {
-                        setState(() {
-                          prod.categoria = val;
-                        });
-                      },
-                    ),
-                  ),
-                  SizedBox(
-                    width: itemWidth,
-                    child: _buildDropdownField(
-                      label: "Proveedor",
-                      currentValue: prod.proveedor,
-                      items: _vmCatalogos.proveedores,
-                      prefixIcon: Icons.local_shipping_outlined,
-                      onSelected: (val) {
-                        setState(() {
-                          prod.proveedor = val;
-                        });
-                      },
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildContabilidadTab(PedidoInventario pedido) {
-    if (pedido.lotes.isEmpty) {
-      return Center(
-        child: Text(
-          "No hay lotes en este pedido.",
-          style: GoogleFonts.outfit(color: AppColors.onSurfaceVariant),
-        ),
-      );
-    }
-    final int index = _selectedLoteIndex.clamp(0, pedido.lotes.length - 1);
-    final lote = pedido.lotes[index];
-    final keyPrefix = "${pedido.id}-lote-${lote.codigo}";
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.only(right: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: AppColors.outlineVariant.withValues(alpha: 0.5),
-              ),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(
-                    Icons.layers_outlined,
-                    size: 20,
-                    color: AppColors.primary,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          lote.codigo,
-                          style: GoogleFonts.outfit(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.onSurface,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      "Ingreso: ${lote.fechaIngreso}",
-                      style: GoogleFonts.outfit(
-                        fontSize: 11,
-                        color: AppColors.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    "Disponible",
-                    style: GoogleFonts.outfit(
-                      color: Colors.green[800],
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final width = constraints.maxWidth;
-              final itemWidth = (width - 16) / 2;
-              return Wrap(
-                spacing: 16,
-                runSpacing: 12,
-                children: [
-                  SizedBox(
-                    width: itemWidth,
-                    child: _buildCantidadField(lote, keyPrefix),
-                  ),
-                  SizedBox(
-                    width: itemWidth,
-                    child: _buildDetailFormTextField(
-                      label: "Costo Lote",
-                      initialValue: lote.costoLote.toStringAsFixed(2),
-                      key: ValueKey(
-                        '$keyPrefix-costoLote-${lote.costoLote.toStringAsFixed(2)}',
-                      ),
-                      prefixIcon: Icons.calculate_outlined,
-                      textAlign: TextAlign.center,
-                      prefixText: "L. ",
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      onChanged: (val) {
-                        final parsed = double.tryParse(val) ?? 0.0;
-                        setState(() {
-                          lote.costoLote = parsed;
-                          lote.costo = lote.stock > 0
-                              ? (parsed / lote.stock)
-                              : 0.0;
-                        });
-                      },
-                    ),
-                  ),
-
-                  SizedBox(
-                    width: width,
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: _buildUnidadesDropdown(lote, keyPrefix),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _buildDetailFormTextField(
-                            label: "Costo Unitario",
-                            initialValue: lote.costo.toStringAsFixed(2),
-                            key: ValueKey(
-                              '$keyPrefix-costoUnitario-${lote.costo.toStringAsFixed(2)}',
-                            ),
-                            prefixIcon: Icons.payments_outlined,
-                            textAlign: TextAlign.center,
-                            prefixText: "L. ",
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            onChanged: (val) {
-                              final parsed = double.tryParse(val) ?? 0.0;
-                              setState(() {
-                                lote.costo = parsed;
-                                lote.costoLote = parsed * lote.stock;
-                              });
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _buildDetailFormTextField(
-                            label: "Precio Venta",
-                            initialValue: lote.precioVenta.toStringAsFixed(2),
-                            key: ValueKey(
-                              '$keyPrefix-precioVenta-${lote.precioVenta.toStringAsFixed(2)}',
-                            ),
-                            prefixIcon: Icons.local_offer_outlined,
-                            textAlign: TextAlign.center,
-                            prefixText: "L. ",
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            onChanged: (val) {
-                              final parsed = double.tryParse(val) ?? 0.0;
-                              setState(() {
-                                lote.precioVenta = parsed;
-                              });
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(
-                    width: itemWidth,
-                    child: _buildInteractiveTaxField(
-                      label: "Impuesto Compra",
-                      value: lote.impuestoCompra,
-                      keyPrefix: keyPrefix,
-                      fieldKey: 'impuestoCompra',
-                      onChanged: (val) {
-                        setState(() {
-                          lote.impuestoCompra = val;
-                        });
-                      },
-                    ),
-                  ),
-                  SizedBox(
-                    width: itemWidth,
-                    child: _buildInteractiveTaxField(
-                      label: "Impuesto Venta",
-                      value: lote.impuestoVenta,
-                      keyPrefix: keyPrefix,
-                      fieldKey: 'impuestoVenta',
-                      onChanged: (val) {
-                        setState(() {
-                          lote.impuestoVenta = val;
-                        });
-                      },
-                    ),
-                  ),
-                  SizedBox(
-                    width: itemWidth,
-                    child: _buildDetailFormTextField(
-                      label: "Fecha Vencimiento",
-                      initialValue: lote.fechaVencimiento,
-                      key: ValueKey(
-                        '$keyPrefix-fechaVencimiento-${lote.fechaVencimiento}',
-                      ),
-                      suffixIcon: Icons.calendar_month,
-                      onTap: () async {
-                        final date = await showDatePicker(
-                          context: context,
-                          initialDate: DateTime.now(),
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime(2100),
-                        );
-                        if (date != null) {
-                          final formatted =
-                              "${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year.toString().substring(2)}";
-                          setState(() {
-                            lote.fechaVencimiento = formatted;
-                          });
-                        }
-                      },
-                      onChanged: (val) {
-                        setState(() {
-                          lote.fechaVencimiento = val;
-                        });
-                      },
-                    ),
-                  ),
-                  Builder(
-                    builder: (context) {
-                      final gananciaUnidad = lote.precioVenta - lote.costo;
-                      final esGanancia = gananciaUnidad >= 0;
-                      final themeColor = esGanancia ? Colors.green : Colors.red;
-                      final darkColor = esGanancia
-                          ? Colors.green[800]!
-                          : Colors.red[800]!;
-                      final mediumColor = esGanancia
-                          ? Colors.green[700]!
-                          : Colors.red[700]!;
-
-                      return SizedBox(
-                        width: width,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            color: themeColor.withValues(alpha: 0.05),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: themeColor.withValues(alpha: 0.2),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      "Ganancia Unidad",
-                                      style: GoogleFonts.outfit(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w500,
-                                        color: AppColors.onSurfaceVariant
-                                            .withValues(alpha: 0.8),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text.rich(
-                                      TextSpan(
-                                        children: [
-                                          TextSpan(
-                                            text:
-                                                "L. ${gananciaUnidad.toStringAsFixed(2)}",
-                                            style: GoogleFonts.outfit(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.bold,
-                                              color: darkColor,
-                                            ),
-                                          ),
-                                          const TextSpan(text: "  "),
-                                          WidgetSpan(
-                                            child: Icon(
-                                              esGanancia
-                                                  ? Icons.trending_up
-                                                  : Icons.trending_down,
-                                              color: darkColor,
-                                              size: 16,
-                                            ),
-                                            alignment:
-                                                PlaceholderAlignment.middle,
-                                          ),
-                                          const TextSpan(text: " "),
-                                          TextSpan(
-                                            text:
-                                                "${(lote.costo > 0 ? (gananciaUnidad / lote.costo * 100) : 0.0).toStringAsFixed(1)}%",
-                                            style: GoogleFonts.outfit(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w500,
-                                              color: mediumColor,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Container(
-                                height: 30,
-                                width: 1,
-                                color: themeColor.withValues(alpha: 0.15),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      "Ganancia Lote",
-                                      style: GoogleFonts.outfit(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w500,
-                                        color: AppColors.onSurfaceVariant
-                                            .withValues(alpha: 0.8),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text.rich(
-                                      TextSpan(
-                                        children: [
-                                          TextSpan(
-                                            text:
-                                                "L. ${(gananciaUnidad * lote.stock).toStringAsFixed(2)}",
-                                            style: GoogleFonts.outfit(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.bold,
-                                              color: darkColor,
-                                            ),
-                                          ),
-                                          const TextSpan(text: "  "),
-                                          WidgetSpan(
-                                            child: Icon(
-                                              esGanancia
-                                                  ? Icons.trending_up
-                                                  : Icons.trending_down,
-                                              color: darkColor,
-                                              size: 16,
-                                            ),
-                                            alignment:
-                                                PlaceholderAlignment.middle,
-                                          ),
-                                          const TextSpan(text: " "),
-                                          TextSpan(
-                                            text:
-                                                "${(lote.costo > 0 ? (gananciaUnidad / lote.costo * 100) : 0.0).toStringAsFixed(1)}%",
-                                            style: GoogleFonts.outfit(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w500,
-                                              color: mediumColor,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildProductosYTotalesSection(PedidoInventario pedido) {
     return Column(
@@ -2528,70 +883,26 @@ class _VistaInventarioState extends State<VistaInventario> {
             ),
           ],
         ),
-        const SizedBox(height: 16),
         Expanded(
           child: _activeDetailTab == 0
-              ? _buildDatosArticulosTab(pedido)
+              ? InventoryTabArticles(
+                  pedido: pedido,
+                  categorias: _vmCatalogos.categoriasMap,
+                  proveedores: _vmCatalogos.proveedoresMap,
+                  onUpdate: () => setState(() {}),
+                )
               : _activeDetailTab == 1
-              ? _buildContabilidadTab(pedido)
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Spacer(),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        TextButton.icon(
-                          onPressed: () => _showAddProductDialog(pedido),
-                          icon: const Icon(Icons.add, size: 18),
-                          label: const Text("Añadir nuevo producto"),
-                          style: TextButton.styleFrom(
-                            foregroundColor: AppColors.primary,
-                            textStyle: GoogleFonts.outfit(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            _buildSummaryRow(
-                              "DESCUENTO RECIBIDO (I-I)",
-                              "L. ${pedido.descuento.toStringAsFixed(2)}",
-                              () => _showEditSummaryDialog(
-                                pedido,
-                                'descuento',
-                                pedido.descuento,
-                              ),
-                            ),
-                            _buildSummaryRow(
-                              "IMPUESTO DE VENTA PAGADO",
-                              "L. ${pedido.impuesto.toStringAsFixed(2)}",
-                              () => _showEditSummaryDialog(
-                                pedido,
-                                'impuesto',
-                                pedido.impuesto,
-                              ),
-                            ),
-                            _buildSummaryRow(
-                              "ENVÍO PAGADO",
-                              "L. ${pedido.envio.toStringAsFixed(2)}",
-                              () => _showEditSummaryDialog(
-                                pedido,
-                                'envio',
-                                pedido.envio,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            const SizedBox(width: 250, child: Divider()),
-                            _buildGrandTotalRow(pedido.totalGeneral),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+              ? InventoryTabLote(
+                  pedido: pedido,
+                  selectedLoteIndex: _selectedLoteIndex,
+                  unidades: _vmCatalogos.unidadesMap,
+                  unidadesMayor: _vmCatalogos.unidadesMayorMap,
+                  onUpdate: () => setState(() {}),
+                  onSave: (lote) {
+                    ref.read(inventarioViewModelProvider.notifier).updateLote(pedido, lote);
+                  },
+                )
+              : const SizedBox.shrink(),
         ),
       ],
     );
@@ -2611,15 +922,6 @@ class _VistaInventarioState extends State<VistaInventario> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              "Datos Articulo",
-              style: GoogleFonts.outfit(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: AppColors.onSurface,
-              ),
-            ),
-            const SizedBox(height: 16),
             // Fila de Metadata (Vendor, Date, Paid By, Ref)
             // Fila de Metadata (Vendor, Date, Paid By, Ref) sin tarjetas
             Container(
@@ -2635,8 +937,8 @@ class _VistaInventarioState extends State<VistaInventario> {
                   Expanded(
                     child: _buildMetadataItem(
                       "CODIGO DE BARRAS",
-                      pedido.proveedor,
-                      Icons.view_week_outlined,
+                      pedido.productos.isNotEmpty ? pedido.productos.first.codigoBarra : "N/A",
+                      Icons.calendar_view_week_rounded,
                     ),
                   ),
                   Container(
@@ -2647,7 +949,7 @@ class _VistaInventarioState extends State<VistaInventario> {
                   Expanded(
                     child: _buildMetadataItem(
                       "FECHA INGRESO",
-                      pedido.fecha,
+                      pedido.productos.isNotEmpty ? pedido.productos.first.fechaIngresado : "N/A",
                       Icons.calendar_month_outlined,
                     ),
                   ),
@@ -2659,7 +961,9 @@ class _VistaInventarioState extends State<VistaInventario> {
                   Expanded(
                     child: _buildMetadataItem(
                       "CATEGORIA",
-                      pedido.pagadoPor,
+                      pedido.productos.isNotEmpty 
+                          ? _vmCatalogos.categoriasMap[pedido.productos.first.categoria] ?? pedido.productos.first.categoria 
+                          : "N/A",
                       Icons.category_outlined,
                     ),
                   ),
@@ -2671,14 +975,16 @@ class _VistaInventarioState extends State<VistaInventario> {
                   Expanded(
                     child: _buildMetadataItem(
                       "PROVEEDOR",
-                      pedido.referencia.isEmpty ? "Sin Ref" : pedido.referencia,
+                      pedido.productos.isNotEmpty 
+                          ? _vmCatalogos.proveedoresMap[pedido.productos.first.proveedor] ?? pedido.productos.first.proveedor 
+                          : "N/A",
                       Icons.local_shipping_outlined,
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 12),
             // Espacio inferior dividido bajo metadatos
             Expanded(
               child: Row(
@@ -2708,181 +1014,256 @@ class _VistaInventarioState extends State<VistaInventario> {
   Widget _buildInventoryOrdersView(BuildContext context) {
     final filtered = _filteredPedidos;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Layout Split Screen
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.only(
-              left: 0,
-              right: 24,
-              top: 8,
-              bottom: 8,
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Panel izquierdo (lista de pedidos)
-                Container(
-                  width: 450,
-                  decoration: BoxDecoration(
-                    border: Border(
-                      right: BorderSide(
-                        color: AppColors.outlineVariant.withValues(alpha: 0.5),
-                        width: 1,
-                      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 900;
+
+        Widget listPanel = Container(
+          decoration: BoxDecoration(
+            border: isMobile
+                ? null
+                : Border(
+                    right: BorderSide(
+                      color: AppColors.outlineVariant.withValues(alpha: 0.5),
+                      width: 1,
                     ),
                   ),
-                  child: Column(
-                    children: [
-                      // Buscador y filtro pegado a la izquierda
-                      Padding(
-                        padding: const EdgeInsets.only(left: 0.0, right: 16.0),
+          ),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(left: 0.0, right: 16.0),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _searchController,
+                            style: const TextStyle(fontSize: 13),
+                            decoration: InputDecoration(
+                              hintText: "Buscar por Nombre, Codigo de Barras",
+                              prefixIcon: const Icon(
+                                Icons.search,
+                                size: 18,
+                              ),
+                              filled: true,
+                              fillColor: AppColors.surfaceContainerLow,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(30),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 0,
+                              ),
+                              suffixIcon: _searchController.text.isNotEmpty
+                                  ? IconButton(
+                                      icon: const Icon(Icons.close, size: 16),
+                                      onPressed: () {
+                                        _searchController.clear();
+                                        setState(() {});
+                                      },
+                                    )
+                                  : null,
+                            ),
+                            onChanged: (val) {
+                              setState(() {});
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        TextButton.icon(
+                          onPressed: () {
+                            // Logic for new article
+                          },
+                          icon: const Icon(Icons.add, size: 16),
+                          label: Text(
+                            "Nuevo Articulo",
+                            style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppColors.primary,
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        InkWell(
+                          onTap: () {},
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.category_outlined, size: 16, color: AppColors.onSurfaceVariant),
+                              const SizedBox(width: 4),
+                              Text("Categoria", style: GoogleFonts.outfit(fontSize: 12, color: AppColors.onSurfaceVariant)),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 80),
+                        InkWell(
+                          onTap: () {},
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.local_shipping_outlined, size: 16, color: AppColors.onSurfaceVariant),
+                              const SizedBox(width: 4),
+                              Text("Proveedor", style: GoogleFonts.outfit(fontSize: 12, color: AppColors.onSurfaceVariant)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: ListView.separated(
+                  padding: EdgeInsets.zero,
+                  itemCount: filtered.length,
+                  separatorBuilder: (context, index) => const Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: AppColors.outlineVariant,
+                    indent: 0,
+                    endIndent: 0,
+                  ),
+                  itemBuilder: (context, index) {
+                    final pedido = filtered[index];
+                    final isSelected = _selectedPedido?.id == pedido.id;
+
+                    return InkWell(
+                      onTap: () {
+                        setState(() {
+                          ref.read(inventarioViewModelProvider.notifier).selectPedido(pedido);
+                          ref.read(inventarioViewModelProvider.notifier).setSelectedLoteIndex(0);
+                          ref.read(inventarioViewModelProvider.notifier).setActiveDetailTab(0);
+                        });
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        decoration: BoxDecoration(
+                          color: isSelected && !isMobile
+                              ? AppColors.primary
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.zero,
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 16,
+                        ),
                         child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Expanded(
-                              child: TextField(
-                                controller: _searchController,
-                                style: const TextStyle(fontSize: 13),
-                                decoration: InputDecoration(
-                                  hintText: "Buscar...",
-                                  prefixIcon: const Icon(
-                                    Icons.search,
-                                    size: 18,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    pedido.nombre,
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: isSelected && !isMobile
+                                          ? Colors.white
+                                          : AppColors.onSurface,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                  filled: true,
-                                  fillColor: AppColors.surfaceContainerLow,
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(30),
-                                    borderSide: BorderSide.none,
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    pedido.descripcion,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: isSelected && !isMobile
+                                          ? Colors.white70
+                                          : AppColors.onSurfaceVariant,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    vertical: 0,
-                                  ),
-                                ),
-                                onChanged: (val) {
-                                  setState(() {});
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              decoration: BoxDecoration(
-                                color: AppColors.surfaceContainerLow,
-                                borderRadius: BorderRadius.circular(30),
-                                border: Border.all(
-                                  color: AppColors.outlineVariant.withValues(
-                                    alpha: 0.5,
-                                  ),
-                                ),
-                              ),
-                              child: IconButton(
-                                icon: const Icon(Icons.filter_list, size: 18),
-                                onPressed: () {},
+                                ],
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      // Lista de pedidos plana full-width
-                      Expanded(
-                        child: ListView.separated(
-                          padding: EdgeInsets.zero,
-                          itemCount: filtered.length,
-                          separatorBuilder: (context, index) => const Divider(
-                            height: 1,
-                            thickness: 1,
-                            color: AppColors.outlineVariant,
-                            indent: 0,
-                            endIndent: 0,
-                          ),
-                          itemBuilder: (context, index) {
-                            final pedido = filtered[index];
-                            final isSelected = _selectedPedido?.id == pedido.id;
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
 
-                            return InkWell(
-                              onTap: () {
-                                setState(() {
-                                  _selectedPedido = pedido;
-                                  _selectedLoteIndex = 0;
-                                  _activeDetailTab = 0;
-                                });
-                              },
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 150),
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? AppColors.primary
-                                      : Colors.transparent,
-                                  borderRadius: BorderRadius.zero,
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 16,
-                                ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            pedido.nombre,
-                                            style: GoogleFonts.outfit(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.bold,
-                                              color: isSelected
-                                                  ? Colors.white
-                                                  : AppColors.onSurface,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            pedido.descripcion,
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              color: isSelected
-                                                  ? Colors.white70
-                                                  : AppColors.onSurfaceVariant,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
+        Widget detailsPanel = _selectedPedido == null
+            ? const Center(
+                child: Text(
+                  "Seleccione un pedido para ver los detalles.",
+                ),
+              )
+            : _buildPedidoDetailsPanel(context, _selectedPedido!);
+
+        if (isMobile) {
+          if (_selectedPedido != null) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () {
+                      ref.read(inventarioViewModelProvider.notifier).unselectPedido();
+                    },
+                    icon: const Icon(Icons.arrow_back),
+                    label: const Text("Volver a la lista"),
                   ),
                 ),
-                const SizedBox(width: 24),
-                // Panel derecho (detalles del pedido)
-                Expanded(
-                  child: _selectedPedido == null
-                      ? const Center(
-                          child: Text(
-                            "Seleccione un pedido para ver los detalles.",
-                          ),
-                        )
-                      : _buildPedidoDetailsPanel(context, _selectedPedido!),
-                ),
+                const SizedBox(height: 8),
+                Expanded(child: detailsPanel),
               ],
+            );
+          } else {
+            return listPanel;
+          }
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(
+                  left: 0,
+                  right: 24,
+                  top: 8,
+                  bottom: 8,
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(
+                      width: constraints.maxWidth * 0.3 < 350
+                          ? 350
+                          : constraints.maxWidth * 0.3,
+                      child: listPanel,
+                    ),
+                    const SizedBox(width: 24),
+                    Expanded(
+                      child: detailsPanel,
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 
@@ -2892,187 +1273,6 @@ class _VistaInventarioState extends State<VistaInventario> {
       activeRoute: '/inventario',
       title: 'Inventario',
       child: _buildInventoryOrdersView(context),
-    );
-  }
-}
-
-class InteractiveTaxField extends StatefulWidget {
-  final String label;
-  final double value;
-  final String keyPrefix;
-  final String fieldKey;
-  final Function(double) onChanged;
-
-  const InteractiveTaxField({
-    super.key,
-    required this.label,
-    required this.value,
-    required this.keyPrefix,
-    required this.fieldKey,
-    required this.onChanged,
-  });
-
-  @override
-  State<InteractiveTaxField> createState() => _InteractiveTaxFieldState();
-}
-
-class _InteractiveTaxFieldState extends State<InteractiveTaxField> {
-  late FocusNode _focusNode;
-  late TextEditingController _controller;
-  bool _isFocused = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _focusNode = FocusNode();
-    _focusNode.addListener(_onFocusChange);
-    _controller = TextEditingController(text: widget.value.toStringAsFixed(0));
-  }
-
-  @override
-  void didUpdateWidget(covariant InteractiveTaxField oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.value != oldWidget.value) {
-      final currentTextVal = double.tryParse(_controller.text) ?? 0.0;
-      if (currentTextVal != widget.value) {
-        _controller.text = widget.value.toStringAsFixed(0);
-      }
-    }
-  }
-
-  void _onFocusChange() {
-    if (_focusNode.hasFocus != _isFocused) {
-      setState(() {
-        _isFocused = _focusNode.hasFocus;
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _focusNode.removeListener(_onFocusChange);
-    _focusNode.dispose();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final textLength = _controller.text.length;
-    final fieldWidth = (textLength * 8.0 + 8.0).clamp(20.0, 50.0);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          widget.label,
-          style: GoogleFonts.outfit(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            color: AppColors.onSurfaceVariant.withValues(alpha: 0.9),
-          ),
-        ),
-        const SizedBox(height: 6),
-        Container(
-          height: 38,
-          decoration: BoxDecoration(
-            color: AppColors.surfaceContainerLow.withValues(alpha: 0.3),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: _isFocused
-                  ? AppColors.primary
-                  : AppColors.outlineVariant.withValues(alpha: 0.4),
-              width: _isFocused ? 1.5 : 1.0,
-            ),
-          ),
-          child: Row(
-            children: [
-              // Minus button
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () {
-                  if (widget.value > 0) {
-                    widget.onChanged(widget.value - 1);
-                  }
-                },
-                child: SizedBox(
-                  width: 36,
-                  height: 38,
-                  child: Icon(
-                    Icons.remove,
-                    size: 16,
-                    color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
-                  ),
-                ),
-              ),
-              // Centered number + %
-              Expanded(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    SizedBox(
-                      width: fieldWidth,
-                      child: TextFormField(
-                        focusNode: _focusNode,
-                        controller: _controller,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        textAlign: TextAlign.center,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                        ],
-                        onChanged: (val) {
-                          final parsed = double.tryParse(val) ?? 0.0;
-                          widget.onChanged(parsed);
-                        },
-                        style: GoogleFonts.outfit(
-                          fontSize: 13,
-                          color: AppColors.onSurface,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        decoration: const InputDecoration(
-                          isDense: true,
-                          contentPadding: EdgeInsets.zero,
-                          border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      "%",
-                      style: GoogleFonts.outfit(
-                        fontSize: 13,
-                        color: AppColors.onSurfaceVariant.withValues(
-                          alpha: 0.7,
-                        ),
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // Plus button
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () {
-                  widget.onChanged(widget.value + 1);
-                },
-                child: SizedBox(
-                  width: 36,
-                  height: 38,
-                  child: Icon(
-                    Icons.add,
-                    size: 16,
-                    color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }

@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
-import 'vista_generador.dart'; // Para BarcodeEntry
-
+import 'modelos_generador.dart';
 class ServicioGenerador {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 

@@ -1,0 +1,125 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/Usuarios/$(request.auth.uid)).data;
+    }
+
+    function isApproved() {
+      let estado = getUserData().Estado;
+      return estado == 'activo' || estado == 'Activo';
+    }
+
+    // ===== CONSTANTES DE ROLES =====
+    // TODO: Reemplaza estos valores con los IDs reales de tu colección Roles
+    function getAdminMasterId() {
+      return 'Fc2EHIBEFpE1pTE43esJ';
+    }
+    
+    function getAdminId() {
+      return 'dBm7wWlsSk8FZgIX2X17';
+    }
+    // ===============================
+
+    // REFACTORIZADO: Verifica por ID en lugar de nombre
+    function tienePermiso(permiso) {
+      let rolId = getUserData().Rol; 
+      let rolData = get(/databases/$(database)/documents/Roles/$(rolId)).data;
+      return rolId == getAdminMasterId() || rolData.permisos[permiso] == true;
+    }
+
+    // REFACTORIZADO: Verifica por ID. ¡Esto te ahorra una lectura de documento en Firebase (menos costos)!
+    function esAdministrador() {
+      let rolId = getUserData().Rol; 
+      return rolId == getAdminId() || rolId == getAdminMasterId();
+    }
+
+    //           REGLAS POR COLECCIÓN
+    // --- COLECCIÓN: USUARIOS ---
+    match /Usuarios/{userId} {
+      allow create: if true; 
+      allow get: if true; 
+      allow list: if true;
+      allow update: if isAuthenticated() && (request.auth.uid == userId || esAdministrador());
+      allow delete: if isAuthenticated() && 
+        (esAdministrador() || request.auth.token.email == userId || request.auth.token.email == resource.data.Idcorreo);
+    }
+
+    // Colección Roles
+    match /Roles/{rolId} {
+      allow read: if isAuthenticated() && isApproved();
+      allow write: if isAuthenticated() && isApproved() && esAdministrador();
+    }
+    
+    // --- COLECCION: CODIGOS ---
+    match /Codigos/{sku} {
+      allow read: if isAuthenticated() && isApproved();
+      allow write: if isAuthenticated() && isApproved() && esAdministrador();
+    }
+    
+    // --- COLECCIÓN: INVENTARIO (DATOS GENERALES) ---
+    match /Inventario/{sku} {
+      allow read: if isAuthenticated() && isApproved() && tienePermiso('Inventario - Ver datos');
+      allow create: if isAuthenticated() && isApproved() && tienePermiso('Nuevo Artículo - Guardar datos');
+      allow update: if isAuthenticated() && isApproved() && tienePermiso('Modificar Artículo - Modificar datos');
+    }
+
+    // --- SUB-COLECCIÓN: LOTES DE ARTÍCULOS ---
+    match /{path=**}/lote/{loteId} {
+      allow read: if isAuthenticated() && isApproved() && tienePermiso('Inventario - Ver datos');
+      allow create: if isAuthenticated() && isApproved() && (
+        tienePermiso('Inventario - Crear dañados') || 
+        tienePermiso('Nuevo Artículo - Guardar datos')
+      );
+      allow update: if isAuthenticated() && isApproved() && (
+        tienePermiso('Inventario - Crear dañados') || 
+        tienePermiso('Modificar Artículo - Modificar datos')
+      );
+      allow delete: if isAuthenticated() && isApproved() && esAdministrador();
+    }
+
+    // Colección Ventas
+    match /Ventas/{ventaId} {
+      allow create: if isAuthenticated() && isApproved() && tienePermiso('Ventas - Crear venta');
+      allow read: if isAuthenticated() && isApproved() && tienePermiso('Cierre - Visualizar datos');
+      allow update: if isAuthenticated() && isApproved() && tienePermiso('Ventas - Modificar ventas');
+      allow delete: if isAuthenticated() && isApproved() && esAdministrador();
+    }
+
+    // Colección Cierre de Caja
+    match /Cierre/{document} {
+      allow read: if isAuthenticated() && isApproved() && tienePermiso('Cierre - Visualizar datos');
+      allow create, update: if isAuthenticated() && isApproved() && (tienePermiso('Cierre - Crear egresos') || tienePermiso('Cierre - Crear cierre del dia'));
+    }
+
+    // Colección Control de Recibos
+    match /Recibos/Numero {
+      allow read: if isAuthenticated() && isApproved();
+      allow write: if isAuthenticated() && isApproved() && (
+        tienePermiso('Ventas - Crear venta') || 
+        tienePermiso('Cierre - Modificar ventas')
+      );
+    }
+
+    //   CATÁLOGOS AUXILIARES
+    match /Categorias/{id} {
+      allow read: if isAuthenticated() && isApproved();
+      allow write: if isAuthenticated() && isApproved() && tienePermiso('Nuevo Artículo - Guardar datos');
+    }
+
+    match /Unidades/{id} {
+      allow read: if isAuthenticated() && isApproved();
+      allow write: if isAuthenticated() && isApproved() && tienePermiso('Nuevo Artículo - Guardar datos');
+    }
+
+    match /Proveedores/{id} {
+      allow read: if isAuthenticated() && isApproved();
+      allow write: if isAuthenticated() && isApproved() && tienePermiso('Nuevo Artículo - Guardar datos');
+    }
+  }
+}

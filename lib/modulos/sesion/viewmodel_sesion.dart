@@ -1,42 +1,39 @@
-import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
 import 'package:confianza_admin/core/config/role_constants.dart';
 
-class ViewModelSesion extends ChangeNotifier {
+// Estado inmutable para el login
+class LoginState {
+  final bool isLoading;
+  final String? errorMessage;
+  const LoginState({this.isLoading = false, this.errorMessage});
+}
+
+// ViewModel moderno usando Notifier de Riverpod 2/3
+class ViewModelSesion extends Notifier<LoginState> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  bool _isLoading = false;
-  String? _errorMessage;
-
-  bool get isLoading => _isLoading;
-  String? get errorMessage => _errorMessage;
+  @override
+  LoginState build() {
+    return const LoginState();
+  }
 
   Future<bool> loginManual({
     required String nombre,
     required String apellido,
     required String contrasena,
   }) async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
+    state = const LoginState(isLoading: true);
 
     try {
-      // Construir el identificador de correo
-      // User said: apellidonombre@laconfianza.hn
-      final String userEmail =
-          '${apellido.trim().toLowerCase()}${nombre.trim().toLowerCase()}@laconfianza.hn';
+      final String userEmail = '${apellido.trim().toLowerCase()}${nombre.trim().toLowerCase()}@laconfianza.hn';
 
-      debugPrint("Intentando Firebase Auth login para: $userEmail");
-
-      // Iniciar sesión con Firebase Auth
       await _auth.signInWithEmailAndPassword(
         email: userEmail,
         password: contrasena,
       );
 
-      // Verificar el rol del usuario en Firestore por ID (No por nombre)
       final User? currentUser = _auth.currentUser;
       if (currentUser != null) {
         final userDoc = await FirebaseFirestore.instance
@@ -48,69 +45,40 @@ class ViewModelSesion extends ChangeNotifier {
           final userData = userDoc.data();
           if (userData != null) {
             final String? roleId = userData['Rol'];
-            if (roleId != null) {
-              if (roleId == RoleConstants.adminId ||
-                  roleId == RoleConstants.adminMasterId) {
-                // Login exitoso y tiene permisos
-                _isLoading = false;
-                notifyListeners();
-                return true;
-              }
+            if (roleId != null && (roleId == RoleConstants.adminId || roleId == RoleConstants.adminMasterId)) {
+              state = const LoginState(isLoading: false);
+              return true;
             }
           }
         }
       }
 
-      // Si llegamos aquí, el usuario no tiene permisos
       await _auth.signOut();
-      _errorMessage = "No tienes permisos de administrador para acceder.";
-      _isLoading = false;
-      notifyListeners();
+      state = const LoginState(isLoading: false, errorMessage: "No tienes permisos de administrador para acceder.");
       return false;
     } on FirebaseAuthException catch (e) {
-      debugPrint("Error de Firebase Auth: ${e.code} - ${e.message}");
-
+      String msg = "Error de autenticación: ${e.message}";
       switch (e.code) {
-        case 'user-not-found':
-          _errorMessage =
-              "Usuario no registrado en el sistema de autenticación.";
-          break;
-        case 'wrong-password':
-          _errorMessage = "Contraseña incorrecta.";
-          break;
-        case 'invalid-email':
-          _errorMessage = "El formato del correo generado no es válido.";
-          break;
-        case 'user-disabled':
-          _errorMessage = "Este usuario ha sido deshabilitado.";
-          break;
-        case 'invalid-credential':
-          _errorMessage =
-              "Credenciales inválidas (usuario o contraseña incorrectos).";
-          break;
-        default:
-          _errorMessage = "Error de autenticación: ${e.message}";
+        case 'user-not-found': msg = "Usuario no registrado en el sistema."; break;
+        case 'wrong-password': msg = "Contraseña incorrecta."; break;
+        case 'invalid-email': msg = "El formato del correo generado no es válido."; break;
+        case 'user-disabled': msg = "Este usuario ha sido deshabilitado."; break;
+        case 'invalid-credential': msg = "Credenciales inválidas (usuario o contraseña incorrectos)."; break;
       }
-
-      _isLoading = false;
-      notifyListeners();
+      state = LoginState(isLoading: false, errorMessage: msg);
       return false;
     } catch (e) {
-      debugPrint("Error inesperado en login: $e");
-      _errorMessage = "Error inesperado: $e";
-      _isLoading = false;
-      notifyListeners();
+      state = LoginState(isLoading: false, errorMessage: "Error inesperado: $e");
       return false;
     }
   }
 
-  Future<void> logout() async {
-    await _auth.signOut();
-    notifyListeners();
-  }
-
   void clearError() {
-    _errorMessage = null;
-    notifyListeners();
+    state = LoginState(isLoading: state.isLoading, errorMessage: null);
   }
 }
+
+// Proveedor de Riverpod para el ViewModel de Sesión
+final viewModelSesionProvider = NotifierProvider<ViewModelSesion, LoginState>(() {
+  return ViewModelSesion();
+});

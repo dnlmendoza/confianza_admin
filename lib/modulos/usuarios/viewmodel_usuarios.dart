@@ -1,11 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:confianza_admin/core/config/role_constants.dart';
 import 'modelos_usuarios.dart';
 import 'servicio_usuarios.dart';
 
-class ViewModelUsuarios extends ChangeNotifier {
+class ViewModelUsuarios extends Notifier<int> {
   final ServicioUsuarios _servicio = ServicioUsuarios();
 
   // Datos
@@ -27,8 +28,21 @@ class ViewModelUsuarios extends ChangeNotifier {
   StreamSubscription? _usuariosSub;
   StreamSubscription? _registroSub;
 
-  ViewModelUsuarios() {
-    _init();
+  @override
+  int build() {
+    // Para evitar ejecutar _init múltiples veces si el state cambia
+    if (_usuariosSub == null) {
+      _init();
+      ref.onDispose(() {
+        _usuariosSub?.cancel();
+        _registroSub?.cancel();
+      });
+    }
+    return 0;
+  }
+
+  void notifyListeners() {
+    state++;
   }
 
   void _init() {
@@ -284,6 +298,28 @@ class ViewModelUsuarios extends ChangeNotifier {
     }
   }
 
+  Future<void> createUser({
+    required String name,
+    required String lastName,
+    required String password,
+    required String roleId,
+    required String status,
+  }) async {
+    final email = '${lastName.trim().toLowerCase()}${name.trim().toLowerCase()}@laconfianza.hn';
+    try {
+      await _servicio.createUser(
+        email: email,
+        password: password,
+        name: name.trim(),
+        lastName: lastName.trim(),
+        roleId: roleId,
+        status: status,
+      );
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   void togglePermission(UserProfileConfig profile, String module, String permission) {
     final modPerms = profile.permissions;
     final isChecked = modPerms[module]?.contains(permission) ?? false;
@@ -296,10 +332,10 @@ class ViewModelUsuarios extends ChangeNotifier {
     notifyListeners();
   }
 
-  @override
-  void dispose() {
-    _usuariosSub?.cancel();
-    _registroSub?.cancel();
-    super.dispose();
-  }
+
 }
+
+// Proveedor de Riverpod para el ViewModel de Usuarios (Notifier Hack)
+final usuariosViewModelProvider = NotifierProvider<ViewModelUsuarios, int>(() {
+  return ViewModelUsuarios();
+});

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:confianza_admin/core/theme/app_colors.dart';
 import 'package:confianza_admin/main.dart'; // For SidebarState
@@ -27,7 +28,7 @@ class Sidebar extends StatelessWidget {
             onTap: () {
               if (isDrawer) Navigator.pop(context);
               if (activeRoute != '/inicio') {
-                Navigator.pushReplacementNamed(context, '/inicio');
+                context.go('/inicio');
               }
             },
             borderRadius: BorderRadius.circular(8),
@@ -83,7 +84,7 @@ class Sidebar extends StatelessWidget {
                 onTap: () {
                   if (isDrawer) Navigator.pop(context);
                   if (activeRoute != '/usuarios') {
-                    Navigator.pushReplacementNamed(context, '/usuarios');
+                    context.go('/usuarios');
                   }
                 },
                 isCollapsed: SidebarState.isCollapsed && !isDrawer,
@@ -96,7 +97,7 @@ class Sidebar extends StatelessWidget {
                 onTap: () {
                   if (isDrawer) Navigator.pop(context);
                   if (activeRoute != '/inventario') {
-                    Navigator.pushReplacementNamed(context, '/inventario');
+                    context.go('/inventario');
                   }
                 },
                 isCollapsed: SidebarState.isCollapsed && !isDrawer,
@@ -109,7 +110,7 @@ class Sidebar extends StatelessWidget {
                 onTap: () {
                   if (isDrawer) Navigator.pop(context);
                   if (activeRoute != '/catalogos') {
-                    Navigator.pushReplacementNamed(context, '/catalogos');
+                    context.go('/catalogos');
                   }
                 },
                 isCollapsed: SidebarState.isCollapsed && !isDrawer,
@@ -122,7 +123,7 @@ class Sidebar extends StatelessWidget {
                 onTap: () {
                   if (isDrawer) Navigator.pop(context);
                   if (activeRoute != '/pos') {
-                    Navigator.pushReplacementNamed(context, '/pos');
+                    context.go('/pos');
                   }
                 },
                 isCollapsed: SidebarState.isCollapsed && !isDrawer,
@@ -137,7 +138,7 @@ class Sidebar extends StatelessWidget {
                 onTap: () {
                   if (isDrawer) Navigator.pop(context);
                   if (activeRoute != '/cierre') {
-                    Navigator.pushReplacementNamed(context, '/cierre');
+                    context.go('/cierre');
                   }
                 },
                 isCollapsed: SidebarState.isCollapsed && !isDrawer,
@@ -150,7 +151,7 @@ class Sidebar extends StatelessWidget {
                 onTap: () {
                   if (isDrawer) Navigator.pop(context);
                   if (activeRoute != '/generador') {
-                    Navigator.pushReplacementNamed(context, '/generador');
+                    context.go('/generador');
                   }
                 },
                 isCollapsed: SidebarState.isCollapsed && !isDrawer,
@@ -196,7 +197,7 @@ class Sidebar extends StatelessWidget {
                   if (isDrawer) Navigator.pop(context);
                   await FirebaseAuth.instance.signOut();
                   if (context.mounted) {
-                    Navigator.pushReplacementNamed(context, '/');
+                    context.go('/');
                   }
                 },
                 isCollapsed: SidebarState.isCollapsed && !isDrawer,
@@ -226,7 +227,9 @@ class Sidebar extends StatelessWidget {
               ? () {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text("Este módulo está en mantenimiento provisionalmente."),
+                      content: Text(
+                        "Este módulo está en mantenimiento provisionalmente.",
+                      ),
                       duration: Duration(seconds: 2),
                     ),
                   );
@@ -250,11 +253,11 @@ class Sidebar extends StatelessWidget {
               children: [
                 Icon(
                   icon,
-                  color: isDisabled 
+                  color: isDisabled
                       ? Colors.white.withValues(alpha: 0.2)
                       : (isActive
-                          ? Colors.white
-                          : Colors.white.withValues(alpha: 0.6)),
+                            ? Colors.white
+                            : Colors.white.withValues(alpha: 0.6)),
                   size: 20,
                 ),
                 if (!isCollapsed) ...[
@@ -265,10 +268,12 @@ class Sidebar extends StatelessWidget {
                       color: isDisabled
                           ? Colors.white.withValues(alpha: 0.2)
                           : (isActive
-                              ? Colors.white
-                              : Colors.white.withValues(alpha: 0.8)),
+                                ? Colors.white
+                                : Colors.white.withValues(alpha: 0.8)),
                       fontSize: 13,
-                      fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+                      fontWeight: isActive
+                          ? FontWeight.w600
+                          : FontWeight.normal,
                     ),
                   ),
                 ],

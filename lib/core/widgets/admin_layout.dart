@@ -48,7 +48,7 @@ class _AdminLayoutState extends State<AdminLayout> {
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final isDesktop = constraints.maxWidth >= 1024;
+          final isDesktop = true; // El usuario solicitó que SIEMPRE se muestre la barra lateral
 
           return Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,

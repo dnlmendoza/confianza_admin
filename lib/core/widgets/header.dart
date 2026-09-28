@@ -178,76 +178,111 @@ class Header extends StatelessWidget {
                 color: AppColors.outlineVariant.withValues(alpha: 0.5),
               ),
               const SizedBox(width: 16),
-              Row(
-                children: [
-                  if (isDesktop)
-                    Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.end,
+              PopupMenuButton<String>(
+                offset: const Offset(0, 48),
+                tooltip: "Opciones de cuenta",
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                onSelected: (value) async {
+                  if (value == 'logout') {
+                    await FirebaseAuth.instance.signOut();
+                    // GoRouter is not directly imported here, but main.dart listens to Auth changes.
+                    // Wait, we can import go_router.
+                  }
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'profile',
+                    child: Row(
                       children: [
-                        FutureBuilder<DocumentSnapshot?>(
-                          future: user != null ? FirebaseFirestore.instance.collection('Usuarios').doc(user.uid).get() : Future.value(null),
-                          builder: (context, snapshot) {
-                            String displayUserName = userName;
-                            if (snapshot.hasData && snapshot.data != null && snapshot.data!.exists) {
-                              final data = snapshot.data!.data() as Map<String, dynamic>?;
-                              if (data != null) {
-                                final String nombresRaw = (data['Nombres'] as String? ?? '').trim();
-                                final String apellidosRaw = (data['Apellidos'] as String? ?? '').trim();
-                                
-                                final String primerNombre = nombresRaw.isNotEmpty ? nombresRaw.split(RegExp(r'\s+')).first : '';
-                                final String primerApellido = apellidosRaw.isNotEmpty ? apellidosRaw.split(RegExp(r'\s+')).first : '';
-                                
-                                if (primerNombre.isNotEmpty || primerApellido.isNotEmpty) {
-                                  displayUserName = '$primerNombre $primerApellido'.trim();
-                                }
-                              }
-                            }
-                            return Text(
-                              displayUserName,
-                              style: const TextStyle(
-                                color: AppColors.onSurface,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            );
-                          }
-                        ),
-                        const SizedBox(height: 2),
-                        const Text(
-                          "ADMINISTRADOR",
-                          style: TextStyle(
-                            color: AppColors.onSurfaceVariant,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                        Icon(Icons.person_outline, size: 20),
+                        SizedBox(width: 12),
+                        Text("Mi Perfil"),
                       ],
                     ),
-                  const SizedBox(width: 12),
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: AppColors.primaryContainer,
-                        width: 2,
-                      ),
+                  ),
+                  const PopupMenuDivider(),
+                  const PopupMenuItem(
+                    value: 'logout',
+                    child: Row(
+                      children: [
+                        Icon(Icons.logout, size: 20, color: Colors.red),
+                        SizedBox(width: 12),
+                        Text("Cerrar Sesión", style: TextStyle(color: Colors.red)),
+                      ],
                     ),
-                    clipBehavior: Clip.antiAlias,
-                    child: user?.photoURL != null 
-                      ? Image.network(user!.photoURL!, fit: BoxFit.cover)
-                      : Container(
-                          color: AppColors.primary,
-                          child: const Icon(
-                            Icons.person,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                        ),
                   ),
                 ],
+                child: Row(
+                  children: [
+                    if (isDesktop)
+                      Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          FutureBuilder<DocumentSnapshot?>(
+                            future: user != null ? FirebaseFirestore.instance.collection('Usuarios').doc(user.uid).get() : Future.value(null),
+                            builder: (context, snapshot) {
+                              String displayUserName = userName;
+                              if (snapshot.hasData && snapshot.data != null && snapshot.data!.exists) {
+                                final data = snapshot.data!.data() as Map<String, dynamic>?;
+                                if (data != null) {
+                                  final String nombresRaw = (data['Nombres'] as String? ?? '').trim();
+                                  final String apellidosRaw = (data['Apellidos'] as String? ?? '').trim();
+                                  
+                                  final String primerNombre = nombresRaw.isNotEmpty ? nombresRaw.split(RegExp(r'\s+')).first : '';
+                                  final String primerApellido = apellidosRaw.isNotEmpty ? apellidosRaw.split(RegExp(r'\s+')).first : '';
+                                  
+                                  if (primerNombre.isNotEmpty || primerApellido.isNotEmpty) {
+                                    displayUserName = '$primerNombre $primerApellido'.trim();
+                                  }
+                                }
+                              }
+                              return Text(
+                                displayUserName,
+                                style: const TextStyle(
+                                  color: AppColors.onSurface,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              );
+                            }
+                          ),
+                          const SizedBox(height: 2),
+                          const Text(
+                            "ADMINISTRADOR",
+                            style: TextStyle(
+                              color: AppColors.onSurfaceVariant,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    const SizedBox(width: 12),
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.primaryContainer,
+                          width: 2,
+                        ),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: user?.photoURL != null 
+                        ? Image.network(user!.photoURL!, fit: BoxFit.cover)
+                        : Container(
+                            color: AppColors.primary,
+                            child: const Icon(
+                              Icons.person,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                          ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

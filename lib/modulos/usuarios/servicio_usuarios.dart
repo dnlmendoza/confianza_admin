@@ -1,6 +1,8 @@
 import 'package:confianza_admin/core/config/role_constants.dart';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'modelos_usuarios.dart';
 
 class ServicioUsuarios {
@@ -262,5 +264,50 @@ class ServicioUsuarios {
 
     await batch.commit();
     debugPrint("DEBUG: Transferencia de poder completada.");
+  }
+
+  Future<void> createUser({
+    required String email,
+    required String password,
+    required String name,
+    required String lastName,
+    required String roleId,
+    required String status,
+  }) async {
+    debugPrint("DEBUG: Creando nuevo usuario: $email");
+    FirebaseApp? tempApp;
+    try {
+      // Usamos una app secundaria para no desloguear al Admin actual
+      tempApp = await Firebase.initializeApp(
+        name: 'temp_create_user_${DateTime.now().millisecondsSinceEpoch}',
+        options: Firebase.app().options,
+      );
+
+      final tempAuth = FirebaseAuth.instanceFor(app: tempApp);
+      final credential = await tempAuth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      if (credential.user != null) {
+        await _firestore.collection('Usuarios').doc(credential.user!.uid).set({
+          'Nombres': name,
+          'Apellidos': lastName,
+          'Correo': email,
+          'Idcorreo': email,
+          'Rol': roleId,
+          'Estado': status,
+          'Fecha': DateTime.now().toIso8601String(),
+        });
+        debugPrint("DEBUG: Usuario creado en Auth y Firestore exitosamente.");
+      }
+    } catch (e) {
+      debugPrint("DEBUG: Error al crear usuario: $e");
+      rethrow;
+    } finally {
+      if (tempApp != null) {
+        await tempApp.delete();
+      }
+    }
   }
 }

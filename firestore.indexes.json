@@ -1,0 +1,21 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "Inventario",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "categoria", "order": "ASCENDING" },
+        { "fieldPath": "nombre", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "Usuarios",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "Estado", "order": "ASCENDING" },
+        { "fieldPath": "Rol", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
