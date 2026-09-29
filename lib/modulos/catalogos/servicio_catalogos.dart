@@ -108,13 +108,71 @@ class ServicioCatalogos {
 
   // Categorías
   Future<void> addCategoria(String nombre) => _addDoc('Categorias', nombre);
-  Future<void> deleteCategoria(String nombre) => _deleteDoc('Categorias', nombre);
-  Future<void> renameCategoria(String oldName, String newName) => _renameDoc('Categorias', oldName, newName);
+  Future<void> deleteCategoria(String nombre) async {
+    await _updateInventoryField('categoria', nombre, 'General');
+    await _deleteDoc('Categorias', nombre);
+  }
+  Future<void> renameCategoria(String oldName, String newName) async {
+    await _renameDoc('Categorias', oldName, newName);
+    await _updateInventoryField('categoria', oldName, newName);
+  }
 
   // Proveedores
   Future<void> addProveedor(String nombre) => _addDoc('Proveedores', nombre);
-  Future<void> deleteProveedor(String nombre) => _deleteDoc('Proveedores', nombre);
-  Future<void> renameProveedor(String oldName, String newName) => _renameDoc('Proveedores', oldName, newName);
+  Future<void> deleteProveedor(String nombre) async {
+    await _updateInventoryField('proveedor', nombre, 'Bodega');
+    await _deleteDoc('Proveedores', nombre);
+  }
+  Future<void> renameProveedor(String oldName, String newName) async {
+    await _renameDoc('Proveedores', oldName, newName);
+    await _updateInventoryField('proveedor', oldName, newName);
+  }
+
+  Future<void> _updateInventoryField(String fieldName, String oldName, String newName) async {
+    try {
+      final snapshot = await _firestore.collection('Inventario').where(fieldName, isEqualTo: oldName).get();
+      if (snapshot.docs.isEmpty) return;
+      
+      WriteBatch batch = _firestore.batch();
+      int count = 0;
+      
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final updates = <String, dynamic>{fieldName: newName};
+        
+        // Update inside 'productos' array as well
+        if (data.containsKey('productos') && data['productos'] is List) {
+          final productos = List<Map<String, dynamic>>.from(data['productos']);
+          bool changed = false;
+          for (var p in productos) {
+            if (p[fieldName] == oldName) {
+              p[fieldName] = newName;
+              changed = true;
+            }
+          }
+          if (changed) {
+            updates['productos'] = productos;
+          }
+        }
+        
+        batch.update(doc.reference, updates);
+        count++;
+        
+        // Firebase limits batch to 500
+        if (count == 490) {
+          await batch.commit();
+          batch = _firestore.batch();
+          count = 0;
+        }
+      }
+      
+      if (count > 0) {
+        await batch.commit();
+      }
+    } catch (e) {
+      debugPrint("DEBUG: Error al actualizar inventario para $fieldName: $e");
+    }
+  }
 
   // Unidades
   Future<void> addUnidad(String nombre) => _addDoc('Unidades', nombre, fieldName: 'Tipo');

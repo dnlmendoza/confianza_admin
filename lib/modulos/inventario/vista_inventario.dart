@@ -24,12 +24,17 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
   // Dynamic lists for catalogs (vinculados al ViewModel)
   late final VMCatalogos _vmCatalogos;
 
-
   // State for Inventory Orders Tab (Local state only, no Firestore stream)
-  PedidoInventario? get _selectedPedido => ref.watch(inventarioViewModelProvider).selectedPedido;
-  int get _activeDetailTab => ref.watch(inventarioViewModelProvider).activeDetailTab;
-  int get _selectedLoteIndex => ref.watch(inventarioViewModelProvider).selectedLoteIndex;
+  ArticuloInventario? get _selectedArticulo =>
+      ref.watch(inventarioViewModelProvider).selectedArticulo;
+  int get _activeDetailTab =>
+      ref.watch(inventarioViewModelProvider).activeDetailTab;
+  int get _selectedLoteIndex =>
+      ref.watch(inventarioViewModelProvider).selectedLoteIndex;
   final TextEditingController _searchController = TextEditingController();
+
+  String? _selectedCategoria;
+  String? _selectedProveedor;
 
   @override
   void initState() {
@@ -41,7 +46,9 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
         }
       });
     _searchController.addListener(() {
-      ref.read(inventarioViewModelProvider.notifier).setSearchQuery(_searchController.text);
+      ref
+          .read(inventarioViewModelProvider.notifier)
+          .setSearchQuery(_searchController.text);
     });
   }
 
@@ -54,15 +61,93 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
 
   // --- FILTRADO ---
 
-  List<PedidoInventario> get _filteredPedidos => ref.watch(inventarioViewModelProvider.notifier).filteredPedidos;
+  List<ArticuloInventario> get _filteredArticulos {
+    final baseList = ref
+        .watch(inventarioViewModelProvider.notifier)
+        .filteredArticulos;
+    return baseList.where((p) {
+      if (_selectedCategoria != null && p.productos.isNotEmpty) {
+        final catRaw = p.productos.first.categoria;
+        final catName = _vmCatalogos.categoriasMap[_selectedCategoria];
+        if (catRaw != _selectedCategoria && catRaw != catName) return false;
+      }
+      if (_selectedProveedor != null && p.productos.isNotEmpty) {
+        final provRaw = p.productos.first.proveedor;
+        final provName = _vmCatalogos.proveedoresMap[_selectedProveedor];
+        if (provRaw != _selectedProveedor && provRaw != provName) return false;
+      }
+      return true;
+    }).toList();
+  }
+
+  Map<String, int> get _categoriaCounts {
+    final baseList = ref
+        .watch(inventarioViewModelProvider.notifier)
+        .filteredArticulos;
+    final counts = <String, int>{};
+    for (var p in baseList) {
+      if (p.productos.isNotEmpty) {
+        final provRaw = p.productos.first.proveedor;
+        final provName = _selectedProveedor != null
+            ? _vmCatalogos.proveedoresMap[_selectedProveedor]
+            : null;
+        if (_selectedProveedor != null &&
+            provRaw != _selectedProveedor &&
+            provRaw != provName) {
+          continue;
+        }
+
+        final catRaw = p.productos.first.categoria;
+        String catId = catRaw;
+        if (!_vmCatalogos.categoriasMap.containsKey(catRaw)) {
+          final entry = _vmCatalogos.categoriasMap.entries
+              .where((e) => e.value == catRaw)
+              .firstOrNull;
+          if (entry != null) catId = entry.key;
+        }
+        counts[catId] = (counts[catId] ?? 0) + 1;
+      }
+    }
+    return counts;
+  }
+
+  Map<String, int> get _proveedorCounts {
+    final baseList = ref
+        .watch(inventarioViewModelProvider.notifier)
+        .filteredArticulos;
+    final counts = <String, int>{};
+    for (var p in baseList) {
+      if (p.productos.isNotEmpty) {
+        final catRaw = p.productos.first.categoria;
+        final catName = _selectedCategoria != null
+            ? _vmCatalogos.categoriasMap[_selectedCategoria]
+            : null;
+        if (_selectedCategoria != null &&
+            catRaw != _selectedCategoria &&
+            catRaw != catName) {
+          continue;
+        }
+
+        final provRaw = p.productos.first.proveedor;
+        String provId = provRaw;
+        if (!_vmCatalogos.proveedoresMap.containsKey(provRaw)) {
+          final entry = _vmCatalogos.proveedoresMap.entries
+              .where((e) => e.value == provRaw)
+              .firstOrNull;
+          if (entry != null) provId = entry.key;
+        }
+        counts[provId] = (counts[provId] ?? 0) + 1;
+      }
+    }
+    return counts;
+  }
 
   // --- DIÁLOGOS Y ACCIONES INTERACTIVAS DE PEDIDOS ---
 
-
   void _showEditStockDialog(
-    ProductoPedido prod,
+    ProductoArticulo prod,
     int prodIndex,
-    PedidoInventario pedido,
+    ArticuloInventario articulo,
   ) {
     final formKey = GlobalKey<FormState>();
     final newWarehouseController = TextEditingController();
@@ -243,8 +328,147 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
     );
   }
 
-
   // --- CONSTRUCCIÓN DE WIDGETS ---
+
+  Widget _buildDropdownFilter({
+    required IconData icon,
+    required String label,
+    required Map<String, String> items,
+    required Map<String, int> itemCounts,
+    required String? selectedValue,
+    required Function(String) onSelected,
+    required VoidCallback onClear,
+  }) {
+    final displayLabel =
+        selectedValue != null && items.containsKey(selectedValue)
+        ? items[selectedValue]!
+        : label;
+
+    final isActive = selectedValue != null;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final screenHeight = MediaQuery.of(context).size.height;
+        // Restamos 200px (aprox la altura del header) para que ocupe todo el espacio sobrante hacia abajo.
+        // Si restamos menos (ej. 150), Flutter detecta que "no cabe" y lo voltea hacia arriba.
+        final safeMaxHeight = screenHeight - 200;
+
+        return PopupMenuButton<String>(
+          onSelected: onSelected,
+          color: AppColors.surfaceContainerLow,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          offset: const Offset(
+            0,
+            32,
+          ), // Exactamente 32px (la altura del botón) para que nazca pegado sin espacios
+          constraints: BoxConstraints(
+            minWidth: constraints.maxWidth,
+            maxWidth: constraints.maxWidth,
+            maxHeight: safeMaxHeight,
+          ),
+          itemBuilder: (BuildContext context) {
+            return items.entries.map((entry) {
+              return PopupMenuItem<String>(
+                value: entry.key,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        entry.value,
+                        style: GoogleFonts.outfit(
+                          fontSize: 13,
+                          fontWeight: selectedValue == entry.key
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                          color: selectedValue == entry.key
+                              ? AppColors.primary
+                              : AppColors.onSurface,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text(
+                      "(${itemCounts[entry.key] ?? 0})",
+                      style: GoogleFonts.outfit(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.onSurfaceVariant.withValues(
+                          alpha: 0.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList();
+          },
+          child: Container(
+            height: 32,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: isActive
+                  ? AppColors.primary.withValues(alpha: 0.1)
+                  : AppColors.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: isActive
+                    ? AppColors.primary.withValues(alpha: 0.5)
+                    : AppColors.outlineVariant.withValues(alpha: 0.5),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  size: 16,
+                  color: isActive
+                      ? AppColors.primary
+                      : AppColors.onSurfaceVariant,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    displayLabel,
+                    style: GoogleFonts.outfit(
+                      fontSize: 13,
+                      fontWeight: isActive
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      color: isActive
+                          ? AppColors.primary
+                          : AppColors.onSurfaceVariant,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (isActive) ...[
+                  GestureDetector(
+                    onTap: onClear,
+                    child: const Icon(
+                      Icons.close,
+                      size: 16,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                ],
+                Icon(
+                  Icons.keyboard_arrow_down,
+                  size: 16,
+                  color: isActive
+                      ? AppColors.primary
+                      : AppColors.onSurfaceVariant,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   Widget _buildMetadataItem(String label, String value, IconData icon) {
     return Padding(
@@ -355,9 +579,9 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
 
   // ignore: unused_element
   Widget _buildProductTableRow(
-    ProductoPedido prod,
+    ProductoArticulo prod,
     int index,
-    PedidoInventario pedido,
+    ArticuloInventario articulo,
   ) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
@@ -446,7 +670,7 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
                     size: 16,
                     color: AppColors.primary,
                   ),
-                  onPressed: () => _showEditStockDialog(prod, index, pedido),
+                  onPressed: () => _showEditStockDialog(prod, index, articulo),
                   constraints: const BoxConstraints(),
                   padding: const EdgeInsets.all(4),
                 ),
@@ -470,7 +694,7 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
             icon: const Icon(Icons.close, color: Colors.red, size: 16),
             onPressed: () {
               setState(() {
-                pedido.productos.removeAt(index);
+                articulo.productos.removeAt(index);
               });
             },
           ),
@@ -479,138 +703,7 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
     );
   }
 
-
-  void _showAddLotDialog(PedidoInventario pedido) {
-    final today = DateTime.now();
-    final dateStr =
-        "${today.day.toString().padLeft(2, '0')}/${today.month.toString().padLeft(2, '0')}/${today.year}";
-    final defaultCode =
-        "LOT-${today.year}-${(today.millisecondsSinceEpoch % 10000).toString().padLeft(4, '0')}";
-
-    final codeController = TextEditingController(text: defaultCode);
-    final stockController = TextEditingController(text: "100");
-    final entryDateController = TextEditingController(text: dateStr);
-    final expiryDateController = TextEditingController(text: "28-02-2027");
-    final costController = TextEditingController(text: "150.00");
-    final priceController = TextEditingController(text: "220.00");
-    final formKey = GlobalKey<FormState>();
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: AppColors.surfaceContainerLowest,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          title: Text(
-            "Registrar Nuevo Lote",
-            style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
-          ),
-          content: Form(
-            key: formKey,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextFormField(
-                    controller: codeController,
-                    decoration: const InputDecoration(
-                      labelText: "Código de Lote",
-                    ),
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? "Requerido" : null,
-                  ),
-                  TextFormField(
-                    controller: stockController,
-                    decoration: const InputDecoration(
-                      labelText: "Stock Inicial",
-                    ),
-                    keyboardType: TextInputType.number,
-                    validator: (v) => (v == null || int.tryParse(v) == null)
-                        ? "Cantidad inválida"
-                        : null,
-                  ),
-                  TextFormField(
-                    controller: entryDateController,
-                    decoration: const InputDecoration(
-                      labelText: "Fecha de Ingreso",
-                    ),
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? "Requerido" : null,
-                  ),
-                  TextFormField(
-                    controller: expiryDateController,
-                    decoration: const InputDecoration(
-                      labelText: "Fecha de Vencimiento",
-                    ),
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? "Requerido" : null,
-                  ),
-                  TextFormField(
-                    controller: costController,
-                    decoration: const InputDecoration(
-                      labelText: "Costo Unitario (L.)",
-                    ),
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    validator: (v) => (v == null || double.tryParse(v) == null)
-                        ? "Costo inválido"
-                        : null,
-                  ),
-                  TextFormField(
-                    controller: priceController,
-                    decoration: const InputDecoration(
-                      labelText: "Precio de Venta (L.)",
-                    ),
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    validator: (v) => (v == null || double.tryParse(v) == null)
-                        ? "Precio inválido"
-                        : null,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Cancelar"),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (formKey.currentState?.validate() ?? false) {
-                  final newLot = LotePedido(
-                    codigo: codeController.text.trim(),
-                    stock: int.parse(stockController.text.trim()),
-                    fechaIngreso: entryDateController.text.trim(),
-                    fechaVencimiento: expiryDateController.text.trim(),
-                    costo: double.parse(costController.text.trim()),
-                    precioVenta: double.parse(priceController.text.trim()),
-                  );
-
-                  setState(() {
-                    pedido.lotes.add(newLot);
-                  });
-                  Navigator.pop(context);
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text("Guardar"),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildLotesSection(PedidoInventario pedido) {
+  Widget _buildLotesSection(ArticuloInventario articulo) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -626,7 +719,14 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
               ),
             ),
             TextButton.icon(
-              onPressed: () => _showAddLotDialog(pedido),
+              onPressed: () {
+                ref
+                    .read(inventarioViewModelProvider.notifier)
+                    .setSelectedLoteIndex(-1);
+                ref
+                    .read(inventarioViewModelProvider.notifier)
+                    .setActiveDetailTab(1);
+              },
               icon: const Icon(Icons.add, size: 14),
               label: const Text("Nuevo Lote"),
               style: TextButton.styleFrom(
@@ -644,21 +744,21 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
         ),
         const SizedBox(height: 12),
         Expanded(
-          child: pedido.lotes.isEmpty
+          child: articulo.lotes.isEmpty
               ? Center(
                   child: Text(
                     "No hay lotes registrados.",
                     style: TextStyle(
-                      color: AppColors.onSurfaceVariant,
+                      color: const Color.fromARGB(255, 158, 162, 166),
                       fontSize: 13,
                     ),
                   ),
                 )
               : ListView.builder(
                   padding: EdgeInsets.zero,
-                  itemCount: pedido.lotes.length,
+                  itemCount: articulo.lotes.length,
                   itemBuilder: (context, index) {
-                    final lote = pedido.lotes[index];
+                    final lote = articulo.lotes[index];
                     final isLoteSelected = _selectedLoteIndex == index;
                     return Card(
                       color: isLoteSelected
@@ -678,8 +778,12 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
                       child: InkWell(
                         onTap: () {
                           setState(() {
-                            ref.read(inventarioViewModelProvider.notifier).setSelectedLoteIndex(index);
-                            ref.read(inventarioViewModelProvider.notifier).setActiveDetailTab(1); // Ir a Contabilidad
+                            ref
+                                .read(inventarioViewModelProvider.notifier)
+                                .setSelectedLoteIndex(index);
+                            ref
+                                .read(inventarioViewModelProvider.notifier)
+                                .setActiveDetailTab(1); // Ir a Contabilidad
                           });
                         },
                         borderRadius: BorderRadius.circular(8),
@@ -708,30 +812,49 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
-                                  if (index == 0)
-                                    Padding(
-                                      padding: const EdgeInsets.only(left: 6.0),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 6,
-                                          vertical: 2,
+                                  Builder(
+                                    builder: (context) {
+                                      String text;
+                                      Color color;
+                                      if (lote.codigo ==
+                                          articulo.activeFifoLotId) {
+                                        text = "FIFO Activo";
+                                        color = Colors.green;
+                                      } else if (lote.stock <= 0) {
+                                        text = "Agotado";
+                                        color = Colors.grey;
+                                      } else {
+                                        text = "En Espera";
+                                        color = Colors.blueGrey;
+                                      }
+
+                                      return Padding(
+                                        padding: const EdgeInsets.only(
+                                          left: 6.0,
                                         ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.green.withValues(
-                                            alpha: 0.1,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2,
                                           ),
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                        child: Text(
-                                          "FIFO Activo",
-                                          style: GoogleFonts.outfit(
-                                            color: Colors.green[700],
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.bold,
+                                          decoration: BoxDecoration(
+                                            color: color.withValues(alpha: 0.1),
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            text,
+                                            style: GoogleFonts.outfit(
+                                              color: color,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                    ),
+                                      );
+                                    },
+                                  ),
                                 ],
                               ),
                               const SizedBox(height: 8),
@@ -805,7 +928,9 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
     return GestureDetector(
       onTap: () {
         setState(() {
-          ref.read(inventarioViewModelProvider.notifier).setActiveDetailTab(index);
+          ref
+              .read(inventarioViewModelProvider.notifier)
+              .setActiveDetailTab(index);
         });
       },
       behavior: HitTestBehavior.opaque,
@@ -850,9 +975,7 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
     );
   }
 
-
-
-  Widget _buildProductosYTotalesSection(PedidoInventario pedido) {
+  Widget _buildProductosYTotalesSection(ArticuloInventario articulo) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -862,7 +985,7 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
               child: _buildDetailTabButton(
                 0,
                 "Identificacion",
-                Icons.inventory_2_outlined,
+                Icons.badge_outlined,
               ),
             ),
             const SizedBox(width: 12),
@@ -886,20 +1009,38 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
         Expanded(
           child: _activeDetailTab == 0
               ? InventoryTabArticles(
-                  pedido: pedido,
+                  articulo: articulo,
                   categorias: _vmCatalogos.categoriasMap,
                   proveedores: _vmCatalogos.proveedoresMap,
                   onUpdate: () => setState(() {}),
+                  onSave: (updatedArticulo) async {
+                    await ref
+                        .read(inventarioViewModelProvider.notifier)
+                        .updateArticulo(updatedArticulo);
+                  },
+                  onNext: () {
+                    ref
+                        .read(inventarioViewModelProvider.notifier)
+                        .setActiveDetailTab(1);
+                  },
                 )
               : _activeDetailTab == 1
               ? InventoryTabLote(
-                  pedido: pedido,
+                  articulo: articulo,
                   selectedLoteIndex: _selectedLoteIndex,
                   unidades: _vmCatalogos.unidadesMap,
                   unidadesMayor: _vmCatalogos.unidadesMayorMap,
                   onUpdate: () => setState(() {}),
-                  onSave: (lote) {
-                    ref.read(inventarioViewModelProvider.notifier).updateLote(pedido, lote);
+                  onSave: (lote) async {
+                    if (articulo.id == 'nuevo_articulo') {
+                      await ref
+                          .read(inventarioViewModelProvider.notifier)
+                          .createNuevoArticulo(articulo, lote);
+                    } else {
+                      await ref
+                          .read(inventarioViewModelProvider.notifier)
+                          .updateLote(articulo, lote);
+                    }
                   },
                 )
               : const SizedBox.shrink(),
@@ -908,9 +1049,9 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
     );
   }
 
-  Widget _buildPedidoDetailsPanel(
+  Widget _buildArticuloDetailsPanel(
     BuildContext context,
-    PedidoInventario pedido,
+    ArticuloInventario articulo,
   ) {
     return Card(
       color: AppColors.surfaceContainerLowest,
@@ -937,7 +1078,9 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
                   Expanded(
                     child: _buildMetadataItem(
                       "CODIGO DE BARRAS",
-                      pedido.productos.isNotEmpty ? pedido.productos.first.codigoBarra : "N/A",
+                      articulo.productos.isNotEmpty
+                          ? articulo.productos.first.codigoBarra
+                          : "N/A",
                       Icons.calendar_view_week_rounded,
                     ),
                   ),
@@ -949,7 +1092,9 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
                   Expanded(
                     child: _buildMetadataItem(
                       "FECHA INGRESO",
-                      pedido.productos.isNotEmpty ? pedido.productos.first.fechaIngresado : "N/A",
+                      articulo.productos.isNotEmpty
+                          ? articulo.productos.first.fechaIngresado
+                          : "N/A",
                       Icons.calendar_month_outlined,
                     ),
                   ),
@@ -961,8 +1106,12 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
                   Expanded(
                     child: _buildMetadataItem(
                       "CATEGORIA",
-                      pedido.productos.isNotEmpty 
-                          ? _vmCatalogos.categoriasMap[pedido.productos.first.categoria] ?? pedido.productos.first.categoria 
+                      articulo.productos.isNotEmpty
+                          ? _vmCatalogos.categoriasMap[articulo
+                                    .productos
+                                    .first
+                                    .categoria] ??
+                                articulo.productos.first.categoria
                           : "N/A",
                       Icons.category_outlined,
                     ),
@@ -975,8 +1124,12 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
                   Expanded(
                     child: _buildMetadataItem(
                       "PROVEEDOR",
-                      pedido.productos.isNotEmpty 
-                          ? _vmCatalogos.proveedoresMap[pedido.productos.first.proveedor] ?? pedido.productos.first.proveedor 
+                      articulo.productos.isNotEmpty
+                          ? _vmCatalogos.proveedoresMap[articulo
+                                    .productos
+                                    .first
+                                    .proveedor] ??
+                                articulo.productos.first.proveedor
                           : "N/A",
                       Icons.local_shipping_outlined,
                     ),
@@ -991,7 +1144,7 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // 1/3: Lista de Lotes
-                  Expanded(flex: 1, child: _buildLotesSection(pedido)),
+                  Expanded(flex: 1, child: _buildLotesSection(articulo)),
                   Container(
                     width: 1,
                     color: AppColors.outlineVariant.withValues(alpha: 0.5),
@@ -1000,7 +1153,7 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
                   // 2/3: Productos y Totales
                   Expanded(
                     flex: 2,
-                    child: _buildProductosYTotalesSection(pedido),
+                    child: _buildProductosYTotalesSection(articulo),
                   ),
                 ],
               ),
@@ -1012,7 +1165,7 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
   }
 
   Widget _buildInventoryOrdersView(BuildContext context) {
-    final filtered = _filteredPedidos;
+    final filtered = _filteredArticulos;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1032,7 +1185,7 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.only(left: 0.0, right: 16.0),
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: Column(
                   children: [
                     Row(
@@ -1042,13 +1195,17 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
                             controller: _searchController,
                             style: const TextStyle(fontSize: 13),
                             decoration: InputDecoration(
-                              hintText: "Buscar por Nombre, Codigo de Barras",
-                              prefixIcon: const Icon(
-                                Icons.search,
-                                size: 18,
+                              hintText: "Nombre, Codigo de Barras",
+                              hintStyle: TextStyle(
+                                color: AppColors.onSurfaceVariant.withValues(
+                                  alpha: 0.5,
+                                ),
+                                fontSize: 13,
                               ),
+                              prefixIcon: const Icon(Icons.search, size: 18),
                               filled: true,
                               fillColor: AppColors.surfaceContainerLow,
+                              isDense: true,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(30),
                                 borderSide: BorderSide.none,
@@ -1074,12 +1231,53 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
                         const SizedBox(width: 8),
                         TextButton.icon(
                           onPressed: () {
-                            // Logic for new article
+                            final nowStr =
+                                "${DateTime.now().day.toString().padLeft(2, '0')}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().year}";
+                            final newDraft = ArticuloInventario(
+                              id: 'nuevo_articulo',
+                              nombre: '',
+                              descripcion: '',
+                              proveedor: '',
+                              fecha: nowStr,
+                              pagadoPor: '',
+                              referencia: '',
+                              descuento: 0,
+                              impuesto: 0,
+                              envio: 0,
+                              productos: [
+                                ProductoArticulo(
+                                  nombre: '',
+                                  sku: '',
+                                  costo: 0,
+                                  bodegas: [],
+                                  categoria: '',
+                                  proveedor: '',
+                                  cantidadMinima: 0,
+                                  tipoProducto: 'Normal',
+                                  tipoVenta: 'Menor',
+                                  fechaIngresado: nowStr,
+                                  estado: 'Activo',
+                                ),
+                              ],
+                              lotes: [],
+                            );
+                            ref
+                                .read(inventarioViewModelProvider.notifier)
+                                .selectArticulo(newDraft);
+                            ref
+                                .read(inventarioViewModelProvider.notifier)
+                                .setSelectedLoteIndex(0);
+                            ref
+                                .read(inventarioViewModelProvider.notifier)
+                                .setActiveDetailTab(0);
                           },
                           icon: const Icon(Icons.add, size: 16),
                           label: Text(
                             "Nuevo Articulo",
-                            style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13),
+                            style: GoogleFonts.outfit(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
                           ),
                           style: TextButton.styleFrom(
                             foregroundColor: AppColors.primary,
@@ -1090,29 +1288,44 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
                     ),
                     const SizedBox(height: 12),
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        InkWell(
-                          onTap: () {},
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.category_outlined, size: 16, color: AppColors.onSurfaceVariant),
-                              const SizedBox(width: 4),
-                              Text("Categoria", style: GoogleFonts.outfit(fontSize: 12, color: AppColors.onSurfaceVariant)),
-                            ],
+                        Expanded(
+                          child: _buildDropdownFilter(
+                            icon: Icons.category_outlined,
+                            label: "Categoria",
+                            items: _vmCatalogos.categoriasMap,
+                            itemCounts: _categoriaCounts,
+                            selectedValue: _selectedCategoria,
+                            onSelected: (val) {
+                              setState(() {
+                                _selectedCategoria = val;
+                              });
+                            },
+                            onClear: () {
+                              setState(() {
+                                _selectedCategoria = null;
+                              });
+                            },
                           ),
                         ),
-                        const SizedBox(width: 80),
-                        InkWell(
-                          onTap: () {},
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.local_shipping_outlined, size: 16, color: AppColors.onSurfaceVariant),
-                              const SizedBox(width: 4),
-                              Text("Proveedor", style: GoogleFonts.outfit(fontSize: 12, color: AppColors.onSurfaceVariant)),
-                            ],
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _buildDropdownFilter(
+                            icon: Icons.local_shipping_outlined,
+                            label: "Proveedor",
+                            items: _vmCatalogos.proveedoresMap,
+                            itemCounts: _proveedorCounts,
+                            selectedValue: _selectedProveedor,
+                            onSelected: (val) {
+                              setState(() {
+                                _selectedProveedor = val;
+                              });
+                            },
+                            onClear: () {
+                              setState(() {
+                                _selectedProveedor = null;
+                              });
+                            },
                           ),
                         ),
                       ],
@@ -1133,15 +1346,21 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
                     endIndent: 0,
                   ),
                   itemBuilder: (context, index) {
-                    final pedido = filtered[index];
-                    final isSelected = _selectedPedido?.id == pedido.id;
+                    final articulo = filtered[index];
+                    final isSelected = _selectedArticulo?.id == articulo.id;
 
                     return InkWell(
                       onTap: () {
                         setState(() {
-                          ref.read(inventarioViewModelProvider.notifier).selectPedido(pedido);
-                          ref.read(inventarioViewModelProvider.notifier).setSelectedLoteIndex(0);
-                          ref.read(inventarioViewModelProvider.notifier).setActiveDetailTab(0);
+                          ref
+                              .read(inventarioViewModelProvider.notifier)
+                              .selectArticulo(articulo);
+                          ref
+                              .read(inventarioViewModelProvider.notifier)
+                              .setSelectedLoteIndex(0);
+                          ref
+                              .read(inventarioViewModelProvider.notifier)
+                              .setActiveDetailTab(0);
                         });
                       },
                       child: AnimatedContainer(
@@ -1164,7 +1383,7 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    pedido.nombre,
+                                    articulo.nombre,
                                     style: GoogleFonts.outfit(
                                       fontSize: 14,
                                       fontWeight: FontWeight.bold,
@@ -1177,7 +1396,7 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    pedido.descripcion,
+                                    articulo.descripcion,
                                     style: TextStyle(
                                       fontSize: 11,
                                       color: isSelected && !isMobile
@@ -1201,16 +1420,14 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
           ),
         );
 
-        Widget detailsPanel = _selectedPedido == null
+        Widget detailsPanel = _selectedArticulo == null
             ? const Center(
-                child: Text(
-                  "Seleccione un pedido para ver los detalles.",
-                ),
+                child: Text("Seleccione un articulo para ver los detalles."),
               )
-            : _buildPedidoDetailsPanel(context, _selectedPedido!);
+            : _buildArticuloDetailsPanel(context, _selectedArticulo!);
 
         if (isMobile) {
-          if (_selectedPedido != null) {
+          if (_selectedArticulo != null) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -1218,7 +1435,9 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
                   alignment: Alignment.centerLeft,
                   child: TextButton.icon(
                     onPressed: () {
-                      ref.read(inventarioViewModelProvider.notifier).unselectPedido();
+                      ref
+                          .read(inventarioViewModelProvider.notifier)
+                          .unselectArticulo();
                     },
                     icon: const Icon(Icons.arrow_back),
                     label: const Text("Volver a la lista"),
@@ -1254,9 +1473,7 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
                       child: listPanel,
                     ),
                     const SizedBox(width: 24),
-                    Expanded(
-                      child: detailsPanel,
-                    ),
+                    Expanded(child: detailsPanel),
                   ],
                 ),
               ),

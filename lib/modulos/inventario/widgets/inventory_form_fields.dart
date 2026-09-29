@@ -15,6 +15,7 @@ class DetailFormTextField extends StatelessWidget {
   final VoidCallback? onTap;
   final TextAlign textAlign;
   final String? prefixText;
+  final List<TextInputFormatter>? inputFormatters;
 
   const DetailFormTextField({
     super.key,
@@ -29,6 +30,7 @@ class DetailFormTextField extends StatelessWidget {
     this.onTap,
     this.textAlign = TextAlign.start,
     this.prefixText,
+    this.inputFormatters,
   });
 
   @override
@@ -52,6 +54,7 @@ class DetailFormTextField extends StatelessWidget {
             initialValue: initialValue,
             readOnly: readOnly,
             keyboardType: keyboardType,
+            inputFormatters: inputFormatters,
             onTap: onTap,
             onChanged: onChanged,
             textAlign: textAlign,
@@ -225,6 +228,7 @@ class DropdownFormField extends StatelessWidget {
   final List<String> items;
   final ValueChanged<String> onSelected;
   final IconData? prefixIcon;
+  final bool readOnly;
 
   const DropdownFormField({
     super.key,
@@ -233,6 +237,7 @@ class DropdownFormField extends StatelessWidget {
     required this.items,
     required this.onSelected,
     this.prefixIcon,
+    this.readOnly = false,
   });
 
   @override
@@ -242,7 +247,7 @@ class DropdownFormField extends StatelessWidget {
       list.insert(0, currentValue);
     }
     if (list.isEmpty) {
-      list.add('General');
+      list.add('Seleccionar');
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -257,6 +262,7 @@ class DropdownFormField extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         PopupMenuButton<String>(
+          enabled: !readOnly,
           onSelected: onSelected,
           itemBuilder: (BuildContext context) {
             return list.map((String val) {
@@ -289,7 +295,7 @@ class DropdownFormField extends StatelessWidget {
                 ],
                 Expanded(
                   child: Text(
-                    currentValue.isEmpty ? 'General' : currentValue,
+                    currentValue.isEmpty ? 'Seleccionar' : currentValue,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.outfit(
                       fontSize: 13,
@@ -300,7 +306,7 @@ class DropdownFormField extends StatelessWidget {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (currentValue.isNotEmpty && currentValue != 'General')
+                    if (currentValue.isNotEmpty && currentValue != 'Seleccionar')
                       IconButton(
                         icon: const Icon(Icons.close, size: 16),
                         onPressed: () => onSelected(''),
@@ -331,6 +337,7 @@ class InteractiveTaxField extends StatefulWidget {
   final String keyPrefix;
   final String fieldKey;
   final Function(double) onChanged;
+  final bool showPercentage;
 
   const InteractiveTaxField({
     super.key,
@@ -339,6 +346,7 @@ class InteractiveTaxField extends StatefulWidget {
     required this.keyPrefix,
     required this.fieldKey,
     required this.onChanged,
+    this.showPercentage = true,
   });
 
   @override
@@ -467,16 +475,17 @@ class _InteractiveTaxFieldState extends State<InteractiveTaxField> {
                         ),
                       ),
                     ),
-                    Text(
-                      "%",
-                      style: GoogleFonts.outfit(
-                        fontSize: 13,
-                        color: AppColors.onSurfaceVariant.withValues(
-                          alpha: 0.7,
+                    if (widget.showPercentage)
+                      Text(
+                        "%",
+                        style: GoogleFonts.outfit(
+                          fontSize: 13,
+                          color: AppColors.onSurfaceVariant.withValues(
+                            alpha: 0.7,
+                          ),
+                          fontWeight: FontWeight.bold,
                         ),
-                        fontWeight: FontWeight.bold,
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -527,7 +536,7 @@ class MapDropdownFormField extends StatelessWidget {
       effectiveMap[currentValue] = currentValue; // Display ID if name not found
     }
     if (effectiveMap.isEmpty) {
-      effectiveMap['General'] = 'General';
+      effectiveMap['Seleccionar'] = 'Seleccionar';
     }
 
     return Column(
@@ -545,12 +554,23 @@ class MapDropdownFormField extends StatelessWidget {
         SizedBox(
           height: 38,
           child: DropdownButtonFormField<String>(
-            initialValue: currentValue.isEmpty ? "" : (effectiveMap.containsKey(currentValue) ? currentValue : effectiveMap.keys.first),
+            initialValue: currentValue.isEmpty
+                ? null
+                : (effectiveMap.containsKey(currentValue)
+                      ? currentValue
+                      : effectiveMap.keys.first),
+            hint: Text(
+              "Seleccione...",
+              style: GoogleFonts.outfit(
+                fontSize: 13,
+                color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
+              ),
+            ),
             icon: Row(
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                if (currentValue.isNotEmpty && currentValue != 'General')
+                if (currentValue.isNotEmpty && currentValue != 'Seleccionar')
                   IconButton(
                     icon: const Icon(Icons.close, size: 16),
                     onPressed: () => onSelected(''),
@@ -560,7 +580,11 @@ class MapDropdownFormField extends StatelessWidget {
                   ),
                 Padding(
                   padding: const EdgeInsets.only(right: 8.0, left: 4.0),
-                  child: Icon(Icons.expand_more, size: 20, color: AppColors.onSurfaceVariant.withValues(alpha: 0.7)),
+                  child: Icon(
+                    Icons.expand_more,
+                    size: 20,
+                    color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
+                  ),
                 ),
               ],
             ),
@@ -605,18 +629,6 @@ class MapDropdownFormField extends StatelessWidget {
             ),
             dropdownColor: AppColors.surfaceContainerLowest,
             items: [
-              if (currentValue.isEmpty)
-                DropdownMenuItem<String>(
-                  value: "",
-                  child: Text(
-                    "Seleccione...",
-                    style: GoogleFonts.outfit(
-                      fontSize: 13,
-                      color: AppColors.onSurfaceVariant,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
               ...effectiveMap.entries.map((entry) {
                 return DropdownMenuItem<String>(
                   value: entry.key,
@@ -631,7 +643,7 @@ class MapDropdownFormField extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 );
-              })
+              }),
             ],
             onChanged: (val) {
               if (val != null) {
@@ -641,6 +653,120 @@ class MapDropdownFormField extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class MonetaryAmountField extends StatefulWidget {
+  final double value;
+  final String? prefixText;
+  final IconData? prefixIcon;
+  final Function(double) onChanged;
+
+  const MonetaryAmountField({
+    super.key,
+    required this.value,
+    this.prefixText,
+    this.prefixIcon,
+    required this.onChanged,
+  });
+
+  @override
+  State<MonetaryAmountField> createState() => _MonetaryAmountFieldState();
+}
+
+class _MonetaryAmountFieldState extends State<MonetaryAmountField> {
+  late FocusNode _focusNode;
+  late TextEditingController _controller;
+  bool _isFocused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode = FocusNode();
+    _focusNode.addListener(_onFocusChange);
+    _controller = TextEditingController(text: widget.value.toStringAsFixed(2));
+  }
+
+  @override
+  void didUpdateWidget(covariant MonetaryAmountField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.value != oldWidget.value) {
+      final currentTextVal = double.tryParse(_controller.text) ?? 0.0;
+      if (currentTextVal != widget.value) {
+        _controller.text = widget.value.toStringAsFixed(2);
+      }
+    }
+  }
+
+  void _onFocusChange() {
+    if (_focusNode.hasFocus != _isFocused) {
+      setState(() {
+        _isFocused = _focusNode.hasFocus;
+      });
+      if (!_isFocused) {
+        // When losing focus, format to 2 decimals
+        final currentVal = double.tryParse(_controller.text) ?? 0.0;
+        _controller.text = currentVal.toStringAsFixed(2);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      focusNode: _focusNode,
+      controller: _controller,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      inputFormatters: [
+        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+      ],
+      style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold),
+      decoration: InputDecoration(
+        prefixIcon: widget.prefixIcon != null
+            ? Icon(
+                widget.prefixIcon,
+                size: 16,
+                color: AppColors.onSurfaceVariant,
+              )
+            : null,
+        prefixText: widget.prefixText,
+        prefixStyle: GoogleFonts.outfit(
+          fontSize: 13,
+          fontWeight: FontWeight.bold,
+          color: AppColors.onSurfaceVariant,
+        ),
+        filled: true,
+        fillColor: Colors.transparent,
+        contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(
+            color: AppColors.outlineVariant.withValues(alpha: 0.4),
+          ),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(
+            color: AppColors.outlineVariant.withValues(alpha: 0.4),
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+        ),
+      ),
+      onChanged: (val) {
+        widget.onChanged(double.tryParse(val) ?? 0.0);
+      },
     );
   }
 }

@@ -1,34 +1,35 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'modelos_inventario.dart';
 import 'dart:async';
 import 'servicio_inventario.dart';
 
 class InventarioState {
-  final List<PedidoInventario> pedidos;
+  final List<ArticuloInventario> articulos;
   final String searchQuery;
-  final PedidoInventario? selectedPedido;
+  final ArticuloInventario? selectedArticulo;
   final int activeDetailTab;
   final int selectedLoteIndex;
 
   InventarioState({
-    this.pedidos = const [],
+    this.articulos = const [],
     this.searchQuery = '',
-    this.selectedPedido,
+    this.selectedArticulo,
     this.activeDetailTab = 0,
     this.selectedLoteIndex = 0,
   });
 
   InventarioState copyWith({
-    List<PedidoInventario>? pedidos,
+    List<ArticuloInventario>? articulos,
     String? searchQuery,
-    PedidoInventario? selectedPedido,
+    ArticuloInventario? selectedArticulo,
     int? activeDetailTab,
     int? selectedLoteIndex,
   }) {
     return InventarioState(
-      pedidos: pedidos ?? this.pedidos,
+      articulos: articulos ?? this.articulos,
       searchQuery: searchQuery ?? this.searchQuery,
-      selectedPedido: selectedPedido ?? this.selectedPedido,
+      selectedArticulo: selectedArticulo ?? this.selectedArticulo,
       activeDetailTab: activeDetailTab ?? this.activeDetailTab,
       selectedLoteIndex: selectedLoteIndex ?? this.selectedLoteIndex,
     );
@@ -38,33 +39,51 @@ class InventarioState {
 class InventarioViewModel extends Notifier<InventarioState> {
   final _servicio = ServicioInventario();
   StreamSubscription? _subscription;
+  StreamSubscription? _lotesSubscription;
 
   @override
   InventarioState build() {
-    _subscription = _servicio.streamPedidos().listen((pedidos) {
-      // Al recibir una actualización, mantenemos el pedido seleccionado si aún existe
-      PedidoInventario? newSelected = state.selectedPedido;
+    _subscription = _servicio.streamArticulos().listen((articulos) {
+      // Al recibir una actualización, mantenemos el articulo seleccionado si aún existe
+      ArticuloInventario? newSelected = state.selectedArticulo;
       if (newSelected != null) {
         try {
-          newSelected = pedidos.firstWhere((p) => p.id == newSelected!.id);
+          final updatedRoot = articulos.firstWhere((p) => p.id == newSelected!.id);
+          // Al reconstruir desde el root, los lotes vienen vacíos por estar en subcolección.
+          // Debemos preservar los lotes que ya teníamos (que se actualizan por su propio stream)
+          newSelected = ArticuloInventario(
+            id: updatedRoot.id,
+            nombre: updatedRoot.nombre,
+            descripcion: updatedRoot.descripcion,
+            proveedor: updatedRoot.proveedor,
+            fecha: updatedRoot.fecha,
+            pagadoPor: updatedRoot.pagadoPor,
+            referencia: updatedRoot.referencia,
+            descuento: updatedRoot.descuento,
+            impuesto: updatedRoot.impuesto,
+            envio: updatedRoot.envio,
+            productos: updatedRoot.productos,
+            lotes: state.selectedArticulo?.lotes ?? [], // Mantenemos los lotes actuales
+          );
         } catch (_) {
           newSelected = null;
         }
       }
       
       state = state.copyWith(
-        pedidos: pedidos,
-        selectedPedido: newSelected,
+        articulos: articulos,
+        selectedArticulo: newSelected,
       );
     });
 
     ref.onDispose(() {
       _subscription?.cancel();
+      _lotesSubscription?.cancel();
     });
 
     return InventarioState(
-      pedidos: [],
-      selectedPedido: null,
+      articulos: [],
+      selectedArticulo: null,
     );
   }
 
@@ -72,50 +91,136 @@ class InventarioViewModel extends Notifier<InventarioState> {
     state = state.copyWith(searchQuery: query);
   }
 
-  Future<void> selectPedido(PedidoInventario pedido) async {
+  Future<void> selectArticulo(ArticuloInventario articulo) async {
     state = state.copyWith(
-      selectedPedido: pedido,
+      selectedArticulo: articulo,
       activeDetailTab: 0,
       selectedLoteIndex: 0,
     );
     
-    final lotes = await _servicio.getLotesPorPedido(pedido.id);
-    if (state.selectedPedido?.id == pedido.id) {
-      final updatedPedido = PedidoInventario(
-        id: pedido.id,
-        nombre: pedido.nombre,
-        descripcion: pedido.descripcion,
-        proveedor: pedido.proveedor,
-        fecha: pedido.fecha,
-        pagadoPor: pedido.pagadoPor,
-        referencia: pedido.referencia,
-        descuento: pedido.descuento,
-        impuesto: pedido.impuesto,
-        envio: pedido.envio,
-        productos: pedido.productos,
-        lotes: lotes,
-      );
-      state = state.copyWith(selectedPedido: updatedPedido);
-    }
+    _lotesSubscription?.cancel();
+    _lotesSubscription = _servicio.streamLotesPorArticulo(articulo.id).listen((lotes) {
+      lotes.sort((a, b) => a.parsedFechaIngreso.compareTo(b.parsedFechaIngreso));
+      if (state.selectedArticulo?.id == articulo.id) {
+        final current = state.selectedArticulo!;
+        final updatedArticulo = ArticuloInventario(
+          id: current.id,
+          nombre: current.nombre,
+          descripcion: current.descripcion,
+          proveedor: current.proveedor,
+          fecha: current.fecha,
+          pagadoPor: current.pagadoPor,
+          referencia: current.referencia,
+          descuento: current.descuento,
+          impuesto: current.impuesto,
+          envio: current.envio,
+          productos: current.productos,
+          lotes: lotes,
+        );
+        state = state.copyWith(selectedArticulo: updatedArticulo);
+      }
+    });
   }
 
-  Future<void> updateLote(PedidoInventario pedido, LotePedido lote) async {
-    // Convert to map and ensure ganancia is also synced if needed (it is calculated in UI, but if DB needs it we can add it to toMap)
+  Future<void> updateLote(ArticuloInventario articulo, LoteArticulo lote) async {
     final data = lote.toMap();
-    // Assuming lote.codigo holds the document ID because of our fromMap logic.
-    // If it doesn't, we might need a separate id field, but earlier we saw loteData['id'] = loteDoc.id was used in fromMap,
-    // which mapped 'id' to 'codigo' if 'codigo' was null.
-    // Wait, let's just use lote.codigo for the document ID.
-    await _servicio.updateLote(pedido.id, lote.codigo, data);
     
-    // Refresh local state if needed (optional since the stream might trigger, or the UI is already updated via local state)
+    // LIMPIEZA DE LOTE: El modelo verdadero NO incluye el 'codigo' dentro 
+    // del documento porque ya es el ID del documento en Firestore.
+    data['codigo'] = FieldValue.delete();
+    
+    await _servicio.updateLote(articulo.id, lote.codigo, data);
   }
 
-  void unselectPedido() {
+  Future<void> updateArticulo(ArticuloInventario articulo) async {
+    final Map<String, dynamic> data = {};
+    
+    if (articulo.productos.isNotEmpty) {
+      final prod = articulo.productos.first;
+      
+      // Campos de la raíz exactos según el modelo original
+      data['nombre'] = prod.nombre;
+      data['descripcion'] = prod.descripcion;
+      data['proveedor'] = prod.proveedor;
+      data['categoria'] = prod.categoria;
+      data['estado'] = prod.estado;
+      data['imagen'] = prod.imagen;
+      data['cantidad_minima'] = prod.cantidadMinima;
+      data['tipo_producto'] = prod.tipoProducto;
+      // Prevenir inconsistencias: Si hay lotes con datos al por mayor, forzar a Ambos
+      final bool hasWholesale = articulo.lotes.any((l) => l.stockMayor > 0 || l.costoMayor > 0 || l.precioVentaMayor > 0);
+      if (hasWholesale && prod.tipoVenta == 'Menor') {
+        prod.tipoVenta = 'Ambos';
+      }
+
+      data['menor_mayor'] = prod.tipoVenta == 'Ambos' || prod.tipoVenta == 'Mayor';
+      data['fecha'] = prod.fechaIngresado.isNotEmpty ? prod.fechaIngresado : articulo.fecha;
+      
+      // LIMPIEZA TOTAL DE CAMPOS BASURA que se inyectaron históricamente
+      // El modelo verdadero NO tiene array de "productos" en Inventario, 
+      // ni los campos de un "Articulo" comercial.
+      data['productos'] = FieldValue.delete();
+      data['descuento'] = FieldValue.delete();
+      data['envio'] = FieldValue.delete();
+      data['impuesto'] = FieldValue.delete();
+      data['pagadoPor'] = FieldValue.delete();
+      data['referencia'] = FieldValue.delete();
+      
+      // Borramos los campos camelCase erróneos de la raíz
+      data['cantidadMinima'] = FieldValue.delete();
+      data['fechaIngresado'] = FieldValue.delete();
+      data['codigoBarra'] = FieldValue.delete();
+      data['tipo_venta'] = FieldValue.delete();
+      data['sku'] = FieldValue.delete();
+      data['costo'] = FieldValue.delete();
+    }
+
+    await _servicio.updateArticulo(articulo.id, data);
+  }
+
+  Future<void> createNuevoArticulo(ArticuloInventario articulo, LoteArticulo lote) async {
+    final Map<String, dynamic> data = {};
+    
+    if (articulo.productos.isNotEmpty) {
+      final prod = articulo.productos.first;
+      
+      data['nombre'] = prod.nombre;
+      data['descripcion'] = prod.descripcion;
+      data['proveedor'] = prod.proveedor;
+      data['categoria'] = prod.categoria;
+      data['estado'] = 'Activo'; // Siempre Activo para nuevos
+      data['imagen'] = prod.imagen;
+      data['cantidad_minima'] = prod.cantidadMinima;
+      data['tipo_producto'] = prod.tipoProducto;
+      // Prevenir inconsistencias al crear: Si el lote inicial tiene datos al por mayor, forzar a Ambos
+      final bool hasWholesale = lote.stockMayor > 0 || lote.costoMayor > 0 || lote.precioVentaMayor > 0;
+      if (hasWholesale && prod.tipoVenta == 'Menor') {
+        prod.tipoVenta = 'Ambos';
+      }
+
+      data['menor_mayor'] = prod.tipoVenta == 'Ambos' || prod.tipoVenta == 'Mayor';
+      data['fecha'] = prod.fechaIngresado.isNotEmpty ? prod.fechaIngresado : articulo.fecha;
+      data['codigo_barras'] = prod.codigoBarra;
+    }
+
+    final loteData = lote.toMap();
+    loteData.remove('codigo');
+
+    // Generar un nuevo ID de Firebase
+    final String newArticuloId = FirebaseFirestore.instance.collection('Inventario').doc().id;
+
+    await _servicio.createArticulo(newArticuloId, data, loteData);
+    
+    // Deseleccionar y resetear al guardar con éxito
+    unselectArticulo();
+  }
+
+  void unselectArticulo() {
+    _lotesSubscription?.cancel();
     state = InventarioState(
-      pedidos: state.pedidos,
+      articulos: state.articulos,
       searchQuery: state.searchQuery,
-      selectedPedido: null,
+      selectedArticulo: null,
       activeDetailTab: 0,
       selectedLoteIndex: 0,
     );
@@ -129,11 +234,11 @@ class InventarioViewModel extends Notifier<InventarioState> {
     state = state.copyWith(selectedLoteIndex: index);
   }
 
-  List<PedidoInventario> get filteredPedidos {
+  List<ArticuloInventario> get filteredArticulos {
     final query = state.searchQuery.toLowerCase().trim();
-    if (query.isEmpty) return state.pedidos;
+    if (query.isEmpty) return state.articulos;
 
-    return state.pedidos.where((p) {
+    return state.articulos.where((p) {
       return p.nombre.toLowerCase().contains(query) ||
           p.proveedor.toLowerCase().contains(query) ||
           p.referencia.toLowerCase().contains(query);

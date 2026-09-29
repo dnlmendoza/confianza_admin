@@ -4,38 +4,73 @@ import 'modelos_inventario.dart';
 class ServicioInventario {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  Stream<List<PedidoInventario>> streamPedidos() {
+  Stream<List<ArticuloInventario>> streamArticulos() {
     return _firestore.collection('Inventario').snapshots().map((snapshot) {
       return snapshot.docs.map((doc) {
         final Map<String, dynamic> data = Map<String, dynamic>.from(doc.data());
-        return PedidoInventario.fromMap(doc.id, data);
+        return ArticuloInventario.fromMap(doc.id, data);
       }).toList();
     });
   }
 
-  Future<List<LotePedido>> getLotesPorPedido(String pedidoId) async {
+  Future<List<LoteArticulo>> getLotesPorArticulo(String articuloId) async {
     try {
-      final lotesSnapshot = await _firestore.collection('Inventario').doc(pedidoId).collection('lote').get();
+      final lotesSnapshot = await _firestore.collection('Inventario').doc(articuloId).collection('lote').get();
       return lotesSnapshot.docs.map((loteDoc) {
         final Map<String, dynamic> loteData = Map<String, dynamic>.from(loteDoc.data());
         loteData['id'] = loteDoc.id;
-        return LotePedido.fromMap(loteData);
+        return LoteArticulo.fromMap(loteData);
       }).toList();
     } catch (e) {
       return [];
     }
   }
 
-  Future<void> updateLote(String pedidoId, String loteId, Map<String, dynamic> data) async {
+  Stream<List<LoteArticulo>> streamLotesPorArticulo(String articuloId) {
+    return _firestore.collection('Inventario').doc(articuloId).collection('lote').snapshots().map((snapshot) {
+      return snapshot.docs.map((loteDoc) {
+        final Map<String, dynamic> loteData = Map<String, dynamic>.from(loteDoc.data());
+        loteData['id'] = loteDoc.id;
+        return LoteArticulo.fromMap(loteData);
+      }).toList();
+    });
+  }
+
+  Future<void> updateLote(String articuloId, String loteId, Map<String, dynamic> data) async {
     try {
       await _firestore
           .collection('Inventario')
-          .doc(pedidoId)
+          .doc(articuloId)
           .collection('lote')
           .doc(loteId)
-          .update(data);
+          .set(data, SetOptions(merge: true));
     } catch (e) {
       // Manejo de errores básico
+    }
+  }
+  Future<void> updateArticulo(String articuloId, Map<String, dynamic> data) async {
+    try {
+      await _firestore.collection('Inventario').doc(articuloId).update(data);
+    } catch (e) {
+      // Manejo de errores básico
+    }
+  }
+
+  Future<void> createArticulo(String articuloId, Map<String, dynamic> data, Map<String, dynamic> loteData) async {
+    try {
+      final batch = _firestore.batch();
+      
+      final articuloRef = _firestore.collection('Inventario').doc(articuloId);
+      batch.set(articuloRef, data);
+
+      final newLoteId = _firestore.collection('Inventario').doc(articuloId).collection('lote').doc().id;
+      final loteRef = _firestore.collection('Inventario').doc(articuloId).collection('lote').doc(newLoteId);
+      batch.set(loteRef, loteData);
+
+      await batch.commit();
+    } catch (e) {
+      // Manejo de errores básico
+      rethrow;
     }
   }
 }

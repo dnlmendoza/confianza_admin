@@ -6,17 +6,22 @@ import '../modelos_inventario.dart';
 import 'inventory_form_fields.dart';
 
 class InventoryTabArticles extends StatefulWidget {
-  final PedidoInventario pedido;
+  final ArticuloInventario articulo;
   final Map<String, String> categorias;
   final Map<String, String> proveedores;
   final VoidCallback onUpdate;
 
+  final Future<void> Function(ArticuloInventario)? onSave;
+  final VoidCallback? onNext;
+
   const InventoryTabArticles({
     super.key,
-    required this.pedido,
+    required this.articulo,
     required this.categorias,
     required this.proveedores,
     required this.onUpdate,
+    this.onSave,
+    this.onNext,
   });
 
   @override
@@ -24,9 +29,39 @@ class InventoryTabArticles extends StatefulWidget {
 }
 
 class _InventoryTabArticlesState extends State<InventoryTabArticles> {
+  String? _originalStateStr;
+
+  @override
+  void initState() {
+    super.initState();
+    _captureOriginalState();
+  }
+
+  @override
+  void didUpdateWidget(InventoryTabArticles oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.articulo.id != oldWidget.articulo.id) {
+      _captureOriginalState();
+    }
+  }
+
+  void _captureOriginalState() {
+    if (widget.articulo.productos.isNotEmpty) {
+      final prod = widget.articulo.productos.first;
+      _originalStateStr = "${prod.nombre}|${prod.descripcion}|${prod.codigoBarra}|${prod.fechaIngresado}|${prod.tipoProducto}|${prod.tipoVenta}|${prod.cantidadMinima}|${prod.categoria}|${prod.proveedor}|${prod.estado}";
+    }
+  }
+
+  bool get isDirty {
+    if (widget.articulo.productos.isEmpty) return false;
+    final prod = widget.articulo.productos.first;
+    final currentStr = "${prod.nombre}|${prod.descripcion}|${prod.codigoBarra}|${prod.fechaIngresado}|${prod.tipoProducto}|${prod.tipoVenta}|${prod.cantidadMinima}|${prod.categoria}|${prod.proveedor}|${prod.estado}";
+    return currentStr != _originalStateStr;
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (widget.pedido.productos.isEmpty) {
+    if (widget.articulo.productos.isEmpty) {
       return Center(
         child: Text(
           "No hay productos en este pedido.",
@@ -34,8 +69,8 @@ class _InventoryTabArticlesState extends State<InventoryTabArticles> {
         ),
       );
     }
-    final prod = widget.pedido.productos.first;
-    final keyPrefix = "${widget.pedido.id}-${prod.sku}";
+    final prod = widget.articulo.productos.first;
+    final keyPrefix = "${widget.articulo.id}-${prod.sku}";
 
     return Column(
       children: [
@@ -75,7 +110,7 @@ class _InventoryTabArticlesState extends State<InventoryTabArticles> {
                     DetailFormTextField(
                       label: "Nombre de Articulo",
                       initialValue: prod.nombre,
-                      fieldKey: ValueKey('$keyPrefix-nombre-${prod.nombre}'),
+                      fieldKey: ValueKey('$keyPrefix-nombre'),
                       prefixIcon: Icons.label_outlined,
                       onChanged: (val) {
                         setState(() {
@@ -88,7 +123,7 @@ class _InventoryTabArticlesState extends State<InventoryTabArticles> {
                     DetailFormTextField(
                       label: "Descripción del Articulo",
                       initialValue: prod.descripcion,
-                      fieldKey: ValueKey('$keyPrefix-desc-${prod.descripcion}'),
+                      fieldKey: ValueKey('$keyPrefix-desc'),
                       prefixIcon: Icons.subject_outlined,
                       onChanged: (val) {
                         setState(() {
@@ -116,9 +151,11 @@ class _InventoryTabArticlesState extends State<InventoryTabArticles> {
                     child: DetailFormTextField(
                       label: "Código de Barra",
                       initialValue: prod.codigoBarra,
-                      fieldKey: ValueKey('$keyPrefix-barcode-${prod.codigoBarra}'),
+                      fieldKey: ValueKey('$keyPrefix-barcode'),
                       suffixIcon: Icons.calendar_view_week_rounded,
-                      readOnly: true,
+                      readOnly: widget.articulo.id != 'nuevo_articulo',
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       onChanged: (val) {
                         setState(() {
                           prod.codigoBarra = val;
@@ -132,7 +169,7 @@ class _InventoryTabArticlesState extends State<InventoryTabArticles> {
                     child: DetailFormTextField(
                       label: "Fecha Ingreso",
                       initialValue: prod.fechaIngresado,
-                      fieldKey: ValueKey('$keyPrefix-date-${prod.fechaIngresado}'),
+                      fieldKey: ValueKey('$keyPrefix-date'),
                       suffixIcon: Icons.calendar_month,
                       readOnly: true,
                       onChanged: (val) {
@@ -145,152 +182,142 @@ class _InventoryTabArticlesState extends State<InventoryTabArticles> {
                   ),
                   SizedBox(
                     width: itemWidth,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Row(
                       children: [
-                        Text(
-                          "Tipo de Articulo",
-                          style: GoogleFonts.outfit(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.onSurfaceVariant.withValues(alpha: 0.9),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.scale_outlined, size: 14, color: AppColors.onSurfaceVariant.withValues(alpha: 0.9)),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    "Pesado",
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.onSurfaceVariant.withValues(alpha: 0.9),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    prod.tipoProducto = (prod.tipoProducto == "Pesado") ? "Normal" : "Pesado";
+                                  });
+                                  widget.onUpdate();
+                                },
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  height: 38,
+                                  decoration: BoxDecoration(
+                                    color: prod.tipoProducto == "Normal" 
+                                        ? AppColors.surfaceContainerLow.withValues(alpha: 0.3)
+                                        : AppColors.primary.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: prod.tipoProducto == "Normal" 
+                                          ? AppColors.outlineVariant.withValues(alpha: 0.4)
+                                          : AppColors.primary.withValues(alpha: 0.3),
+                                    ),
+                                  ),
+                                  padding: const EdgeInsets.all(3),
+                                  child: Stack(
+                                    children: [
+                                      AnimatedAlign(
+                                        duration: const Duration(milliseconds: 200),
+                                        curve: Curves.easeInOut,
+                                        alignment: prod.tipoProducto == "Normal" ? Alignment.centerLeft : Alignment.centerRight,
+                                        child: FractionallySizedBox(
+                                          widthFactor: 0.5,
+                                          child: AnimatedContainer(
+                                            duration: const Duration(milliseconds: 200),
+                                            decoration: BoxDecoration(
+                                              color: prod.tipoProducto == "Normal" 
+                                                  ? AppColors.outlineVariant.withValues(alpha: 0.8) 
+                                                  : AppColors.primary,
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Container(
-                                height: 38,
-                                decoration: BoxDecoration(
-                                  color: AppColors.surfaceContainerLow.withValues(alpha: 0.3),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: AppColors.outlineVariant.withValues(alpha: 0.4),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.warehouse_outlined, size: 14, color: AppColors.onSurfaceVariant.withValues(alpha: 0.9)),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    "Menor & Mayor",
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.onSurfaceVariant.withValues(alpha: 0.9),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    prod.tipoVenta = (prod.tipoVenta == "Ambos") ? "Menor" : "Ambos";
+                                  });
+                                  widget.onUpdate();
+                                },
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  height: 38,
+                                  decoration: BoxDecoration(
+                                    color: prod.tipoVenta == "Menor" 
+                                        ? AppColors.surfaceContainerLow.withValues(alpha: 0.3)
+                                        : AppColors.primary.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: prod.tipoVenta == "Menor" 
+                                          ? AppColors.outlineVariant.withValues(alpha: 0.4)
+                                          : AppColors.primary.withValues(alpha: 0.3),
+                                    ),
+                                  ),
+                                  padding: const EdgeInsets.all(3),
+                                  child: Stack(
+                                    children: [
+                                      AnimatedAlign(
+                                        duration: const Duration(milliseconds: 200),
+                                        curve: Curves.easeInOut,
+                                        alignment: prod.tipoVenta == "Menor" ? Alignment.centerLeft : Alignment.centerRight,
+                                        child: FractionallySizedBox(
+                                          widthFactor: 0.5,
+                                          child: AnimatedContainer(
+                                            duration: const Duration(milliseconds: 200),
+                                            decoration: BoxDecoration(
+                                              color: prod.tipoVenta == "Menor" 
+                                                  ? AppColors.outlineVariant.withValues(alpha: 0.8) 
+                                                  : AppColors.primary,
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                padding: const EdgeInsets.all(3),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: GestureDetector(
-                                        onTap: () {
-                                          setState(() => prod.tipoProducto = "Normal");
-                                          widget.onUpdate();
-                                        },
-                                        child: AnimatedContainer(
-                                          duration: const Duration(milliseconds: 200),
-                                          decoration: BoxDecoration(
-                                            color: prod.tipoProducto == "Normal" ? AppColors.primary : Colors.transparent,
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          alignment: Alignment.center,
-                                          child: Row(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              Icon(Icons.inventory_2_outlined, size: 14, color: prod.tipoProducto == "Normal" ? Colors.white : AppColors.onSurfaceVariant),
-                                              const SizedBox(width: 4),
-                                              Text("Normal", style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.bold, color: prod.tipoProducto == "Normal" ? Colors.white : AppColors.onSurfaceVariant)),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: GestureDetector(
-                                        onTap: () {
-                                          setState(() => prod.tipoProducto = "Pesado");
-                                          widget.onUpdate();
-                                        },
-                                        child: AnimatedContainer(
-                                          duration: const Duration(milliseconds: 200),
-                                          decoration: BoxDecoration(
-                                            color: prod.tipoProducto == "Pesado" ? AppColors.primary : Colors.transparent,
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          alignment: Alignment.center,
-                                          child: Row(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              Icon(Icons.scale_outlined, size: 14, color: prod.tipoProducto == "Pesado" ? Colors.white : AppColors.onSurfaceVariant),
-                                              const SizedBox(width: 4),
-                                              Text("Pesado", style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.bold, color: prod.tipoProducto == "Pesado" ? Colors.white : AppColors.onSurfaceVariant)),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Container(
-                                height: 38,
-                                decoration: BoxDecoration(
-                                  color: AppColors.surfaceContainerLow.withValues(alpha: 0.3),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: AppColors.outlineVariant.withValues(alpha: 0.4),
-                                  ),
-                                ),
-                                padding: const EdgeInsets.all(3),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: GestureDetector(
-                                        onTap: () {
-                                          setState(() => prod.tipoVenta = "Menor");
-                                          widget.onUpdate();
-                                        },
-                                        child: AnimatedContainer(
-                                          duration: const Duration(milliseconds: 200),
-                                          decoration: BoxDecoration(
-                                            color: (prod.tipoVenta == "Menor" || prod.tipoVenta == "Ambos") ? AppColors.primary : Colors.transparent,
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          alignment: Alignment.center,
-                                          child: Row(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              Icon(Icons.storefront_outlined, size: 14, color: (prod.tipoVenta == "Menor" || prod.tipoVenta == "Ambos") ? Colors.white : AppColors.onSurfaceVariant),
-                                              const SizedBox(width: 4),
-                                              Text("Menor", style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.bold, color: (prod.tipoVenta == "Menor" || prod.tipoVenta == "Ambos") ? Colors.white : AppColors.onSurfaceVariant)),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: GestureDetector(
-                                        onTap: () {
-                                          setState(() => prod.tipoVenta = (prod.tipoVenta == "Ambos") ? "Menor" : "Ambos");
-                                          widget.onUpdate();
-                                        },
-                                        child: AnimatedContainer(
-                                          duration: const Duration(milliseconds: 200),
-                                          decoration: BoxDecoration(
-                                            color: prod.tipoVenta == "Ambos" ? AppColors.primary : Colors.transparent,
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          alignment: Alignment.center,
-                                          child: Row(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              Icon(Icons.warehouse_outlined, size: 14, color: prod.tipoVenta == "Ambos" ? Colors.white : AppColors.onSurfaceVariant),
-                                              const SizedBox(width: 4),
-                                              Text("& Mayor", style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.bold, color: prod.tipoVenta == "Ambos" ? Colors.white : AppColors.onSurfaceVariant)),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -300,19 +327,24 @@ class _InventoryTabArticlesState extends State<InventoryTabArticles> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          "Cantidad Mínima",
-                          style: GoogleFonts.outfit(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.onSurfaceVariant.withValues(alpha: 0.9),
-                          ),
+                        Row(
+                          children: [
+
+                            Text(
+                              "Cantidad Mínima",
+                              style: GoogleFonts.outfit(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.onSurfaceVariant.withValues(alpha: 0.9),
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 6),
                         SizedBox(
                           height: 38,
                           child: TextFormField(
-                            key: ValueKey('$keyPrefix-minQty-${prod.cantidadMinima}'),
+                            key: ValueKey('$keyPrefix-minQty'),
                             initialValue: prod.cantidadMinima.toString(),
                             keyboardType: TextInputType.number,
                             textAlign: TextAlign.center,
@@ -431,9 +463,10 @@ class _InventoryTabArticlesState extends State<InventoryTabArticles> {
                     width: itemWidth,
                     child: DropdownFormField(
                       label: "Estado",
-                      currentValue: prod.estado,
+                      currentValue: widget.articulo.id == 'nuevo_articulo' ? "Activo" : prod.estado,
                       items: const ["Activo", "Inactivo"],
                       prefixIcon: Icons.info_outline,
+                      readOnly: widget.articulo.id == 'nuevo_articulo',
                       onSelected: (val) {
                         setState(() {
                           prod.estado = val;
@@ -455,7 +488,65 @@ class _InventoryTabArticlesState extends State<InventoryTabArticles> {
     const SizedBox(height: 8),
     SizedBox(
       height: 48,
-      child: Container(),
+      child: widget.articulo.id == 'nuevo_articulo'
+          ? Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  if (widget.onNext != null) widget.onNext!();
+                },
+                icon: const Icon(Icons.arrow_forward, size: 18),
+                label: const Text("Siguiente (Faltan datos de lote)"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                  textStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+              ),
+            )
+          : (isDirty
+              ? Align(
+                  alignment: Alignment.centerRight,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      if (widget.onSave != null) {
+                        try {
+                          await widget.onSave!(widget.articulo);
+                          if (!context.mounted) return;
+                          setState(() {
+                            _captureOriginalState();
+                          });
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text("Artículo actualizado en Firestore", style: GoogleFonts.outfit()),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        } catch (e) {
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text("Error al actualizar: $e", style: GoogleFonts.outfit()),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.check_circle_outline, size: 18),
+                    label: const Text("Actualizar"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                      textStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                  ),
+                )
+              : null),
     ),
   ],
 );

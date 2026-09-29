@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart'; // Importante para traducir widgets nativos
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,9 +13,7 @@ void main() async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(
     // NÚCLEO: ProviderScope inicializa el motor de Riverpod
-    const ProviderScope(
-      child: MyApp(),
-    ),
+    const ProviderScope(child: MyApp()),
   );
 }
 
@@ -32,12 +31,21 @@ class MyApp extends ConsumerWidget {
         title: 'La Confianza Admin',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF006397),
-          ),
+          colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF006397)),
           useMaterial3: true,
         ),
-        routerConfig: enrutador, // Usamos router moderno en lugar del map de rutas viejo
+        // --- CONFIGURACIÓN DE IDIOMA PARA COMPONENTES NATIVOS (EJ. DATEPICKER) ---
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [
+          Locale('es', 'ES'), // Español
+        ],
+        locale: const Locale('es', 'ES'), // Forzar la app entera al español
+        routerConfig:
+            enrutador, // Usamos router moderno en lugar del map de rutas viejo
       ),
     );
   }
@@ -89,7 +97,7 @@ class _InactivitySignOutListenerState extends State<InactivitySignOutListener> {
   void _signOutUser() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      // Magia de Riverpod: Al hacer signOut, el authStateProvider cambia, 
+      // Magia de Riverpod: Al hacer signOut, el authStateProvider cambia,
       // y el GoRouter detecta el cambio expulsando al usuario al '/' instantáneamente.
       await FirebaseAuth.instance.signOut();
     }

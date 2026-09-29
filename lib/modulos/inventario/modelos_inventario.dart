@@ -14,7 +14,7 @@ class BodegaDistribucion {
   }
 }
 
-class ProductoPedido {
+class ProductoArticulo {
   String nombre;
   String sku;
   double costo;
@@ -30,7 +30,7 @@ class ProductoPedido {
   String estado;
   String imagen;
 
-  ProductoPedido({
+  ProductoArticulo({
     required this.nombre,
     required this.sku,
     required this.costo,
@@ -68,8 +68,8 @@ class ProductoPedido {
     'imagen': imagen,
   };
 
-  factory ProductoPedido.fromMap(Map<String, dynamic> map) {
-    return ProductoPedido(
+  factory ProductoArticulo.fromMap(Map<String, dynamic> map) {
+    return ProductoArticulo(
       nombre: map['nombre'] ?? '',
       sku: map['sku'] ?? '',
       costo: (map['costo'] as num?)?.toDouble() ?? 0.0,
@@ -94,7 +94,7 @@ class ProductoPedido {
   }
 }
 
-class LotePedido {
+class LoteArticulo {
   String codigo;
   int stock;
   String fechaIngreso;
@@ -110,7 +110,7 @@ class LotePedido {
   double costoMayor;
   double precioVentaMayor;
 
-  LotePedido({
+  LoteArticulo({
     required this.codigo,
     required this.stock,
     required this.fechaIngreso,
@@ -146,10 +146,20 @@ class LotePedido {
     'ganancia_lote': (precioVenta - costo) * stock,
   };
 
-  factory LotePedido.fromMap(Map<String, dynamic> map) {
+  DateTime get parsedFechaIngreso {
+    try {
+      final parts = fechaIngreso.split('-');
+      if (parts.length == 3) {
+        return DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
+      }
+    } catch (_) {}
+    return DateTime(2000);
+  }
+
+  factory LoteArticulo.fromMap(Map<String, dynamic> map) {
     final c = (map['costo'] as num?)?.toDouble() ?? (map['costo_unitario'] as num?)?.toDouble() ?? 0.0;
     final s = map['stock'] ?? map['cantidad'] ?? 0;
-    return LotePedido(
+    return LoteArticulo(
       codigo: map['codigo'] ?? map['id'] ?? '',
       stock: s,
       fechaIngreso: map['fechaIngreso'] ?? map['fecha_ingreso'] ?? '',
@@ -168,7 +178,7 @@ class LotePedido {
   }
 }
 
-class PedidoInventario {
+class ArticuloInventario {
   String id;
   String nombre;
   String descripcion;
@@ -179,10 +189,10 @@ class PedidoInventario {
   double descuento;
   double impuesto;
   double envio;
-  List<ProductoPedido> productos;
-  List<LotePedido> lotes;
+  List<ProductoArticulo> productos;
+  List<LoteArticulo> lotes;
 
-  PedidoInventario({
+  ArticuloInventario({
     required this.id,
     required this.nombre,
     required this.descripcion,
@@ -201,6 +211,19 @@ class PedidoInventario {
       productos.fold(0.0, (total, p) => total + p.subtotal);
   double get totalGeneral => subtotalProductos - descuento + impuesto + envio;
 
+  String? get activeFifoLotId {
+    if (lotes.isEmpty) return null;
+    
+    // Asumimos que los lotes ya vienen ordenados por fecha de ingreso ascendente.
+    // Buscamos el primero (más viejo) cuyo stock sea mayor a 0
+    try {
+      final activeLot = lotes.firstWhere((l) => l.stock > 0);
+      return activeLot.codigo;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Map<String, dynamic> toMap() => {
     'nombre': nombre,
     'descripcion': descripcion,
@@ -215,8 +238,8 @@ class PedidoInventario {
     'lotes': lotes.map((l) => l.toMap()).toList(),
   };
 
-  factory PedidoInventario.fromMap(String id, Map<String, dynamic> map) {
-    return PedidoInventario(
+  factory ArticuloInventario.fromMap(String id, Map<String, dynamic> map) {
+    return ArticuloInventario(
       id: id,
       nombre: map['nombre'] ?? '',
       descripcion: map['descripcion'] ?? '',
@@ -228,11 +251,11 @@ class PedidoInventario {
       impuesto: (map['impuesto'] as num?)?.toDouble() ?? 0.0,
       envio: (map['envio'] as num?)?.toDouble() ?? 0.0,
       productos: (map['productos'] as List?)
-              ?.map((p) => ProductoPedido.fromMap(p as Map<String, dynamic>))
+              ?.map((p) => ProductoArticulo.fromMap(p as Map<String, dynamic>))
               .toList() ??
           [
             // Fallback si no hay productos: crear uno usando los datos de la raíz
-            ProductoPedido(
+            ProductoArticulo(
               nombre: map['nombre'] ?? '',
               sku: map['sku'] ?? map['codigo_sku'] ?? '',
               costo: (map['costo'] as num?)?.toDouble() ?? 0.0,
@@ -255,11 +278,17 @@ class PedidoInventario {
               imagen: map['imagen'] ?? map['image'] ?? map['foto'] ?? map['url_imagen'] ?? map['imageUrl'] ?? '',
             )
           ],
-      lotes:
-          (map['lotes'] as List? ?? map['lista_lotes'] as List? ?? map['batch'] as List? ?? map['lote'] as List?)
-              ?.map((l) => LotePedido.fromMap(l as Map<String, dynamic>))
-              .toList() ??
-          [],
+      lotes: () {
+        final rawLotes = (map['lotes'] as List? ??
+            map['lista_lotes'] as List? ??
+            map['batch'] as List? ??
+            map['lote'] as List?)
+            ?.map((l) => LoteArticulo.fromMap(l as Map<String, dynamic>))
+            .toList() ?? [];
+            
+        rawLotes.sort((a, b) => a.parsedFechaIngreso.compareTo(b.parsedFechaIngreso));
+        return rawLotes;
+      }(),
     );
   }
 }
