@@ -22,6 +22,13 @@ class _VistaCatalogosState extends State<VistaCatalogos> {
   final Map<String, int> _usageCountCache = {};
   final Map<String, List<Map<String, dynamic>>> _usageItemsCache = {};
 
+  QuerySnapshot<Map<String, dynamic>>? _cachedLotes;
+
+  Future<QuerySnapshot<Map<String, dynamic>>> _getLotes() async {
+    _cachedLotes ??= await FirebaseFirestore.instance.collectionGroup('lote').get();
+    return _cachedLotes!;
+  }
+
   late final VMCatalogos _vmCatalogos;
 
   List<String> get _categories => _vmCatalogos.categorias;
@@ -144,7 +151,7 @@ class _VistaCatalogosState extends State<VistaCatalogos> {
           }
         }
 
-        final lotesRef = await firestore.collectionGroup('lote').get();
+        final lotesRef = await _getLotes();
         Set<String> invIds = {};
 
         for (var loteDoc in lotesRef.docs) {
@@ -263,7 +270,7 @@ class _VistaCatalogosState extends State<VistaCatalogos> {
           }
         }
 
-        final lotesRef = await firestore.collectionGroup('lote').get();
+        final lotesRef = await _getLotes();
         Set<String> invIds = {};
 
         for (var loteDoc in lotesRef.docs) {
@@ -791,23 +798,6 @@ class _VistaCatalogosState extends State<VistaCatalogos> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Top Navigation Tabs
-        Container(
-          decoration: const BoxDecoration(
-            border: Border(
-              bottom: BorderSide(color: AppColors.outlineVariant, width: 1),
-            ),
-          ),
-          child: Row(
-            children: List.generate(tabs.length, (index) {
-              return Expanded(
-                child: _buildCatalogTab(index, tabs[index], icons[index]),
-              );
-            }),
-          ),
-        ),
-        const SizedBox(height: 24),
-
         // Data Table & Details Panel
         Expanded(
           child: Row(
@@ -815,7 +805,26 @@ class _VistaCatalogosState extends State<VistaCatalogos> {
             children: [
               Expanded(
                 flex: 6,
-                child: Card(
+                child: Column(
+                  children: [
+                    // Top Navigation Tabs
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: const BoxDecoration(
+                        border: Border(
+                          bottom: BorderSide(color: AppColors.outlineVariant, width: 1),
+                        ),
+                      ),
+                      child: Row(
+                        children: List.generate(tabs.length, (index) {
+                          return Expanded(
+                            child: _buildCatalogTab(index, tabs[index], icons[index]),
+                          );
+                        }),
+                      ),
+                    ),
+                    Expanded(
+                      child: Card(
                   color: AppColors.surfaceContainerLowest,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
@@ -1227,7 +1236,10 @@ class _VistaCatalogosState extends State<VistaCatalogos> {
                   ),
                 ),
               ),
-              const SizedBox(width: 24),
+            ],
+          ),
+        ),
+        const SizedBox(width: 24),
               // Right Panel (Placeholder for articles)
               Expanded(
                 flex: 4,

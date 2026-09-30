@@ -42,39 +42,62 @@ class BarcodeListTable extends StatelessWidget {
           return matchesType && matchesText;
         }).toList();
 
-        final totalSelected = filteredCodes.where((e) => e.selectedForPrint).length;
-        final allSelected = filteredCodes.isNotEmpty &&
-            filteredCodes.every((e) => e.selectedForPrint);
+        final selectedEntries = filteredCodes.where((e) => e.selectedForPrint).toList();
+        final totalSelected = selectedEntries.length;
+        final allSelected = filteredCodes.isNotEmpty && totalSelected == filteredCodes.length;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "Listado de Códigos de Barras",
-                      style: TextStyle(
-                        color: AppColors.onSurface,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Container(
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceContainerLow,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: TextField(
+                      controller: searchQueryController,
+                      decoration: const InputDecoration(
+                        hintText: "Buscar códigos de barra o productos...",
+                        hintStyle: TextStyle(
+                          color: AppColors.onSurfaceVariant,
+                          fontSize: 12,
+                        ),
+                        prefixIcon: Icon(
+                          Icons.search,
+                          size: 18,
+                          color: AppColors.onSurfaceVariant,
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(vertical: 10),
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      "${filteredCodes.length} códigos mostrados (${allCodesRaw.length} total)",
-                      style: const TextStyle(
-                        color: AppColors.onSurfaceVariant,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
+                const SizedBox(width: 24),
                 Row(
                   children: [
+                    Padding(
+                      padding: const EdgeInsets.only(right: 12),
+                      child: OutlinedButton.icon(
+                        onPressed: totalSelected == 1 ? () => onEditBarcode(selectedEntries.first) : null,
+                        icon: const Icon(Icons.edit_outlined, size: 16),
+                        label: const Text("Editar"),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.primary,
+                          side: BorderSide(
+                            color: totalSelected == 1 ? AppColors.primary : AppColors.outlineVariant,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                        ),
+                      ),
+                    ),
                     SegmentedButton<String>(
                       segments: const [
                         ButtonSegment<String>(
@@ -148,31 +171,6 @@ class BarcodeListTable extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            Container(
-              height: 38,
-              decoration: BoxDecoration(
-                color: AppColors.surfaceContainerLow,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: TextField(
-                controller: searchQueryController,
-                decoration: const InputDecoration(
-                  hintText: "Buscar códigos de barra o productos...",
-                  hintStyle: TextStyle(
-                    color: AppColors.onSurfaceVariant,
-                    fontSize: 12,
-                  ),
-                  prefixIcon: Icon(
-                    Icons.search,
-                    size: 18,
-                    color: AppColors.onSurfaceVariant,
-                  ),
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(vertical: 10),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
             _buildCodesTable(filteredCodes, allSelected),
           ],
         );
@@ -212,11 +210,8 @@ class BarcodeListTable extends StatelessWidget {
                     columnWidths: const {
                       0: FixedColumnWidth(56),
                       1: FlexColumnWidth(),
-                      2: FixedColumnWidth(180),
+                      2: FixedColumnWidth(120),
                       3: FixedColumnWidth(120),
-                      4: FixedColumnWidth(120),
-                      5: FixedColumnWidth(120),
-                      6: FixedColumnWidth(80),
                     },
                     children: [
                       TableRow(
@@ -230,29 +225,57 @@ class BarcodeListTable extends StatelessWidget {
                           ),
                         ),
                         children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 12,
-                            ),
-                            child: Checkbox(
-                              value: selectAllValue,
-                              activeColor: AppColors.primary,
-                              onChanged: (v) {
-                                final newVal = v ?? false;
-                                for (final entry in entries) {
-                                  entry.selectedForPrint = newVal;
-                                }
-                                onSelectAll(newVal);
-                              },
+                          TableCell(
+                            verticalAlignment: TableCellVerticalAlignment.middle,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 8,
+                              ),
+                              child: Checkbox(
+                                value: selectAllValue,
+                                activeColor: AppColors.primary,
+                                onChanged: (v) {
+                                  final newVal = v ?? false;
+                                  for (final entry in entries) {
+                                    entry.selectedForPrint = newVal;
+                                  }
+                                  onSelectAll(newVal);
+                                },
+                              ),
                             ),
                           ),
-                          _tHeader("NOMBRE"),
-                          _tHeader("CÓDIGO DE BARRAS"),
+                          TableCell(
+                            verticalAlignment: TableCellVerticalAlignment.middle,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  const Text(
+                                    "ARTÍCULO Y CÓDIGO",
+                                    style: TextStyle(
+                                      color: AppColors.onSurfaceVariant,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    "(${entries.length} de ${allCodesRaw.length})",
+                                    style: const TextStyle(
+                                      color: AppColors.primary,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                           _tHeader("PRECIO", align: TextAlign.center),
-                          _tHeader("FECHA", align: TextAlign.center),
-                          _tHeader("TIPO", align: TextAlign.center),
-                          _tHeader("ACCIÓN", align: TextAlign.center),
+                          _tHeader("FECHA / TIPO", align: TextAlign.center),
                         ],
                       ),
                       ...entries.map(
@@ -289,40 +312,39 @@ class BarcodeListTable extends StatelessWidget {
                                   horizontal: 16,
                                   vertical: 12,
                                 ),
-                                child: Text(
-                                  entry.name,
-                                  style: const TextStyle(
-                                    color: AppColors.onSurface,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            TableCell(
-                              verticalAlignment: TableCellVerticalAlignment.middle,
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                ),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.surfaceContainerLow,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    entry.barcode,
-                                    style: const TextStyle(
-                                      fontFamily: 'monospace',
-                                      color: AppColors.onSurfaceVariant,
-                                      fontSize: 12,
-                                      letterSpacing: 1,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      entry.name,
+                                      style: const TextStyle(
+                                        color: AppColors.onSurface,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
-                                  ),
+                                    const SizedBox(height: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.surfaceContainerLow,
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        entry.barcode,
+                                        style: const TextStyle(
+                                          fontFamily: 'monospace',
+                                          color: AppColors.onSurfaceVariant,
+                                          fontSize: 12,
+                                          letterSpacing: 1,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
@@ -348,68 +370,44 @@ class BarcodeListTable extends StatelessWidget {
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 16,
+                                  vertical: 12,
                                 ),
-                                child: Text(
-                                  "${entry.createdAt.day.toString().padLeft(2, '0')}-${entry.createdAt.month.toString().padLeft(2, '0')}-${entry.createdAt.year}",
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: AppColors.onSurfaceVariant,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            TableCell(
-                              verticalAlignment: TableCellVerticalAlignment.middle,
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                ),
-                                child: Center(
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 3,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: entry.hasOriginalCode
-                                          ? const Color(0xFFFFF7ED)
-                                          : const Color(0xFFECFDF5),
-                                      borderRadius: BorderRadius.circular(99),
-                                    ),
-                                    child: Text(
-                                      entry.hasOriginalCode ? "Original" : "Generado",
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
+                                      decoration: BoxDecoration(
                                         color: entry.hasOriginalCode
-                                            ? const Color(0xFFEA580C)
-                                            : const Color(0xFF10B981),
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
+                                            ? const Color(0xFFFFF7ED)
+                                            : const Color(0xFFECFDF5),
+                                        borderRadius: BorderRadius.circular(99),
+                                      ),
+                                      child: Text(
+                                        entry.hasOriginalCode ? "Original" : "Generado",
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          color: entry.hasOriginalCode
+                                              ? const Color(0xFFEA580C)
+                                              : const Color(0xFF10B981),
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            TableCell(
-                              verticalAlignment: TableCellVerticalAlignment.middle,
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 4,
-                                ),
-                                child: Center(
-                                  child: IconButton(
-                                    icon: const Icon(
-                                      Icons.edit_outlined,
-                                      size: 20,
-                                      color: AppColors.primary,
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      "${entry.createdAt.day.toString().padLeft(2, '0')}-${entry.createdAt.month.toString().padLeft(2, '0')}-${entry.createdAt.year}",
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        color: AppColors.onSurfaceVariant,
+                                        fontSize: 12,
+                                      ),
                                     ),
-                                    onPressed: () => onEditBarcode(entry),
-                                    tooltip: "Editar",
-                                    constraints: const BoxConstraints(),
-                                    padding: const EdgeInsets.all(8),
-                                  ),
+                                  ],
                                 ),
                               ),
                             ),
@@ -438,17 +436,20 @@ class BarcodeListTable extends StatelessWidget {
     );
   }
 
-  Padding _tHeader(String label, {TextAlign align = TextAlign.left}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Text(
-        label,
-        textAlign: align,
-        style: const TextStyle(
-          color: AppColors.onSurfaceVariant,
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 0.5,
+  TableCell _tHeader(String label, {TextAlign align = TextAlign.left}) {
+    return TableCell(
+      verticalAlignment: TableCellVerticalAlignment.middle,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Text(
+          label,
+          textAlign: align,
+          style: const TextStyle(
+            color: AppColors.onSurfaceVariant,
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 0.5,
+          ),
         ),
       ),
     );

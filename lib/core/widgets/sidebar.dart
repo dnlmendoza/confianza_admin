@@ -120,7 +120,6 @@ class Sidebar extends StatelessWidget {
                 icon: Icons.point_of_sale,
                 label: "Cierre de Caja",
                 isActive: activeRoute == '/cierre',
-                isDisabled: true,
                 onTap: () {
                   if (isDrawer) Navigator.pop(context);
                   if (activeRoute != '/cierre') {
