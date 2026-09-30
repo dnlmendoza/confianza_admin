@@ -48,7 +48,9 @@ class InventarioViewModel extends Notifier<InventarioState> {
       ArticuloInventario? newSelected = state.selectedArticulo;
       if (newSelected != null) {
         try {
-          final updatedRoot = articulos.firstWhere((p) => p.id == newSelected!.id);
+          final updatedRoot = articulos.firstWhere(
+            (p) => p.id == newSelected!.id,
+          );
           // Al reconstruir desde el root, los lotes vienen vacíos por estar en subcolección.
           // Debemos preservar los lotes que ya teníamos (que se actualizan por su propio stream)
           newSelected = ArticuloInventario(
@@ -63,13 +65,15 @@ class InventarioViewModel extends Notifier<InventarioState> {
             impuesto: updatedRoot.impuesto,
             envio: updatedRoot.envio,
             productos: updatedRoot.productos,
-            lotes: state.selectedArticulo?.lotes ?? [], // Mantenemos los lotes actuales
+            lotes:
+                state.selectedArticulo?.lotes ??
+                [], // Mantenemos los lotes actuales
           );
         } catch (_) {
           newSelected = null;
         }
       }
-      
+
       state = state.copyWith(
         articulos: articulos,
         selectedArticulo: newSelected,
@@ -81,10 +85,7 @@ class InventarioViewModel extends Notifier<InventarioState> {
       _lotesSubscription?.cancel();
     });
 
-    return InventarioState(
-      articulos: [],
-      selectedArticulo: null,
-    );
+    return InventarioState(articulos: [], selectedArticulo: null);
   }
 
   void setSearchQuery(String query) {
@@ -97,10 +98,14 @@ class InventarioViewModel extends Notifier<InventarioState> {
       activeDetailTab: 0,
       selectedLoteIndex: 0,
     );
-    
+
     _lotesSubscription?.cancel();
-    _lotesSubscription = _servicio.streamLotesPorArticulo(articulo.id).listen((lotes) {
-      lotes.sort((a, b) => a.parsedFechaIngreso.compareTo(b.parsedFechaIngreso));
+    _lotesSubscription = _servicio.streamLotesPorArticulo(articulo.id).listen((
+      lotes,
+    ) {
+      lotes.sort(
+        (a, b) => a.parsedFechaIngreso.compareTo(b.parsedFechaIngreso),
+      );
       if (state.selectedArticulo?.id == articulo.id) {
         final current = state.selectedArticulo!;
         final updatedArticulo = ArticuloInventario(
@@ -122,22 +127,25 @@ class InventarioViewModel extends Notifier<InventarioState> {
     });
   }
 
-  Future<void> updateLote(ArticuloInventario articulo, LoteArticulo lote) async {
+  Future<void> updateLote(
+    ArticuloInventario articulo,
+    LoteArticulo lote,
+  ) async {
     final data = lote.toMap();
-    
-    // LIMPIEZA DE LOTE: El modelo verdadero NO incluye el 'codigo' dentro 
+
+    // LIMPIEZA DE LOTE: El modelo verdadero NO incluye el 'codigo' dentro
     // del documento porque ya es el ID del documento en Firestore.
     data['codigo'] = FieldValue.delete();
-    
+
     await _servicio.updateLote(articulo.id, lote.codigo, data);
   }
 
   Future<void> updateArticulo(ArticuloInventario articulo) async {
     final Map<String, dynamic> data = {};
-    
+
     if (articulo.productos.isNotEmpty) {
       final prod = articulo.productos.first;
-      
+
       // Campos de la raíz exactos según el modelo original
       data['nombre'] = prod.nombre;
       data['descripcion'] = prod.descripcion;
@@ -148,24 +156,32 @@ class InventarioViewModel extends Notifier<InventarioState> {
       data['cantidad_minima'] = prod.cantidadMinima;
       data['tipo_producto'] = prod.tipoProducto;
       // Prevenir inconsistencias: Si hay lotes con datos al por mayor, forzar a Ambos
-      final bool hasWholesale = articulo.lotes.any((l) => l.stockMayor > 0 || l.costoMayor > 0 || l.precioVentaMayor > 0);
+      final bool hasWholesale = articulo.lotes.any(
+        (l) => l.stockMayor > 0 || l.costoMayor > 0 || l.precioVentaMayor > 0,
+      );
       if (hasWholesale && prod.tipoVenta == 'Menor') {
         prod.tipoVenta = 'Ambos';
       }
 
-      data['menor_mayor'] = prod.tipoVenta == 'Ambos' || prod.tipoVenta == 'Mayor';
-      data['fecha'] = prod.fechaIngresado.isNotEmpty ? prod.fechaIngresado : articulo.fecha;
-      
+      data['menor_mayor'] =
+          prod.tipoVenta == 'Ambos' || prod.tipoVenta == 'Mayor';
+      data['fecha'] = prod.fechaIngresado.isNotEmpty
+          ? prod.fechaIngresado
+          : articulo.fecha;
+
       // LIMPIEZA TOTAL DE CAMPOS BASURA que se inyectaron históricamente
-      // El modelo verdadero NO tiene array de "productos" en Inventario, 
+      // El modelo verdadero NO tiene array de "productos" en Inventario,
       // ni los campos de un "Articulo" comercial.
       data['productos'] = FieldValue.delete();
       data['descuento'] = FieldValue.delete();
       data['envio'] = FieldValue.delete();
       data['impuesto'] = FieldValue.delete();
+      data['codigo_barras'] = FieldValue.delete();
+      data['codigoBarra'] = FieldValue.delete();
+      data['codigo'] = FieldValue.delete();
       data['pagadoPor'] = FieldValue.delete();
       data['referencia'] = FieldValue.delete();
-      
+
       // Borramos los campos camelCase erróneos de la raíz
       data['cantidadMinima'] = FieldValue.delete();
       data['fechaIngresado'] = FieldValue.delete();
@@ -178,12 +194,15 @@ class InventarioViewModel extends Notifier<InventarioState> {
     await _servicio.updateArticulo(articulo.id, data);
   }
 
-  Future<void> createNuevoArticulo(ArticuloInventario articulo, LoteArticulo lote) async {
+  Future<void> createNuevoArticulo(
+    ArticuloInventario articulo,
+    LoteArticulo lote,
+  ) async {
     final Map<String, dynamic> data = {};
-    
+
     if (articulo.productos.isNotEmpty) {
       final prod = articulo.productos.first;
-      
+
       data['nombre'] = prod.nombre;
       data['descripcion'] = prod.descripcion;
       data['proveedor'] = prod.proveedor;
@@ -193,24 +212,31 @@ class InventarioViewModel extends Notifier<InventarioState> {
       data['cantidad_minima'] = prod.cantidadMinima;
       data['tipo_producto'] = prod.tipoProducto;
       // Prevenir inconsistencias al crear: Si el lote inicial tiene datos al por mayor, forzar a Ambos
-      final bool hasWholesale = lote.stockMayor > 0 || lote.costoMayor > 0 || lote.precioVentaMayor > 0;
+      final bool hasWholesale =
+          lote.stockMayor > 0 ||
+          lote.costoMayor > 0 ||
+          lote.precioVentaMayor > 0;
       if (hasWholesale && prod.tipoVenta == 'Menor') {
         prod.tipoVenta = 'Ambos';
       }
 
-      data['menor_mayor'] = prod.tipoVenta == 'Ambos' || prod.tipoVenta == 'Mayor';
-      data['fecha'] = prod.fechaIngresado.isNotEmpty ? prod.fechaIngresado : articulo.fecha;
-      data['codigo_barras'] = prod.codigoBarra;
+      data['menor_mayor'] =
+          prod.tipoVenta == 'Ambos' || prod.tipoVenta == 'Mayor';
+      data['fecha'] = prod.fechaIngresado.isNotEmpty
+          ? prod.fechaIngresado
+          : articulo.fecha;
     }
 
     final loteData = lote.toMap();
     loteData.remove('codigo');
 
-    // Generar un nuevo ID de Firebase
-    final String newArticuloId = FirebaseFirestore.instance.collection('Inventario').doc().id;
+    // El código de barras es el identificador único del documento raíz en Firebase
+    final String newArticuloId = articulo.productos.isNotEmpty && articulo.productos.first.codigoBarra.isNotEmpty
+        ? articulo.productos.first.codigoBarra.trim()
+        : FirebaseFirestore.instance.collection('Inventario').doc().id;
 
     await _servicio.createArticulo(newArticuloId, data, loteData);
-    
+
     // Deseleccionar y resetear al guardar con éxito
     unselectArticulo();
   }
@@ -248,5 +274,5 @@ class InventarioViewModel extends Notifier<InventarioState> {
 
 final inventarioViewModelProvider =
     NotifierProvider<InventarioViewModel, InventarioState>(() {
-  return InventarioViewModel();
-});
+      return InventarioViewModel();
+    });

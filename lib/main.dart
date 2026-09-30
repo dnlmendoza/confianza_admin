@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart'; // Importante para traducir widgets nativos
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:confianza_admin/firebase_options.dart';
 import 'package:confianza_admin/core/enrutador.dart';
@@ -11,6 +12,15 @@ import 'package:confianza_admin/core/enrutador.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  
+  // Habilitar Persistencia Offline y Caché (Fundamental para Web y Móvil)
+  // Esto hace que la segunda carga sea instantánea desde IndexedDB y
+  // solo consuma lecturas de la red para los documentos que hayan cambiado.
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: true,
+    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+  );
+
   runApp(
     // NÚCLEO: ProviderScope inicializa el motor de Riverpod
     const ProviderScope(child: MyApp()),

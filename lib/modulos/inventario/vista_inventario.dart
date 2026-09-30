@@ -1014,9 +1014,28 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
                   proveedores: _vmCatalogos.proveedoresMap,
                   onUpdate: () => setState(() {}),
                   onSave: (updatedArticulo) async {
-                    await ref
-                        .read(inventarioViewModelProvider.notifier)
-                        .updateArticulo(updatedArticulo);
+                    final messenger = ScaffoldMessenger.of(context);
+                    try {
+                      await ref
+                          .read(inventarioViewModelProvider.notifier)
+                          .updateArticulo(updatedArticulo);
+                      messenger.showSnackBar(
+                        const SnackBar(
+                          content: Text("Artículo actualizado con éxito"),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                    } catch (e) {
+                      messenger.showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            e.toString().replaceAll('Exception: ', ''),
+                          ),
+                          backgroundColor: Colors.red,
+                          duration: const Duration(seconds: 4),
+                        ),
+                      );
+                    }
                   },
                   onNext: () {
                     ref
@@ -1032,14 +1051,39 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
                   unidadesMayor: _vmCatalogos.unidadesMayorMap,
                   onUpdate: () => setState(() {}),
                   onSave: (lote) async {
-                    if (articulo.id == 'nuevo_articulo') {
-                      await ref
-                          .read(inventarioViewModelProvider.notifier)
-                          .createNuevoArticulo(articulo, lote);
-                    } else {
-                      await ref
-                          .read(inventarioViewModelProvider.notifier)
-                          .updateLote(articulo, lote);
+                    final messenger = ScaffoldMessenger.of(context);
+                    try {
+                      if (articulo.id == 'nuevo_articulo') {
+                        await ref
+                            .read(inventarioViewModelProvider.notifier)
+                            .createNuevoArticulo(articulo, lote);
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text("Artículo creado con éxito"),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      } else {
+                        await ref
+                            .read(inventarioViewModelProvider.notifier)
+                            .updateLote(articulo, lote);
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text("Lote actualizado con éxito"),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      messenger.showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            e.toString().replaceAll('Exception: ', ''),
+                          ),
+                          backgroundColor: Colors.red,
+                          duration: const Duration(seconds: 4),
+                        ),
+                      );
                     }
                   },
                 )
