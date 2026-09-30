@@ -232,37 +232,9 @@ class BarcodeListTable extends StatelessWidget {
                               ),
                             ),
                           ),
-                          TableCell(
-                            verticalAlignment: TableCellVerticalAlignment.middle,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  const Text(
-                                    "ARTÍCULO Y CÓDIGO",
-                                    style: TextStyle(
-                                      color: AppColors.onSurfaceVariant,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    "(${entries.length} de ${allCodesRaw.length})",
-                                    style: const TextStyle(
-                                      color: AppColors.primary,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          _tHeader("PRECIO", align: TextAlign.center),
-                          _tHeader("FECHA / TIPO", align: TextAlign.center),
+                          const TableCell(child: SizedBox()),
+                          const TableCell(child: SizedBox()),
+                          const TableCell(child: SizedBox()),
                         ],
                       ),
                       ...entries.map(
@@ -440,22 +412,4 @@ class BarcodeListTable extends StatelessWidget {
     );
   }
 
-  TableCell _tHeader(String label, {TextAlign align = TextAlign.left}) {
-    return TableCell(
-      verticalAlignment: TableCellVerticalAlignment.middle,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Text(
-          label,
-          textAlign: align,
-          style: const TextStyle(
-            color: AppColors.onSurfaceVariant,
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 0.5,
-          ),
-        ),
-      ),
-    );
-  }
 }

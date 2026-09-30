@@ -584,6 +584,12 @@ class _VistaGeneradorState extends ConsumerState<VistaGenerador>
       barcodeController: _barcodeController,
       priceController: _priceController,
       currentBarcode: _currentBarcode,
+      showPrice: _showPrice,
+      onShowPriceChanged: (val) {
+        setState(() {
+          _showPrice = val;
+        });
+      },
       isSaving: _isSaving,
       onSave: _saveNewBarcode,
     );
@@ -596,11 +602,6 @@ class _VistaGeneradorState extends ConsumerState<VistaGenerador>
       currentBarcode: _currentBarcode,
       creationMode: _creationMode,
       showPrice: _showPrice,
-      onShowPriceChanged: (val) {
-        setState(() {
-          _showPrice = val;
-        });
-      },
     );
   }
 

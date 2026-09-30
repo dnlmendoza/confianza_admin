@@ -8,6 +8,8 @@ class BarcodeCreationForm extends StatelessWidget {
   final TextEditingController barcodeController;
   final TextEditingController priceController;
   final String currentBarcode;
+  final bool showPrice;
+  final ValueChanged<bool> onShowPriceChanged;
   final bool isSaving;
   final VoidCallback? onSave;
 
@@ -19,6 +21,8 @@ class BarcodeCreationForm extends StatelessWidget {
     required this.barcodeController,
     required this.priceController,
     required this.currentBarcode,
+    required this.showPrice,
+    required this.onShowPriceChanged,
     required this.isSaving,
     this.onSave,
   });
@@ -40,21 +44,51 @@ class BarcodeCreationForm extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Icon(
-                    Icons.calendar_view_week_outlined,
-                    color: AppColors.primary,
-                    size: 20,
+                  const Row(
+                    children: [
+                      Icon(
+                        Icons.calendar_view_week_outlined,
+                        color: AppColors.primary,
+                        size: 20,
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        "Nuevo Código de Barras",
+                        style: TextStyle(
+                          color: AppColors.onSurface,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
-                  SizedBox(width: 8),
-                  Text(
-                    "Nuevo Código de Barras",
-                    style: TextStyle(
-                      color: AppColors.onSurface,
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const Text(
+                        "Mostrar Precio",
+                        style: TextStyle(
+                          color: AppColors.onSurfaceVariant,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      SizedBox(
+                        height: 28,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Switch(
+                            value: showPrice,
+                            onChanged: onShowPriceChanged,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

@@ -8,7 +8,6 @@ class BarcodePreviewCard extends StatelessWidget {
   final String currentBarcode;
   final String creationMode;
   final bool showPrice;
-  final ValueChanged<bool> onShowPriceChanged;
 
   const BarcodePreviewCard({
     super.key,
@@ -17,7 +16,6 @@ class BarcodePreviewCard extends StatelessWidget {
     required this.currentBarcode,
     required this.creationMode,
     required this.showPrice,
-    required this.onShowPriceChanged,
   });
 
   @override
@@ -48,29 +46,7 @@ class BarcodePreviewCard extends StatelessWidget {
           ),
           child: Column(
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: AppColors.primary,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    "PREVISUALIZACIÓN EN VIVO (ESCALA 1:1)",
-                    style: TextStyle(
-                      color: AppColors.primary,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.0,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 48),
+              // El título de previsualización fue eliminado según lo solicitado
               Center(
                 child: Container(
                   width: 440,
@@ -199,58 +175,6 @@ class BarcodePreviewCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceContainerLow,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: AppColors.outlineVariant.withValues(alpha: 0.5),
-            ),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.tune, color: AppColors.primary, size: 20),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "Opciones de Visualización",
-                      style: TextStyle(
-                        color: AppColors.onSurface,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      "Define qué campos se muestran en la etiqueta",
-                      style: TextStyle(
-                        color: AppColors.onSurfaceVariant,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Switch(
-                value: showPrice,
-                onChanged: onShowPriceChanged,
-              ),
-              const SizedBox(width: 8),
-              const Text(
-                "Mostrar Precio",
-                style: TextStyle(
-                  color: AppColors.onSurface,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],
