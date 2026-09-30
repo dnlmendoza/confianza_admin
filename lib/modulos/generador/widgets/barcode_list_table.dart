@@ -46,8 +46,12 @@ class BarcodeListTable extends StatelessWidget {
         final totalSelected = selectedEntries.length;
         final allSelected = filteredCodes.isNotEmpty && totalSelected == filteredCodes.length;
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final isBounded = constraints.maxHeight != double.infinity;
+            
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
@@ -168,43 +172,28 @@ class BarcodeListTable extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            _buildCodesTable(filteredCodes, allSelected),
-          ],
+                const SizedBox(height: 16),
+                isBounded 
+                    ? Expanded(child: _buildCodesTable(filteredCodes, allSelected, isBounded))
+                    : _buildCodesTable(filteredCodes, allSelected, isBounded),
+              ],
+            );
+          },
         );
       },
     );
   }
 
-  Widget _buildCodesTable(List<BarcodeEntry> entries, bool selectAllValue) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.outlineVariant.withValues(alpha: 0.7),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.01),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          LayoutBuilder(
-            builder: (context, constraints) {
-              return SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    minWidth: constraints.maxWidth > 500 ? constraints.maxWidth : 500,
-                  ),
-                  child: Table(
+  Widget _buildCodesTable(List<BarcodeEntry> entries, bool selectAllValue, bool isBounded) {
+    Widget content = LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minWidth: constraints.maxWidth > 500 ? constraints.maxWidth : 500,
+            ),
+            child: Table(
                     columnWidths: const {
                       0: FixedColumnWidth(56),
                       1: FlexColumnWidth(),
@@ -417,18 +406,35 @@ class BarcodeListTable extends StatelessWidget {
                 ),
               );
             },
+          );
+
+    if (isBounded) {
+      content = SingleChildScrollView(
+        scrollDirection: Axis.vertical,
+        child: content,
+      );
+    }
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppColors.outlineVariant.withValues(alpha: 0.7),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.01),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-            color: AppColors.surfaceContainerLow,
-            child: Text(
-              "Mostrando ${entries.length} de ${entries.length} códigos",
-              style: const TextStyle(
-                color: AppColors.onSurfaceVariant,
-                fontSize: 12,
-              ),
-            ),
-          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          isBounded ? Expanded(child: content) : content,
         ],
       ),
     );

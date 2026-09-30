@@ -513,34 +513,44 @@ class _VistaGeneradorState extends ConsumerState<VistaGenerador>
 
   // ─── TAB 1: GENERAR CÓDIGO ─────────────────────────────────
   Widget _buildGenerateTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Center(
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 1400),
-          child: LayoutBuilder(
-            builder: (context, c) {
-              if (c.maxWidth >= 950) {
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+    return LayoutBuilder(
+      builder: (context, c) {
+        if (c.maxWidth >= 950) {
+          return Padding(
+            padding: const EdgeInsets.all(24),
+            child: Center(
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 1400),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Expanded(
                       flex: 4,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _buildLivePreviewCanvas(),
-                          const SizedBox(height: 24),
-                          _buildConfigForm(),
-                        ],
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _buildLivePreviewCanvas(),
+                            const SizedBox(height: 24),
+                            _buildConfigForm(),
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(width: 24),
                     Expanded(flex: 7, child: _buildGeneratedCodesSection()),
                   ],
-                );
-              }
-              return Column(
+                ),
+              ),
+            ),
+          );
+        }
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Center(
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 1400),
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _buildLivePreviewCanvas(),
@@ -549,11 +559,11 @@ class _VistaGeneradorState extends ConsumerState<VistaGenerador>
                   const SizedBox(height: 28),
                   _buildGeneratedCodesSection(),
                 ],
-              );
-            },
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
