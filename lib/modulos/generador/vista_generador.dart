@@ -518,33 +518,39 @@ class _VistaGeneradorState extends ConsumerState<VistaGenerador>
       child: Center(
         child: Container(
           constraints: const BoxConstraints(maxWidth: 1400),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              LayoutBuilder(
-                builder: (context, c) {
-                  if (c.maxWidth >= 950) {
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(flex: 4, child: _buildConfigForm()),
-                        const SizedBox(width: 24),
-                        Expanded(flex: 7, child: _buildLivePreviewCanvas()),
-                      ],
-                    );
-                  }
-                  return Column(
-                    children: [
-                      _buildLivePreviewCanvas(),
-                      const SizedBox(height: 24),
-                      _buildConfigForm(),
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: 28),
-              _buildGeneratedCodesSection(),
-            ],
+          child: LayoutBuilder(
+            builder: (context, c) {
+              if (c.maxWidth >= 950) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 4,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildLivePreviewCanvas(),
+                          const SizedBox(height: 24),
+                          _buildConfigForm(),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 24),
+                    Expanded(flex: 7, child: _buildGeneratedCodesSection()),
+                  ],
+                );
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildLivePreviewCanvas(),
+                  const SizedBox(height: 24),
+                  _buildConfigForm(),
+                  const SizedBox(height: 28),
+                  _buildGeneratedCodesSection(),
+                ],
+              );
+            },
           ),
         ),
       ),

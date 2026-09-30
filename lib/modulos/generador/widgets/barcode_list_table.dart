@@ -77,96 +77,94 @@ class BarcodeListTable extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: 24),
-                Row(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(right: 12),
-                      child: OutlinedButton.icon(
-                        onPressed: totalSelected == 1 ? () => onEditBarcode(selectedEntries.first) : null,
-                        icon: const Icon(Icons.edit_outlined, size: 16),
-                        label: const Text("Editar"),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.primary,
-                          side: BorderSide(
-                            color: totalSelected == 1 ? AppColors.primary : AppColors.outlineVariant,
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 14,
-                          ),
-                        ),
+                const SizedBox(width: 16),
+                if (totalSelected > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: Text(
+                      "$totalSelected seleccionados",
+                      style: const TextStyle(
+                        color: AppColors.primary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                    SegmentedButton<String>(
-                      segments: const [
-                        ButtonSegment<String>(
-                          value: 'Todos',
-                          label: Text('Todos'),
-                          icon: Icon(Icons.all_inclusive, size: 16),
-                        ),
-                        ButtonSegment<String>(
-                          value: 'Original',
-                          label: Text('Original'),
-                          icon: Icon(Icons.verified_user, size: 16),
-                        ),
-                        ButtonSegment<String>(
-                          value: 'Generado',
-                          label: Text('Generado'),
-                          icon: Icon(Icons.add_box, size: 16),
-                        ),
-                      ],
-                      selected: {selectedFilter},
-                      onSelectionChanged: (newSelection) => onFilterChanged(newSelection.first),
-                      style: const ButtonStyle(
-                        visualDensity: VisualDensity.compact,
-                      ),
-                      showSelectedIcon: false,
+                  ),
+                const SizedBox(width: 12),
+                ElevatedButton.icon(
+                  onPressed: totalSelected > 0 ? onAddSelectedToPrintQueue : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor:
+                        AppColors.outlineVariant.withValues(alpha: 0.3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 14,
                     ),
-                    const SizedBox(width: 20),
-                    if (totalSelected > 0)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(99),
-                        ),
-                        child: Text(
-                          "$totalSelected seleccionados",
-                          style: const TextStyle(
-                            color: AppColors.primary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    const SizedBox(width: 12),
-                    ElevatedButton.icon(
-                      onPressed: totalSelected > 0 ? onAddSelectedToPrintQueue : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        disabledBackgroundColor:
-                            AppColors.outlineVariant.withValues(alpha: 0.3),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 14,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        elevation: 1,
-                      ),
-                      icon: const Icon(Icons.print, size: 16),
-                      label: const Text(
-                        "Agregar a Cola de Impresión",
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                      ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    elevation: 1,
+                  ),
+                  icon: const Icon(Icons.print, size: 16),
+                  label: const Text(
+                    "Agregar a Cola",
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                OutlinedButton.icon(
+                  onPressed: totalSelected == 1 ? () => onEditBarcode(selectedEntries.first) : null,
+                  icon: const Icon(Icons.edit_outlined, size: 16),
+                  label: const Text("Editar"),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    side: BorderSide(
+                      color: totalSelected == 1 ? AppColors.primary : AppColors.outlineVariant,
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment<String>(
+                      value: 'Todos',
+                      label: Text('Todos'),
+                      icon: Icon(Icons.all_inclusive, size: 16),
+                    ),
+                    ButtonSegment<String>(
+                      value: 'Original',
+                      label: Text('Original'),
+                      icon: Icon(Icons.verified_user, size: 16),
+                    ),
+                    ButtonSegment<String>(
+                      value: 'Generado',
+                      label: Text('Generado'),
+                      icon: Icon(Icons.add_box, size: 16),
                     ),
                   ],
+                  selected: {selectedFilter},
+                  onSelectionChanged: (newSelection) => onFilterChanged(newSelection.first),
+                  style: const ButtonStyle(
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  showSelectedIcon: false,
                 ),
               ],
             ),
@@ -204,7 +202,7 @@ class BarcodeListTable extends StatelessWidget {
                 scrollDirection: Axis.horizontal,
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
-                    minWidth: constraints.maxWidth > 900 ? constraints.maxWidth : 900,
+                    minWidth: constraints.maxWidth > 500 ? constraints.maxWidth : 500,
                   ),
                   child: Table(
                     columnWidths: const {
