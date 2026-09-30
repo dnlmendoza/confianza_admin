@@ -54,34 +54,8 @@ class BarcodeListTable extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Expanded(
-                  child: Container(
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceContainerLow,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: TextField(
-                      controller: searchQueryController,
-                      decoration: const InputDecoration(
-                        hintText: "Buscar códigos de barra o productos...",
-                        hintStyle: TextStyle(
-                          color: AppColors.onSurfaceVariant,
-                          fontSize: 12,
-                        ),
-                        prefixIcon: Icon(
-                          Icons.search,
-                          size: 18,
-                          color: AppColors.onSurfaceVariant,
-                        ),
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(vertical: 10),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
                 if (totalSelected > 0)
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -127,56 +101,10 @@ class BarcodeListTable extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            Row(
-              children: [
-                OutlinedButton.icon(
-                  onPressed: totalSelected == 1 ? () => onEditBarcode(selectedEntries.first) : null,
-                  icon: const Icon(Icons.edit_outlined, size: 16),
-                  label: const Text("Editar"),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.primary,
-                    side: BorderSide(
-                      color: totalSelected == 1 ? AppColors.primary : AppColors.outlineVariant,
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment<String>(
-                      value: 'Todos',
-                      label: Text('Todos'),
-                      icon: Icon(Icons.all_inclusive, size: 16),
-                    ),
-                    ButtonSegment<String>(
-                      value: 'Original',
-                      label: Text('Original'),
-                      icon: Icon(Icons.verified_user, size: 16),
-                    ),
-                    ButtonSegment<String>(
-                      value: 'Generado',
-                      label: Text('Generado'),
-                      icon: Icon(Icons.add_box, size: 16),
-                    ),
-                  ],
-                  selected: {selectedFilter},
-                  onSelectionChanged: (newSelection) => onFilterChanged(newSelection.first),
-                  style: const ButtonStyle(
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  showSelectedIcon: false,
-                ),
-              ],
-            ),
-                const SizedBox(height: 16),
-                isBounded 
-                    ? Expanded(child: _buildCodesTable(filteredCodes, allSelected, isBounded))
-                    : _buildCodesTable(filteredCodes, allSelected, isBounded),
-              ],
+            isBounded 
+                ? Expanded(child: _buildCodesTable(filteredCodes, allSelected, isBounded, totalSelected, selectedEntries))
+                : _buildCodesTable(filteredCodes, allSelected, isBounded, totalSelected, selectedEntries),
+          ],
             );
           },
         );
@@ -184,208 +112,294 @@ class BarcodeListTable extends StatelessWidget {
     );
   }
 
-  Widget _buildCodesTable(List<BarcodeEntry> entries, bool selectAllValue, bool isBounded) {
+  Widget _buildCodesTable(List<BarcodeEntry> entries, bool selectAllValue, bool isBounded, int totalSelected, List<BarcodeEntry> selectedEntries) {
+    final headerRow = Container(
+      height: 100,
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceContainerLow,
+        border: Border(
+          bottom: BorderSide(
+            color: AppColors.outlineVariant,
+            width: 1,
+          ),
+        ),
+      ),
+      child: Column(
+        children: [
+          Expanded(
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 56,
+                  child: Checkbox(
+                    value: selectAllValue,
+                    activeColor: AppColors.primary,
+                    onChanged: (v) {
+                      final newVal = v ?? false;
+                      for (final entry in entries) {
+                        entry.selectedForPrint = newVal;
+                      }
+                      onSelectAll(newVal);
+                    },
+                  ),
+                ),
+                Expanded(
+                  flex: 3,
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 16),
+                    child: Container(
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: TextField(
+                        controller: searchQueryController,
+                        textAlignVertical: TextAlignVertical.center,
+                        decoration: const InputDecoration(
+                          isDense: true,
+                          hintText: "Buscar códigos de barra o productos...",
+                          hintStyle: TextStyle(
+                            color: AppColors.onSurfaceVariant,
+                            fontSize: 12,
+                            height: 1.2,
+                          ),
+                          prefixIcon: Icon(
+                            Icons.search,
+                            size: 18,
+                            color: AppColors.onSurfaceVariant,
+                          ),
+                          prefixIconConstraints: BoxConstraints(
+                            minWidth: 40,
+                            minHeight: 38,
+                          ),
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.only(top: 0, bottom: 0, right: 16),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                Padding(
+                  padding: const EdgeInsets.only(right: 16),
+                  child: OutlinedButton.icon(
+                    onPressed: totalSelected == 1 ? () => onEditBarcode(selectedEntries.first) : null,
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    label: const Text("Editar"),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: BorderSide(
+                        color: totalSelected == 1 ? AppColors.primary : AppColors.outlineVariant,
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Row(
+            children: [
+              _buildGmailTab(
+                title: 'Todos',
+                icon: Icons.all_inclusive,
+                isSelected: selectedFilter == 'Todos',
+                onTap: () => onFilterChanged('Todos'),
+              ),
+              _buildGmailTab(
+                title: 'Generado',
+                icon: Icons.add_box,
+                isSelected: selectedFilter == 'Generado',
+                onTap: () => onFilterChanged('Generado'),
+              ),
+              _buildGmailTab(
+                title: 'Original',
+                icon: Icons.verified_user,
+                isSelected: selectedFilter == 'Original',
+                onTap: () => onFilterChanged('Original'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    final sliverList = SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (context, index) {
+          final entry = entries[index];
+          return Container(
+            decoration: BoxDecoration(
+              color: entry.selectedForPrint
+                  ? AppColors.primary.withValues(alpha: 0.04)
+                  : null,
+              border: const Border(
+                bottom: BorderSide(
+                  color: AppColors.outlineVariant,
+                  width: 0.5,
+                ),
+              ),
+            ),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 56,
+                  child: Checkbox(
+                    value: entry.selectedForPrint,
+                    activeColor: AppColors.primary,
+                    onChanged: (v) => onSelectEntry(entry, v ?? false),
+                  ),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          entry.name,
+                          style: const TextStyle(
+                            color: AppColors.onSurface,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceContainerLow,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            entry.barcode,
+                            style: const TextStyle(
+                              fontFamily: 'monospace',
+                              color: AppColors.onSurfaceVariant,
+                              fontSize: 12,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: 120,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                    ),
+                    child: Text(
+                      "L. ${entry.price}",
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: AppColors.primary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: 120,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: entry.hasOriginalCode
+                                ? const Color(0xFFFFF7ED)
+                                : const Color(0xFFECFDF5),
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                          child: Text(
+                            entry.hasOriginalCode ? "Original" : "Generado",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: entry.hasOriginalCode
+                                  ? const Color(0xFFEA580C)
+                                  : const Color(0xFF10B981),
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          "${entry.createdAt.day.toString().padLeft(2, '0')}-${entry.createdAt.month.toString().padLeft(2, '0')}-${entry.createdAt.year}",
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: AppColors.onSurfaceVariant,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+        childCount: entries.length,
+      ),
+    );
+
     Widget content = LayoutBuilder(
       builder: (context, constraints) {
+        final double width = constraints.maxWidth > 500 ? constraints.maxWidth : 500;
+        
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: ConstrainedBox(
             constraints: BoxConstraints(
-              minWidth: constraints.maxWidth > 500 ? constraints.maxWidth : 500,
+              minWidth: width,
+              minHeight: isBounded ? constraints.maxHeight : 0,
+              maxHeight: isBounded ? constraints.maxHeight : double.infinity,
             ),
-            child: Table(
-                    columnWidths: const {
-                      0: FixedColumnWidth(56),
-                      1: FlexColumnWidth(),
-                      2: FixedColumnWidth(120),
-                      3: FixedColumnWidth(120),
-                    },
-                    children: [
-                      TableRow(
-                        decoration: const BoxDecoration(
-                          color: AppColors.surfaceContainerLow,
-                          border: Border(
-                            bottom: BorderSide(
-                              color: AppColors.outlineVariant,
-                              width: 1,
-                            ),
-                          ),
-                        ),
-                        children: [
-                          TableCell(
-                            verticalAlignment: TableCellVerticalAlignment.middle,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 8,
-                              ),
-                              child: Checkbox(
-                                value: selectAllValue,
-                                activeColor: AppColors.primary,
-                                onChanged: (v) {
-                                  final newVal = v ?? false;
-                                  for (final entry in entries) {
-                                    entry.selectedForPrint = newVal;
-                                  }
-                                  onSelectAll(newVal);
-                                },
-                              ),
-                            ),
-                          ),
-                          const TableCell(child: SizedBox()),
-                          const TableCell(child: SizedBox()),
-                          const TableCell(child: SizedBox()),
-                        ],
-                      ),
-                      ...entries.map(
-                        (entry) => TableRow(
-                          decoration: BoxDecoration(
-                            color: entry.selectedForPrint
-                                ? AppColors.primary.withValues(alpha: 0.04)
-                                : null,
-                            border: const Border(
-                              bottom: BorderSide(
-                                color: AppColors.outlineVariant,
-                                width: 0.5,
-                              ),
-                            ),
-                          ),
-                          children: [
-                            TableCell(
-                              verticalAlignment: TableCellVerticalAlignment.middle,
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                ),
-                                child: Checkbox(
-                                  value: entry.selectedForPrint,
-                                  activeColor: AppColors.primary,
-                                  onChanged: (v) => onSelectEntry(entry, v ?? false),
-                                ),
-                              ),
-                            ),
-                            TableCell(
-                              verticalAlignment: TableCellVerticalAlignment.middle,
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 12,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      entry.name,
-                                      style: const TextStyle(
-                                        color: AppColors.onSurface,
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.surfaceContainerLow,
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Text(
-                                        entry.barcode,
-                                        style: const TextStyle(
-                                          fontFamily: 'monospace',
-                                          color: AppColors.onSurfaceVariant,
-                                          fontSize: 12,
-                                          letterSpacing: 1,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            TableCell(
-                              verticalAlignment: TableCellVerticalAlignment.middle,
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                ),
-                                child: Text(
-                                  "L. ${entry.price}",
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: AppColors.primary,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            TableCell(
-                              verticalAlignment: TableCellVerticalAlignment.middle,
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 12,
-                                ),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 3,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: entry.hasOriginalCode
-                                            ? const Color(0xFFFFF7ED)
-                                            : const Color(0xFFECFDF5),
-                                        borderRadius: BorderRadius.circular(99),
-                                      ),
-                                      child: Text(
-                                        entry.hasOriginalCode ? "Original" : "Generado",
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          color: entry.hasOriginalCode
-                                              ? const Color(0xFFEA580C)
-                                              : const Color(0xFF10B981),
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      "${entry.createdAt.day.toString().padLeft(2, '0')}-${entry.createdAt.month.toString().padLeft(2, '0')}-${entry.createdAt.year}",
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                        color: AppColors.onSurfaceVariant,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+            child: SizedBox(
+              width: width,
+              child: CustomScrollView(
+                physics: isBounded ? const AlwaysScrollableScrollPhysics() : const NeverScrollableScrollPhysics(),
+                shrinkWrap: !isBounded,
+                slivers: [
+                  SliverPersistentHeader(
+                    pinned: true,
+                    delegate: _StickyHeaderDelegate(
+                      child: headerRow,
+                      height: 100,
+                    ),
                   ),
-                ),
-              );
-            },
-          );
-
-    if (isBounded) {
-      content = SingleChildScrollView(
-        scrollDirection: Axis.vertical,
-        child: content,
-      );
-    }
+                  sliverList,
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
     
     return Container(
       decoration: BoxDecoration(
@@ -412,4 +426,73 @@ class BarcodeListTable extends StatelessWidget {
     );
   }
 
+  Widget _buildGmailTab({
+    required String title,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        hoverColor: AppColors.onSurface.withValues(alpha: 0.04),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: isSelected ? AppColors.primary : Colors.transparent,
+                width: 3,
+              ),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: isSelected ? AppColors.primary : AppColors.onSurfaceVariant,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: TextStyle(
+                  color: isSelected ? AppColors.primary : AppColors.onSurfaceVariant,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final Widget child;
+  final double height;
+
+  _StickyHeaderDelegate({required this.child, required this.height});
+
+  @override
+  double get minExtent => height;
+
+  @override
+  double get maxExtent => height;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return SizedBox(
+      height: height,
+      child: child,
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _StickyHeaderDelegate oldDelegate) {
+    return oldDelegate.child != child || oldDelegate.height != height;
+  }
 }
