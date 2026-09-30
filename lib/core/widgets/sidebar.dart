@@ -117,20 +117,6 @@ class Sidebar extends StatelessWidget {
               ),
               _buildNavItem(
                 context: context,
-                icon: Icons.smartphone,
-                label: "Instalador",
-                isActive: activeRoute == '/pos',
-                onTap: () {
-                  if (isDrawer) Navigator.pop(context);
-                  if (activeRoute != '/pos') {
-                    context.go('/pos');
-                  }
-                },
-                isCollapsed: SidebarState.isCollapsed && !isDrawer,
-                isDisabled: true, // Bloqueado provisionalmente
-              ),
-              _buildNavItem(
-                context: context,
                 icon: Icons.point_of_sale,
                 label: "Cierre de Caja",
                 isActive: activeRoute == '/cierre',
@@ -156,6 +142,20 @@ class Sidebar extends StatelessWidget {
                 },
                 isCollapsed: SidebarState.isCollapsed && !isDrawer,
               ),
+              _buildNavItem(
+                context: context,
+                icon: Icons.smartphone,
+                label: "Instalador",
+                isActive: activeRoute == '/pos',
+                onTap: () {
+                  if (isDrawer) Navigator.pop(context);
+                  if (activeRoute != '/pos') {
+                    context.go('/pos');
+                  }
+                },
+                isCollapsed: SidebarState.isCollapsed && !isDrawer,
+                isDisabled: true, // Bloqueado provisionalmente
+              ),
             ],
           ),
         ),
@@ -180,14 +180,6 @@ class Sidebar extends StatelessWidget {
                   onTap: onToggleCollapse!,
                   isCollapsed: SidebarState.isCollapsed,
                 ),
-              _buildNavItem(
-                context: context,
-                icon: Icons.help_outline,
-                label: "Soporte",
-                isActive: false,
-                onTap: () {},
-                isCollapsed: SidebarState.isCollapsed && !isDrawer,
-              ),
               _buildNavItem(
                 context: context,
                 icon: Icons.logout,

@@ -37,8 +37,8 @@ final enrutadorProvider = Provider<GoRouter>((ref) {
       // Si no está logueado y trata de entrar a otra página, forzar al login
       if (!isLoggedIn && !isLoggingIn) return '/';
       
-      // Si ya está logueado y trata de ver el login, enviarlo directo al inventario
-      if (isLoggedIn && isLoggingIn) return '/inventario';
+      // Si ya está logueado y trata de ver el login, enviarlo directo al inicio
+      if (isLoggedIn && isLoggingIn) return '/inicio';
 
       return null;
     },

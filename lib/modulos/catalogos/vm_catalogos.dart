@@ -14,6 +14,8 @@ class VMCatalogos extends ChangeNotifier {
   List<String> unidadesMayor = [];
   Map<String, String> unidadesMayorMap = {};
 
+  List<Map<String, dynamic>> unidadesData = [];
+
   StreamSubscription? _subCategorias;
   StreamSubscription? _subProveedores;
   StreamSubscription? _subUnidades;
@@ -40,11 +42,12 @@ class VMCatalogos extends ChangeNotifier {
       unidadesMayorMap = {};
       unidades = [];
       unidadesMayor = [];
+      unidadesData = data;
       
       for (var doc in data) {
         final id = doc['id'] as String;
         final nameVal = doc['nameVal'] as String;
-        final bool isMayor = doc['mayor'] == true;
+        final bool isMayor = doc['mayor'] == true || doc['menor_mayor'] == true;
         
         if (isMayor) {
           unidadesMayorMap[id] = nameVal;
@@ -75,7 +78,8 @@ class VMCatalogos extends ChangeNotifier {
   Future<void> deleteProveedor(String nombre) => _servicio.deleteProveedor(nombre);
   Future<void> renameProveedor(String oldName, String newName) => _servicio.renameProveedor(oldName, newName);
 
-  Future<void> addUnidad(String nombre) => _servicio.addUnidad(nombre);
+  Future<void> addUnidad(String nombre, String tipo, bool menorMayor) => _servicio.addUnidad(nombre, tipo, menorMayor);
+  Future<void> updateUnidad(String id, String nombre, String tipo, bool menorMayor) => _servicio.updateUnidad(id, nombre, tipo, menorMayor);
   Future<void> deleteUnidad(String nombre) => _servicio.deleteUnidad(nombre);
   Future<void> renameUnidad(String oldName, String newName) => _servicio.renameUnidad(oldName, newName);
 }

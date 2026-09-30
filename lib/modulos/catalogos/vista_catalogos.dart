@@ -13,14 +13,21 @@ class VistaCatalogos extends StatefulWidget {
 }
 
 class _VistaCatalogosState extends State<VistaCatalogos> {
-  int _activeCatalogTab = 0; // 0: Categorías, 1: Proveedores, 2: Unidades de Venta
-  final TextEditingController _catalogSearchController = TextEditingController();
+  int _activeCatalogTab =
+      0; // 0: Categorías, 1: Proveedores, 2: Unidades de Venta
+  final TextEditingController _catalogSearchController =
+      TextEditingController();
+  String? _selectedItem;
+
+  final Map<String, int> _usageCountCache = {};
+  final Map<String, List<Map<String, dynamic>>> _usageItemsCache = {};
 
   late final VMCatalogos _vmCatalogos;
 
   List<String> get _categories => _vmCatalogos.categorias;
   List<String> get _providers => _vmCatalogos.proveedores;
-  List<String> get _units => _vmCatalogos.unidades;
+  List<String> get _units =>
+      _vmCatalogos.unidadesData.map((e) => e['nameVal'] as String).toList();
 
   @override
   void initState() {
@@ -60,17 +67,17 @@ class _VistaCatalogosState extends State<VistaCatalogos> {
     setState(() {});
   }
 
-  void _renameUnit(String oldUnit, String newUnit) {
-    _vmCatalogos.renameUnidad(oldUnit, newUnit);
-    setState(() {});
-  }
-
   void _deleteUnit(String unit) {
     _vmCatalogos.deleteUnidad(unit);
     setState(() {});
   }
 
   Future<int> _fetchCatalogUsageCount(String item, int tabIndex) async {
+    final cacheKey = '${tabIndex}_$item';
+    if (_usageCountCache.containsKey(cacheKey)) {
+      return _usageCountCache[cacheKey]!;
+    }
+
     try {
       final firestore = FirebaseFirestore.instance;
       if (tabIndex == 0) {
@@ -92,7 +99,9 @@ class _VistaCatalogosState extends State<VistaCatalogos> {
             .where('categoria', isEqualTo: item)
             .count()
             .get();
-        return count + (snapStr.count ?? 0);
+        final result = count + (snapStr.count ?? 0);
+        _usageCountCache[cacheKey] = result;
+        return result;
       } else if (tabIndex == 1) {
         final provSnap = await firestore
             .collection('Proveedores')
@@ -112,54 +121,217 @@ class _VistaCatalogosState extends State<VistaCatalogos> {
             .where('proveedor', isEqualTo: item)
             .count()
             .get();
-        return count + (snapStr.count ?? 0);
+        final result = count + (snapStr.count ?? 0);
+        _usageCountCache[cacheKey] = result;
+        return result;
       } else {
-        final unitSnap = await firestore
-            .collection('Unidades')
-            .where('Tipo', isEqualTo: item)
-            .get();
-        final List<String> possibleValues = unitSnap.docs
-            .map((d) => d.id)
-            .toList();
-        possibleValues.add(item);
+        // Unidades
+        final unitData = _vmCatalogos.unidadesData.firstWhere(
+          (e) => e['nameVal'] == item,
+          orElse: () => <String, dynamic>{},
+        );
 
-        int count = 0;
-        try {
-          final snapId = await firestore
-              .collectionGroup('lote')
-              .where('unidades', whereIn: possibleValues)
-              .count()
-              .get();
-          count = snapId.count ?? 0;
-        } catch (e) {
-          final invSnap = await firestore.collection('Inventario').get();
+        final List<String> possibleValues = [item];
+        if (unitData.isNotEmpty) {
+          if (unitData['id'] != null) {
+            possibleValues.add(unitData['id']);
+          }
+          if (unitData['tipo'] != null) {
+            possibleValues.add(unitData['tipo']);
+          }
+          if (unitData['nombre'] != null) {
+            possibleValues.add(unitData['nombre']);
+          }
+        }
 
-          final lotesFutures = invSnap.docs.map(
-            (doc) => doc.reference.collection('lote').get(),
-          );
-          final allLotesSnaps = await Future.wait(lotesFutures);
+        final lotesRef = await firestore.collectionGroup('lote').get();
+        Set<String> invIds = {};
 
-          for (var lotesSnap in allLotesSnaps) {
-            for (var loteDoc in lotesSnap.docs) {
-              final data = loteDoc.data();
-              if (data.containsKey('unidades')) {
-                final val = data['unidades']?.toString().trim();
-                if (val != null && possibleValues.contains(val)) {
-                  count++;
-                } else if (val != null &&
-                    val.toLowerCase() == item.toLowerCase()) {
-                  count++;
-                }
+        for (var loteDoc in lotesRef.docs) {
+          final data = loteDoc.data();
+          final unVal = data['unidades']?.toString().trim();
+          final unValMayor = data['unidades_mayor']?.toString().trim();
+
+          bool matched = false;
+          if (unVal != null) {
+            for (var pv in possibleValues) {
+              if (unVal.toLowerCase() == pv.toLowerCase()) {
+                matched = true;
+                break;
               }
             }
           }
+          if (!matched && unValMayor != null) {
+            for (var pv in possibleValues) {
+              if (unValMayor.toLowerCase() == pv.toLowerCase()) {
+                matched = true;
+                break;
+              }
+            }
+          }
+
+          if (matched) {
+            final parentId = loteDoc.reference.parent.parent?.id;
+            if (parentId != null) invIds.add(parentId);
+          }
         }
-        return count;
+
+        _usageCountCache[cacheKey] = invIds.length;
+        return invIds.length;
       }
     } catch (e) {
       debugPrint("Error fetching usage: $e");
       return 0;
     }
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchCatalogUsageItems(
+    String item,
+    int tabIndex,
+  ) async {
+    final cacheKey = '${tabIndex}_$item';
+    if (_usageItemsCache.containsKey(cacheKey)) {
+      return _usageItemsCache[cacheKey]!;
+    }
+
+    final List<Map<String, dynamic>> results = [];
+    try {
+      final firestore = FirebaseFirestore.instance;
+      if (tabIndex == 0) {
+        // Categorías
+        final catSnap = await firestore
+            .collection('Categorias')
+            .where('Nombre', isEqualTo: item)
+            .get();
+        final List<String> catIds = catSnap.docs.map((d) => d.id).toList();
+        catIds.add(item);
+
+        final invSnap = await firestore
+            .collection('Inventario')
+            .where('categoria', whereIn: catIds)
+            .get();
+
+        for (var doc in invSnap.docs) {
+          final data = doc.data();
+          results.add({
+            'id': doc.id,
+            'nombre': data['nombre'] ?? 'Sin Nombre',
+            'descripcion': data['descripcion'] ?? '',
+            'imagen': data['imagen'] ?? '',
+          });
+        }
+      } else if (tabIndex == 1) {
+        // Proveedores
+        final provSnap = await firestore
+            .collection('Proveedores')
+            .where('Nombre', isEqualTo: item)
+            .get();
+        final List<String> provIds = provSnap.docs.map((d) => d.id).toList();
+        provIds.add(item);
+
+        final invSnap = await firestore
+            .collection('Inventario')
+            .where('proveedor', whereIn: provIds)
+            .get();
+
+        for (var doc in invSnap.docs) {
+          final data = doc.data();
+          results.add({
+            'id': doc.id,
+            'nombre': data['nombre'] ?? 'Sin Nombre',
+            'descripcion': data['descripcion'] ?? '',
+            'imagen': data['imagen'] ?? '',
+          });
+        }
+      } else {
+        // Unidades
+        final unitData = _vmCatalogos.unidadesData.firstWhere(
+          (e) => e['nameVal'] == item,
+          orElse: () => <String, dynamic>{},
+        );
+
+        final List<String> possibleValues = [item];
+        if (unitData.isNotEmpty) {
+          if (unitData['id'] != null) {
+            possibleValues.add(unitData['id']);
+          }
+          if (unitData['tipo'] != null) {
+            possibleValues.add(unitData['tipo']);
+          }
+          if (unitData['nombre'] != null) {
+            possibleValues.add(unitData['nombre']);
+          }
+        }
+
+        final lotesRef = await firestore.collectionGroup('lote').get();
+        Set<String> invIds = {};
+
+        for (var loteDoc in lotesRef.docs) {
+          final data = loteDoc.data();
+          final unVal = data['unidades']?.toString().trim();
+          final unValMayor = data['unidades_mayor']?.toString().trim();
+
+          bool matched = false;
+          if (unVal != null) {
+            for (var pv in possibleValues) {
+              if (unVal.toLowerCase() == pv.toLowerCase()) {
+                matched = true;
+                break;
+              }
+            }
+          }
+          if (!matched && unValMayor != null) {
+            for (var pv in possibleValues) {
+              if (unValMayor.toLowerCase() == pv.toLowerCase()) {
+                matched = true;
+                break;
+              }
+            }
+          }
+
+          if (matched) {
+            final parentId = loteDoc.reference.parent.parent?.id;
+            if (parentId != null) {
+              invIds.add(parentId);
+            }
+          }
+        }
+
+        final List<String> invIdsList = invIds.toList();
+        if (invIdsList.isNotEmpty) {
+          final List<Future<QuerySnapshot<Map<String, dynamic>>>> futures = [];
+          for (var i = 0; i < invIdsList.length; i += 30) {
+            final end = (i + 30 < invIdsList.length)
+                ? i + 30
+                : invIdsList.length;
+            final chunk = invIdsList.sublist(i, end);
+            futures.add(
+              firestore
+                  .collection('Inventario')
+                  .where(FieldPath.documentId, whereIn: chunk)
+                  .get(),
+            );
+          }
+
+          final snapshots = await Future.wait(futures);
+          for (var snap in snapshots) {
+            for (var doc in snap.docs) {
+              final data = doc.data();
+              results.add({
+                'id': doc.id,
+                'nombre': data['nombre'] ?? 'Sin Nombre',
+                'descripcion': data['descripcion'] ?? '',
+                'imagen': data['imagen'] ?? '',
+              });
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("Error fetching usage items: $e");
+    }
+    _usageItemsCache[cacheKey] = results;
+    return results;
   }
 
   void _showAddCatalogDialog(BuildContext context, int tabIndex) {
@@ -168,60 +340,116 @@ class _VistaCatalogosState extends State<VistaCatalogos> {
         : (tabIndex == 1 ? "Nuevo Proveedor" : "Nueva Unidad");
     final label = tabIndex == 0
         ? "Nombre de la Categoría"
-        : (tabIndex == 1 ? "Nombre del Proveedor" : "Tipo de Unidad");
-    final controller = TextEditingController();
+        : (tabIndex == 1 ? "Nombre del Proveedor" : "Nombre de la Unidad");
+
+    final nameController = TextEditingController();
+    final typeController = TextEditingController(); // Abreviatura
+    bool menorMayor = false;
 
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          backgroundColor: AppColors.surfaceContainerLowest,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Text(
-            title,
-            style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
-          ),
-          content: TextField(
-            controller: controller,
-            decoration: InputDecoration(
-              labelText: label,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              backgroundColor: AppColors.surfaceContainerLowest,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
               ),
-            ),
-            autofocus: true,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Cancelar"),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+              title: Text(
+                title,
+                style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+              ),
+              content: SizedBox(
+                width: 500,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameController,
+                      decoration: InputDecoration(
+                        labelText: label,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      autofocus: true,
+                    ),
+                    if (tabIndex == 2) ...[
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: typeController,
+                        decoration: InputDecoration(
+                          labelText: "Abreviatura",
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: AppColors.outlineVariant),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              "Menor & Mayor",
+                              style: GoogleFonts.outfit(fontSize: 14),
+                            ),
+                            Switch(
+                              value: menorMayor,
+                              onChanged: (val) {
+                                setStateDialog(() {
+                                  menorMayor = val;
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
-              onPressed: () {
-                final val = controller.text.trim();
-                if (val.isNotEmpty) {
-                  if (tabIndex == 0 && !_categories.contains(val)) {
-                    _vmCatalogos.addCategoria(val);
-                  } else if (tabIndex == 1 && !_providers.contains(val)) {
-                    _vmCatalogos.addProveedor(val);
-                  } else if (tabIndex == 2 && !_units.contains(val)) {
-                    _vmCatalogos.addUnidad(val);
-                  }
-                  Navigator.pop(context);
-                }
-              },
-              child: const Text("Guardar"),
-            ),
-          ],
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Cancelar"),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  onPressed: () {
+                    final val = nameController.text.trim();
+                    if (val.isNotEmpty) {
+                      if (tabIndex == 0 && !_categories.contains(val)) {
+                        _vmCatalogos.addCategoria(val);
+                      } else if (tabIndex == 1 && !_providers.contains(val)) {
+                        _vmCatalogos.addProveedor(val);
+                      } else if (tabIndex == 2 && !_units.contains(val)) {
+                        final tipo = typeController.text.trim();
+                        _vmCatalogos.addUnidad(val, tipo, menorMayor);
+                      }
+                      Navigator.pop(context);
+                    }
+                  },
+                  child: const Text("Guardar"),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -344,61 +572,141 @@ class _VistaCatalogosState extends State<VistaCatalogos> {
   ) {
     final title = tabIndex == 0
         ? "Renombrar Categoría"
-        : (tabIndex == 1 ? "Renombrar Proveedor" : "Renombrar Unidad");
-    final controller = TextEditingController(text: item);
+        : (tabIndex == 1 ? "Renombrar Proveedor" : "Editar Unidad");
+
+    final nameController = TextEditingController(text: item);
+    final typeController = TextEditingController();
+    bool menorMayor = false;
+    String? unitId;
+
+    if (tabIndex == 2) {
+      final unitData = _vmCatalogos.unidadesData.firstWhere(
+        (e) => e['nameVal'] == item,
+        orElse: () => <String, dynamic>{},
+      );
+      if (unitData.isNotEmpty) {
+        unitId = unitData['id'] as String?;
+        nameController.text = unitData['nombre'] as String? ?? item;
+        typeController.text = unitData['tipo'] as String? ?? '';
+        menorMayor = unitData['mayor'] as bool? ?? false;
+      }
+    }
 
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          backgroundColor: AppColors.surfaceContainerLowest,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Text(
-            title,
-            style: GoogleFonts.outfit(
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-            ),
-          ),
-          content: TextField(
-            controller: controller,
-            decoration: const InputDecoration(
-              labelText: "Nuevo Nombre",
-              border: OutlineInputBorder(),
-            ),
-            autofocus: true,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Cancelar"),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              backgroundColor: AppColors.surfaceContainerLowest,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Text(
+                title,
+                style: GoogleFonts.outfit(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
                 ),
               ),
-              onPressed: () {
-                final val = controller.text.trim();
-                if (val.isNotEmpty && val != item) {
-                  if (tabIndex == 0) {
-                    _renameCategory(item, val);
-                  } else if (tabIndex == 1) {
-                    _renameProvider(item, val);
-                  } else {
-                    _renameUnit(item, val);
-                  }
-                  Navigator.pop(context);
-                }
-              },
-              child: const Text("Renombrar"),
-            ),
-          ],
+              content: SizedBox(
+                width: 500,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameController,
+                      decoration: InputDecoration(
+                        labelText: tabIndex == 2 ? "Nombre" : "Nuevo Nombre",
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      autofocus: true,
+                    ),
+                    if (tabIndex == 2) ...[
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: typeController,
+                        decoration: InputDecoration(
+                          labelText: "Abreviado",
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: AppColors.outlineVariant),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              "Menor & Mayor",
+                              style: GoogleFonts.outfit(fontSize: 14),
+                            ),
+                            Switch(
+                              value: menorMayor,
+                              onChanged: (val) {
+                                setStateDialog(() {
+                                  menorMayor = val;
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Cancelar"),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  onPressed: () {
+                    final val = nameController.text.trim();
+                    if (val.isNotEmpty) {
+                      if (tabIndex == 0 && val != item) {
+                        _renameCategory(item, val);
+                      } else if (tabIndex == 1 && val != item) {
+                        _renameProvider(item, val);
+                      } else if (tabIndex == 2 && unitId != null) {
+                        final tipo = typeController.text.trim();
+                        _vmCatalogos.updateUnidad(
+                          unitId,
+                          val,
+                          tipo,
+                          menorMayor,
+                        );
+                        setState(() {
+                          _selectedItem = val;
+                        });
+                      }
+                      Navigator.pop(context);
+                    }
+                  },
+                  child: const Text("Guardar"),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -411,6 +719,7 @@ class _VistaCatalogosState extends State<VistaCatalogos> {
         setState(() {
           _activeCatalogTab = index;
           _catalogSearchController.clear();
+          _selectedItem = null;
         });
       },
       behavior: HitTestBehavior.opaque,
@@ -431,7 +740,9 @@ class _VistaCatalogosState extends State<VistaCatalogos> {
           children: [
             Icon(
               icon,
-              color: isSelected ? AppColors.primary : AppColors.onSurfaceVariant,
+              color: isSelected
+                  ? AppColors.primary
+                  : AppColors.onSurfaceVariant,
               size: 20,
             ),
             const SizedBox(width: 8),
@@ -439,7 +750,9 @@ class _VistaCatalogosState extends State<VistaCatalogos> {
               duration: const Duration(milliseconds: 250),
               curve: Curves.easeInOut,
               style: GoogleFonts.outfit(
-                color: isSelected ? AppColors.primary : AppColors.onSurfaceVariant,
+                color: isSelected
+                    ? AppColors.primary
+                    : AppColors.onSurfaceVariant,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                 fontSize: 14.5,
               ),
@@ -452,7 +765,7 @@ class _VistaCatalogosState extends State<VistaCatalogos> {
   }
 
   Widget _buildCatalogMaintenance(BuildContext context) {
-    final tabs = ["Categorías", "Proveedores", "Unidades de Venta"];
+    final tabs = ["Categorías", "Proveedores", "Unidades"];
     final icons = [
       Icons.category_outlined,
       Icons.local_shipping_outlined,
@@ -461,11 +774,11 @@ class _VistaCatalogosState extends State<VistaCatalogos> {
 
     List<String> currentList;
     if (_activeCatalogTab == 0) {
-      currentList = _categories;
+      currentList = ["Sin Asignar", ..._categories];
     } else if (_activeCatalogTab == 1) {
-      currentList = _providers;
+      currentList = ["Sin Asignar", ..._providers];
     } else {
-      currentList = _units;
+      currentList = ["Sin Asignar", ..._units];
     }
 
     final searchQuery = _catalogSearchController.text.toLowerCase();
@@ -495,300 +808,616 @@ class _VistaCatalogosState extends State<VistaCatalogos> {
         ),
         const SizedBox(height: 24),
 
-        // Data Table Card
+        // Data Table & Details Panel
         Expanded(
-          child: Card(
-            color: AppColors.surfaceContainerLowest,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            elevation: 2,
-            shadowColor: Colors.black.withValues(alpha: 0.05),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Header (Search & Add)
-                Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Row(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                flex: 6,
+                child: Card(
+                  color: AppColors.surfaceContainerLowest,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 2,
+                  shadowColor: Colors.black.withValues(alpha: 0.05),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _catalogSearchController,
-                          onChanged: (_) => setState(() {}),
-                          decoration: InputDecoration(
-                            hintText:
-                                "Buscar en ${tabs[_activeCatalogTab].toLowerCase()}...",
-                            prefixIcon: const Icon(
-                              Icons.search,
-                              color: AppColors.onSurfaceVariant,
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 0,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(30),
-                              borderSide: const BorderSide(
-                                color: AppColors.outlineVariant,
+                      // Header (Search & Add)
+                      Padding(
+                        padding: const EdgeInsets.all(20.0),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _catalogSearchController,
+                                onChanged: (_) => setState(() {}),
+                                decoration: InputDecoration(
+                                  hintText: _activeCatalogTab == 0
+                                      ? "Buscar categorías..."
+                                      : _activeCatalogTab == 1
+                                      ? "Buscar proveedores..."
+                                      : "Buscar unidades...",
+                                  prefixIcon: const Icon(
+                                    Icons.search,
+                                    color: AppColors.onSurfaceVariant,
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 0,
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(30),
+                                    borderSide: const BorderSide(
+                                      color: AppColors.outlineVariant,
+                                    ),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(30),
+                                    borderSide: const BorderSide(
+                                      color: AppColors.outlineVariant,
+                                    ),
+                                  ),
+                                  filled: true,
+                                  fillColor: AppColors.surfaceContainerLow,
+                                ),
                               ),
                             ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(30),
-                              borderSide: const BorderSide(
-                                color: AppColors.outlineVariant,
+                            const SizedBox(width: 8),
+                            TextButton.icon(
+                              icon: const Icon(Icons.edit_outlined, size: 16),
+                              label: const Text("Editar"),
+                              style: TextButton.styleFrom(
+                                backgroundColor: AppColors.surfaceContainerLow,
+                                foregroundColor: AppColors.primary,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 16,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
+                              ),
+                              onPressed:
+                                  _selectedItem == null ||
+                                      _selectedItem == "Sin Asignar"
+                                  ? null
+                                  : () => _showRenameCatalogDialog(
+                                      context,
+                                      _selectedItem!,
+                                      _activeCatalogTab,
+                                    ),
+                            ),
+                            const SizedBox(width: 8),
+                            TextButton.icon(
+                              icon: const Icon(Icons.delete_outline, size: 16),
+                              label: const Text("Eliminar"),
+                              style: TextButton.styleFrom(
+                                backgroundColor: AppColors.surfaceContainerLow,
+                                foregroundColor: AppColors.error,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 16,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
+                              ),
+                              onPressed:
+                                  _selectedItem == null ||
+                                      _selectedItem == "Sin Asignar"
+                                  ? null
+                                  : () => _confirmDeleteCatalog(
+                                      context,
+                                      _selectedItem!,
+                                      _activeCatalogTab,
+                                    ),
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton.icon(
+                              icon: const Icon(Icons.add, size: 16),
+                              label: const Text("Añadir Nuevo"),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primary,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 16,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
+                                elevation: 0,
+                              ),
+                              onPressed: () => _showAddCatalogDialog(
+                                context,
+                                _activeCatalogTab,
                               ),
                             ),
-                            filled: true,
-                            fillColor: AppColors.surfaceContainerLow,
-                          ),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 16),
-                      ElevatedButton.icon(
-                        icon: const Icon(Icons.add, size: 20),
-                        label: const Text("Añadir Nuevo"),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 16,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30),
-                          ),
-                          elevation: 0,
-                        ),
-                        onPressed: () =>
-                            _showAddCatalogDialog(context, _activeCatalogTab),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1),
+                      const Divider(height: 1),
 
-                // Table Header
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 12,
-                  ),
-                  color: AppColors.surfaceContainerLow.withValues(alpha: 0.3),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        flex: 3,
-                        child: Text(
-                          "NOMBRE",
-                          style: GoogleFonts.outfit(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.onSurfaceVariant,
-                            letterSpacing: 1,
-                          ),
+                      // Table Header
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
                         ),
-                      ),
-                      Expanded(
-                        flex: 2,
-                        child: Text(
-                          "USO (PRODUCTOS/LOTES)",
-                          style: GoogleFonts.outfit(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.onSurfaceVariant,
-                            letterSpacing: 1,
-                          ),
+                        color: AppColors.surfaceContainerLow.withValues(
+                          alpha: 0.3,
                         ),
-                      ),
-                      SizedBox(
-                        width: 100,
-                        child: Text(
-                          "ACCIONES",
-                          textAlign: TextAlign.right,
-                          style: GoogleFonts.outfit(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.onSurfaceVariant,
-                            letterSpacing: 1,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1),
-
-                // Table Body
-                Expanded(
-                  child: currentList.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(
-                                Icons.inbox_outlined,
-                                size: 64,
-                                color: AppColors.outlineVariant,
-                              ),
-                              const SizedBox(height: 16),
-                              const Text(
-                                "No se encontraron resultados",
-                                style: TextStyle(
+                        child: Row(
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: Text(
+                                "NOMBRE",
+                                style: GoogleFonts.outfit(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
                                   color: AppColors.onSurfaceVariant,
-                                  fontSize: 16,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                            ),
+                            if (_activeCatalogTab == 2) ...[
+                              Expanded(
+                                flex: 2,
+                                child: Text(
+                                  "ABREVIADO",
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.onSurfaceVariant,
+                                    letterSpacing: 1,
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Text(
+                                  "MENOR & MAYOR",
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.onSurfaceVariant,
+                                    letterSpacing: 1,
+                                  ),
                                 ),
                               ),
                             ],
-                          ),
-                        )
-                      : ListView.separated(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          itemCount: currentList.length,
-                          separatorBuilder: (context, index) =>
-                              const Divider(height: 1),
-                          itemBuilder: (context, index) {
-                            final item = currentList[index];
-
-                            return FutureBuilder<int>(
-                              future: _fetchCatalogUsageCount(
-                                item,
-                                _activeCatalogTab,
+                            Expanded(
+                              flex: 2,
+                              child: Text(
+                                "ARTÍCULOS",
+                                style: GoogleFonts.outfit(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.onSurfaceVariant,
+                                  letterSpacing: 1,
+                                ),
                               ),
-                              builder: (context, snapshot) {
-                                final usage = snapshot.data ?? 0;
-                                final isLoading =
-                                    snapshot.connectionState ==
-                                    ConnectionState.waiting;
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Divider(height: 1),
 
-                                return Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 24,
-                                    vertical: 12,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        flex: 3,
-                                        child: Row(
-                                          children: [
-                                            Container(
-                                              width: 8,
-                                              height: 8,
-                                              decoration: BoxDecoration(
-                                                color: usage > 0
-                                                    ? AppColors.primary
-                                                    : Colors.grey,
-                                                shape: BoxShape.circle,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Text(
-                                              item,
-                                              style: const TextStyle(
-                                                fontSize: 15,
-                                                fontWeight: FontWeight.w600,
-                                                color: AppColors.onSurface,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
+                      // Table Body
+                      Expanded(
+                        child: currentList.isEmpty
+                            ? Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(
+                                      Icons.inbox_outlined,
+                                      size: 64,
+                                      color: AppColors.outlineVariant,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    const Text(
+                                      "No se encontraron resultados",
+                                      style: TextStyle(
+                                        color: AppColors.onSurfaceVariant,
+                                        fontSize: 16,
                                       ),
-                                      Expanded(
-                                        flex: 2,
-                                        child: Align(
-                                          alignment: Alignment.centerLeft,
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 4,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: isLoading
-                                                  ? Colors.transparent
-                                                  : (usage > 0
-                                                        ? AppColors.primary
-                                                              .withValues(
-                                                                alpha: 0.1,
-                                                              )
-                                                        : AppColors
-                                                              .surfaceContainerLow),
-                                              borderRadius:
-                                                  BorderRadius.circular(20),
-                                            ),
-                                            child: isLoading
-                                                ? const SizedBox(
-                                                    width: 12,
-                                                    height: 12,
-                                                    child:
-                                                        CircularProgressIndicator(
-                                                          strokeWidth: 2,
-                                                        ),
-                                                  )
-                                                : Text(
-                                                    usage > 0
-                                                        ? "$usage asociados"
-                                                        : "Sin uso",
-                                                    style: TextStyle(
-                                                      fontSize: 13,
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : ListView.separated(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                ),
+                                itemCount: currentList.length,
+                                separatorBuilder: (context, index) =>
+                                    const Divider(height: 1),
+                                itemBuilder: (context, index) {
+                                  final item = currentList[index];
+
+                                  return FutureBuilder<int>(
+                                    future: _fetchCatalogUsageCount(
+                                      item,
+                                      _activeCatalogTab,
+                                    ),
+                                    builder: (context, snapshot) {
+                                      final usage = snapshot.data ?? 0;
+                                      final isLoading =
+                                          snapshot.connectionState ==
+                                          ConnectionState.waiting;
+
+                                      String abreviado = "-";
+                                      String menorMayor = "-";
+                                      if (_activeCatalogTab == 2) {
+                                        try {
+                                          final unitData = _vmCatalogos
+                                              .unidadesData
+                                              .firstWhere(
+                                                (e) => e['nameVal'] == item,
+                                                orElse: () =>
+                                                    <String, dynamic>{},
+                                              );
+                                          if (unitData.isNotEmpty) {
+                                            abreviado = unitData['tipo'] ?? "-";
+                                            if (abreviado.isEmpty) {
+                                              abreviado = "-";
+                                            }
+
+                                            final bool isMayor =
+                                                unitData['mayor'] == true ||
+                                                unitData['menor_mayor'] == true;
+                                            menorMayor = isMayor ? "Sí" : "-";
+                                          }
+                                        } catch (_) {}
+                                      }
+
+                                      return InkWell(
+                                        onTap: () {
+                                          setState(() {
+                                            _selectedItem = item;
+                                          });
+                                        },
+                                        child: Container(
+                                          color: _selectedItem == item
+                                              ? AppColors.primary.withValues(
+                                                  alpha: 0.05,
+                                                )
+                                              : Colors.transparent,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 24,
+                                            vertical: 12,
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Expanded(
+                                                flex: 3,
+                                                child: Row(
+                                                  children: [
+                                                    Container(
+                                                      width: 8,
+                                                      height: 8,
+                                                      decoration: BoxDecoration(
+                                                        color: usage > 0
+                                                            ? AppColors.primary
+                                                            : Colors.grey,
+                                                        shape: BoxShape.circle,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 12),
+                                                    Text(
+                                                      item,
+                                                      style: TextStyle(
+                                                        fontSize: 15,
+                                                        fontWeight:
+                                                            _selectedItem ==
+                                                                item
+                                                            ? FontWeight.bold
+                                                            : FontWeight.w600,
+                                                        color:
+                                                            _selectedItem ==
+                                                                item
+                                                            ? AppColors.primary
+                                                            : AppColors
+                                                                  .onSurface,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              if (_activeCatalogTab == 2) ...[
+                                                Expanded(
+                                                  flex: 2,
+                                                  child: Text(
+                                                    abreviado,
+                                                    style: const TextStyle(
+                                                      fontSize: 14,
                                                       fontWeight:
                                                           FontWeight.w600,
-                                                      color: usage > 0
-                                                          ? AppColors.primary
-                                                          : AppColors
-                                                                .onSurfaceVariant,
+                                                      color:
+                                                          AppColors.onSurface,
                                                     ),
                                                   ),
+                                                ),
+                                                Expanded(
+                                                  flex: 2,
+                                                  child: Text(
+                                                    menorMayor,
+                                                    style: const TextStyle(
+                                                      fontSize: 14,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color:
+                                                          AppColors.onSurface,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                              Expanded(
+                                                flex: 2,
+                                                child: Align(
+                                                  alignment:
+                                                      Alignment.centerLeft,
+                                                  child: Container(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 12,
+                                                          vertical: 4,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color: isLoading
+                                                          ? Colors.transparent
+                                                          : (usage > 0
+                                                                ? AppColors
+                                                                      .primary
+                                                                      .withValues(
+                                                                        alpha:
+                                                                            0.1,
+                                                                      )
+                                                                : AppColors
+                                                                      .surfaceContainerLow),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            20,
+                                                          ),
+                                                    ),
+                                                    child: isLoading
+                                                        ? const SizedBox(
+                                                            width: 12,
+                                                            height: 12,
+                                                            child:
+                                                                CircularProgressIndicator(
+                                                                  strokeWidth:
+                                                                      2,
+                                                                ),
+                                                          )
+                                                        : Text(
+                                                            usage > 0
+                                                                ? "$usage asociados"
+                                                                : "Sin uso",
+                                                            style: TextStyle(
+                                                              fontSize: 13,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w600,
+                                                              color: usage > 0
+                                                                  ? AppColors
+                                                                        .primary
+                                                                  : AppColors
+                                                                        .onSurfaceVariant,
+                                                            ),
+                                                          ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
-                                      ),
-                                      SizedBox(
-                                        width: 100,
-                                        child: Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.end,
-                                          children: [
-                                            IconButton(
-                                              icon: const Icon(
-                                                Icons.edit_outlined,
-                                                size: 20,
-                                              ),
-                                              color: AppColors.primary,
-                                              tooltip: "Renombrar",
-                                              onPressed: () =>
-                                                  _showRenameCatalogDialog(
-                                                    context,
-                                                    item,
-                                                    _activeCatalogTab,
-                                                  ),
-                                            ),
-                                            IconButton(
-                                              icon: const Icon(
-                                                Icons.delete_outline,
-                                                size: 20,
-                                              ),
-                                              color: Colors.red,
-                                              tooltip: "Eliminar",
-                                              onPressed: () =>
-                                                  _confirmDeleteCatalog(
-                                                    context,
-                                                    item,
-                                                    _activeCatalogTab,
-                                                  ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            );
-                          },
-                        ),
+                                      );
+                                    },
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  ),
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 24),
+              // Right Panel (Placeholder for articles)
+              Expanded(
+                flex: 4,
+                child: Card(
+                  color: AppColors.surfaceContainerLowest,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 2,
+                  shadowColor: Colors.black.withValues(alpha: 0.05),
+                  child: _buildRightPanel(),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRightPanel() {
+    if (_selectedItem == null) {
+      return Center(
+        child: Text(
+          "Selecciona un elemento para ver sus artículos",
+          style: GoogleFonts.outfit(
+            color: AppColors.onSurfaceVariant,
+            fontSize: 16,
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Header
+        Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "Artículos de '$_selectedItem'",
+                style: GoogleFonts.outfit(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: AppColors.onSurface,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, size: 20),
+                color: AppColors.onSurfaceVariant,
+                onPressed: () {
+                  setState(() {
+                    _selectedItem = null;
+                  });
+                },
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+
+        // List
+        Expanded(
+          child: FutureBuilder<List<Map<String, dynamic>>>(
+            future: _fetchCatalogUsageItems(_selectedItem!, _activeCatalogTab),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              if (snapshot.hasError) {
+                return Center(
+                  child: Text(
+                    "Error al cargar artículos",
+                    style: TextStyle(color: Colors.red[300]),
+                  ),
+                );
+              }
+
+              final items = snapshot.data ?? [];
+
+              if (items.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.inventory_2_outlined,
+                        size: 48,
+                        color: AppColors.outlineVariant,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        "No hay artículos asociados",
+                        style: TextStyle(
+                          color: AppColors.onSurfaceVariant,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return ListView.separated(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemCount: items.length,
+                separatorBuilder: (context, index) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final data = items[index];
+                  final imageUrl = data['imagen'] as String;
+
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // Image
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceContainerLow,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: AppColors.outlineVariant,
+                              width: 1,
+                            ),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: imageUrl.isNotEmpty
+                                ? Image.network(
+                                    imageUrl,
+                                    fit: BoxFit.cover,
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            const Icon(
+                                              Icons.inventory_2_outlined,
+                                              color: AppColors.onSurfaceVariant,
+                                            ),
+                                  )
+                                : const Icon(
+                                    Icons.inventory_2_outlined,
+                                    color: AppColors.onSurfaceVariant,
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+
+                        // Texts
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                data['nombre'] as String,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                  color: AppColors.onSurface,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                "${data['descripcion']}",
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.onSurfaceVariant,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+            },
           ),
         ),
       ],
