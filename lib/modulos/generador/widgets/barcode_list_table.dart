@@ -34,77 +34,100 @@ class BarcodeListTable extends StatelessWidget {
           final matchesType = selectedFilter == 'Todos'
               ? true
               : (selectedFilter == 'Original'
-                  ? e.hasOriginalCode
-                  : !e.hasOriginalCode);
-          final matchesText = query.isEmpty ||
+                    ? e.hasOriginalCode
+                    : !e.hasOriginalCode);
+          final matchesText =
+              query.isEmpty ||
               e.name.toLowerCase().contains(query) ||
               e.barcode.toLowerCase().contains(query);
           return matchesType && matchesText;
         }).toList();
 
-        final selectedEntries = filteredCodes.where((e) => e.selectedForPrint).toList();
+        final selectedEntries = filteredCodes
+            .where((e) => e.selectedForPrint)
+            .toList();
         final totalSelected = selectedEntries.length;
-        final allSelected = filteredCodes.isNotEmpty && totalSelected == filteredCodes.length;
+        final allSelected =
+            filteredCodes.isNotEmpty && totalSelected == filteredCodes.length;
 
         return LayoutBuilder(
           builder: (context, constraints) {
             final isBounded = constraints.maxHeight != double.infinity;
-            
+
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                if (totalSelected > 0)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(99),
-                    ),
-                    child: Text(
-                      "$totalSelected seleccionados",
-                      style: const TextStyle(
-                        color: AppColors.primary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (totalSelected > 0)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                        child: Text(
+                          "$totalSelected seleccionados",
+                          style: const TextStyle(
+                            color: AppColors.primary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(width: 12),
+                    ElevatedButton.icon(
+                      onPressed: totalSelected > 0
+                          ? onAddSelectedToPrintQueue
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: AppColors.outlineVariant
+                            .withValues(alpha: 0.3),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 1,
+                      ),
+                      icon: const Icon(Icons.print, size: 16),
+                      label: const Text(
+                        "Agregar a Cola",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
-                  ),
-                const SizedBox(width: 12),
-                ElevatedButton.icon(
-                  onPressed: totalSelected > 0 ? onAddSelectedToPrintQueue : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor:
-                        AppColors.outlineVariant.withValues(alpha: 0.3),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 14,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    elevation: 1,
-                  ),
-                  icon: const Icon(Icons.print, size: 16),
-                  label: const Text(
-                    "Agregar a Cola",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                  ),
+                  ],
                 ),
+                const SizedBox(height: 16),
+                isBounded
+                    ? Expanded(
+                        child: _buildCodesTable(
+                          filteredCodes,
+                          allSelected,
+                          isBounded,
+                          totalSelected,
+                          selectedEntries,
+                        ),
+                      )
+                    : _buildCodesTable(
+                        filteredCodes,
+                        allSelected,
+                        isBounded,
+                        totalSelected,
+                        selectedEntries,
+                      ),
               ],
-            ),
-            const SizedBox(height: 16),
-            isBounded 
-                ? Expanded(child: _buildCodesTable(filteredCodes, allSelected, isBounded, totalSelected, selectedEntries))
-                : _buildCodesTable(filteredCodes, allSelected, isBounded, totalSelected, selectedEntries),
-          ],
             );
           },
         );
@@ -112,16 +135,19 @@ class BarcodeListTable extends StatelessWidget {
     );
   }
 
-  Widget _buildCodesTable(List<BarcodeEntry> entries, bool selectAllValue, bool isBounded, int totalSelected, List<BarcodeEntry> selectedEntries) {
+  Widget _buildCodesTable(
+    List<BarcodeEntry> entries,
+    bool selectAllValue,
+    bool isBounded,
+    int totalSelected,
+    List<BarcodeEntry> selectedEntries,
+  ) {
     final headerRow = Container(
       height: 100,
       decoration: const BoxDecoration(
         color: AppColors.surfaceContainerLow,
         border: Border(
-          bottom: BorderSide(
-            color: AppColors.outlineVariant,
-            width: 1,
-          ),
+          bottom: BorderSide(color: AppColors.outlineVariant, width: 1),
         ),
       ),
       child: Column(
@@ -158,7 +184,7 @@ class BarcodeListTable extends StatelessWidget {
                         textAlignVertical: TextAlignVertical.center,
                         decoration: const InputDecoration(
                           isDense: true,
-                          hintText: "Buscar códigos de barra o productos...",
+                          hintText: "Buscar nombre o codigo ...",
                           hintStyle: TextStyle(
                             color: AppColors.onSurfaceVariant,
                             fontSize: 12,
@@ -174,7 +200,11 @@ class BarcodeListTable extends StatelessWidget {
                             minHeight: 38,
                           ),
                           border: InputBorder.none,
-                          contentPadding: EdgeInsets.only(top: 0, bottom: 0, right: 16),
+                          contentPadding: EdgeInsets.only(
+                            top: 0,
+                            bottom: 0,
+                            right: 16,
+                          ),
                         ),
                       ),
                     ),
@@ -184,13 +214,17 @@ class BarcodeListTable extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(right: 16),
                   child: OutlinedButton.icon(
-                    onPressed: totalSelected == 1 ? () => onEditBarcode(selectedEntries.first) : null,
+                    onPressed: totalSelected == 1
+                        ? () => onEditBarcode(selectedEntries.first)
+                        : null,
                     icon: const Icon(Icons.edit_outlined, size: 16),
                     label: const Text("Editar"),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.primary,
                       side: BorderSide(
-                        color: totalSelected == 1 ? AppColors.primary : AppColors.outlineVariant,
+                        color: totalSelected == 1
+                            ? AppColors.primary
+                            : AppColors.outlineVariant,
                       ),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -229,148 +263,139 @@ class BarcodeListTable extends StatelessWidget {
     );
 
     final sliverList = SliverList(
-      delegate: SliverChildBuilderDelegate(
-        (context, index) {
-          final entry = entries[index];
-          return Container(
-            decoration: BoxDecoration(
-              color: entry.selectedForPrint
-                  ? AppColors.primary.withValues(alpha: 0.04)
-                  : null,
-              border: const Border(
-                bottom: BorderSide(
-                  color: AppColors.outlineVariant,
-                  width: 0.5,
+      delegate: SliverChildBuilderDelegate((context, index) {
+        final entry = entries[index];
+        return Container(
+          decoration: const BoxDecoration(
+            border: Border(
+              bottom: BorderSide(color: AppColors.outlineVariant, width: 0.5),
+            ),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 56,
+                child: Checkbox(
+                  value: entry.selectedForPrint,
+                  activeColor: AppColors.primary,
+                  onChanged: (v) => onSelectEntry(entry, v ?? false),
                 ),
               ),
-            ),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 56,
-                  child: Checkbox(
-                    value: entry.selectedForPrint,
-                    activeColor: AppColors.primary,
-                    onChanged: (v) => onSelectEntry(entry, v ?? false),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        entry.name,
+                        style: const TextStyle(
+                          color: AppColors.onSurface,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceContainerLow,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          entry.barcode,
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
+                            color: AppColors.onSurfaceVariant,
+                            fontSize: 12,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
+              ),
+              SizedBox(
+                width: 120,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    "L. ${entry.price}",
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          entry.name,
-                          style: const TextStyle(
-                            color: AppColors.onSurface,
-                            fontSize: 14,
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 120,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: entry.hasOriginalCode
+                              ? const Color(0xFFFFF7ED)
+                              : const Color(0xFFECFDF5),
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                        child: Text(
+                          entry.hasOriginalCode ? "Original" : "Generado",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: entry.hasOriginalCode
+                                ? const Color(0xFFEA580C)
+                                : const Color(0xFF10B981),
+                            fontSize: 11,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        const SizedBox(height: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceContainerLow,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            entry.barcode,
-                            style: const TextStyle(
-                              fontFamily: 'monospace',
-                              color: AppColors.onSurfaceVariant,
-                              fontSize: 12,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                SizedBox(
-                  width: 120,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                    ),
-                    child: Text(
-                      "L. ${entry.price}",
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: AppColors.primary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
                       ),
-                    ),
+                      const SizedBox(height: 6),
+                      Text(
+                        "${entry.createdAt.day.toString().padLeft(2, '0')}-${entry.createdAt.month.toString().padLeft(2, '0')}-${entry.createdAt.year}",
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: AppColors.onSurfaceVariant,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                SizedBox(
-                  width: 120,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: entry.hasOriginalCode
-                                ? const Color(0xFFFFF7ED)
-                                : const Color(0xFFECFDF5),
-                            borderRadius: BorderRadius.circular(99),
-                          ),
-                          child: Text(
-                            entry.hasOriginalCode ? "Original" : "Generado",
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: entry.hasOriginalCode
-                                  ? const Color(0xFFEA580C)
-                                  : const Color(0xFF10B981),
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          "${entry.createdAt.day.toString().padLeft(2, '0')}-${entry.createdAt.month.toString().padLeft(2, '0')}-${entry.createdAt.year}",
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: AppColors.onSurfaceVariant,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-        childCount: entries.length,
-      ),
+              ),
+            ],
+          ),
+        );
+      }, childCount: entries.length),
     );
 
     Widget content = LayoutBuilder(
       builder: (context, constraints) {
-        final double width = constraints.maxWidth > 500 ? constraints.maxWidth : 500;
-        
+        final double width = constraints.maxWidth > 500
+            ? constraints.maxWidth
+            : 500;
+
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: ConstrainedBox(
@@ -381,26 +406,36 @@ class BarcodeListTable extends StatelessWidget {
             ),
             child: SizedBox(
               width: width,
-              child: CustomScrollView(
-                physics: isBounded ? const AlwaysScrollableScrollPhysics() : const NeverScrollableScrollPhysics(),
-                shrinkWrap: !isBounded,
-                slivers: [
-                  SliverPersistentHeader(
-                    pinned: true,
-                    delegate: _StickyHeaderDelegate(
-                      child: headerRow,
-                      height: 100,
-                    ),
+              child: RawScrollbar(
+                padding: const EdgeInsets.only(top: 100),
+                child: ScrollConfiguration(
+                  behavior: ScrollConfiguration.of(
+                    context,
+                  ).copyWith(scrollbars: false),
+                  child: CustomScrollView(
+                    physics: isBounded
+                        ? const AlwaysScrollableScrollPhysics()
+                        : const NeverScrollableScrollPhysics(),
+                    shrinkWrap: !isBounded,
+                    slivers: [
+                      SliverPersistentHeader(
+                        pinned: true,
+                        delegate: _StickyHeaderDelegate(
+                          child: headerRow,
+                          height: 100,
+                        ),
+                      ),
+                      sliverList,
+                    ],
                   ),
-                  sliverList,
-                ],
+                ),
               ),
             ),
           ),
         );
       },
     );
-    
+
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surfaceContainerLowest,
@@ -419,9 +454,7 @@ class BarcodeListTable extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          isBounded ? Expanded(child: content) : content,
-        ],
+        children: [isBounded ? Expanded(child: content) : content],
       ),
     );
   }
@@ -452,13 +485,17 @@ class BarcodeListTable extends StatelessWidget {
               Icon(
                 icon,
                 size: 20,
-                color: isSelected ? AppColors.primary : AppColors.onSurfaceVariant,
+                color: isSelected
+                    ? AppColors.primary
+                    : AppColors.onSurfaceVariant,
               ),
               const SizedBox(width: 8),
               Text(
                 title,
                 style: TextStyle(
-                  color: isSelected ? AppColors.primary : AppColors.onSurfaceVariant,
+                  color: isSelected
+                      ? AppColors.primary
+                      : AppColors.onSurfaceVariant,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                   fontSize: 14,
                 ),
@@ -484,11 +521,12 @@ class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
   double get maxExtent => height;
 
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return SizedBox(
-      height: height,
-      child: child,
-    );
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return SizedBox(height: height, child: child);
   }
 
   @override

@@ -41,12 +41,19 @@ class BarcodePreviewCard extends StatelessWidget {
             color: AppColors.surfaceContainerLow,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: AppColors.outlineVariant.withValues(alpha: 0.5),
+              color: AppColors.outlineVariant.withValues(alpha: 0.7),
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.01),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: Column(
             children: [
-              // El título de previsualización fue eliminado según lo solicitado
+
               Center(
                 child: Container(
                   width: 440,

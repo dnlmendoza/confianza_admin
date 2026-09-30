@@ -526,15 +526,19 @@ class _VistaGeneradorState extends ConsumerState<VistaGenerador>
                   children: [
                     Expanded(
                       flex: 4,
-                      child: SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _buildLivePreviewCanvas(),
-                            const SizedBox(height: 24),
-                            _buildConfigForm(),
-                          ],
-                        ),
+                      child: CustomScrollView(
+                        slivers: [
+                          SliverToBoxAdapter(
+                            child: _buildLivePreviewCanvas(),
+                          ),
+                          const SliverToBoxAdapter(
+                            child: SizedBox(height: 24),
+                          ),
+                          SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: _buildConfigForm(),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(width: 24),

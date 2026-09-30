@@ -29,17 +29,21 @@ class BarcodeCreationForm extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Card Nuevo Código
-        Container(
+    return Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: AppColors.surfaceContainerLowest,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: AppColors.outlineVariant.withValues(alpha: 0.5),
+              color: AppColors.outlineVariant.withValues(alpha: 0.7),
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.01),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -66,30 +70,7 @@ class BarcodeCreationForm extends StatelessWidget {
                       ),
                     ],
                   ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      const Text(
-                        "Mostrar Precio",
-                        style: TextStyle(
-                          color: AppColors.onSurfaceVariant,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      SizedBox(
-                        height: 28,
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Switch(
-                            value: showPrice,
-                            onChanged: onShowPriceChanged,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+
                 ],
               ),
               const SizedBox(height: 20),
@@ -243,50 +224,110 @@ class BarcodeCreationForm extends StatelessWidget {
                   ),
                 ),
               const SizedBox(height: 16),
-              const Text(
-                "Precio (L.)",
-                style: TextStyle(
-                  color: AppColors.onSurfaceVariant,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 6),
-              SizedBox(
-                height: 40,
-                child: TextField(
-                  controller: priceController,
-                  keyboardType: TextInputType.number,
-                  style: const TextStyle(fontSize: 13),
-                  decoration: InputDecoration(
-                    prefixIcon: const Padding(
-                      padding: EdgeInsets.only(left: 12, right: 4),
-                      child: Text(
-                        "L.",
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.onSurfaceVariant,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "Precio (L.)",
+                          style: TextStyle(
+                            color: AppColors.onSurfaceVariant,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
-                    ),
-                    prefixIconConstraints: const BoxConstraints(
-                      minWidth: 0,
-                      minHeight: 0,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(
-                        color: AppColors.outlineVariant,
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: AppColors.primary),
+                        const SizedBox(height: 6),
+                        SizedBox(
+                          height: 40,
+                          child: TextField(
+                            controller: priceController,
+                            keyboardType: TextInputType.number,
+                            style: const TextStyle(fontSize: 13),
+                            decoration: InputDecoration(
+                              prefixIcon: const Padding(
+                                padding: EdgeInsets.only(left: 12, right: 4),
+                                child: Text(
+                                  "L.",
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                              prefixIconConstraints: const BoxConstraints(
+                                minWidth: 0,
+                                minHeight: 0,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(
+                                  color: AppColors.outlineVariant,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(color: AppColors.primary),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
+                  const SizedBox(width: 16),
+                  SizedBox(
+                    width: 64,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Text(
+                          "Mostrar",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: AppColors.onSurfaceVariant,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        GestureDetector(
+                          onTap: () => onShowPriceChanged(!showPrice),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            height: 24,
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              color: showPrice ? AppColors.primary : Colors.transparent,
+                              border: Border.all(
+                                color: showPrice ? AppColors.primary : AppColors.outlineVariant,
+                              ),
+                            ),
+                            child: AnimatedAlign(
+                              duration: const Duration(milliseconds: 200),
+                              curve: Curves.easeInOut,
+                              alignment: showPrice ? Alignment.centerRight : Alignment.centerLeft,
+                              child: Container(
+                                width: 26,
+                                height: 18,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(99),
+                                  color: showPrice ? Colors.white : AppColors.outlineVariant,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 20),
               SizedBox(
@@ -327,8 +368,6 @@ class BarcodeCreationForm extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ],
-    );
+        );
   }
 }
