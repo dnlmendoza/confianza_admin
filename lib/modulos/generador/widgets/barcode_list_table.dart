@@ -327,14 +327,23 @@ class BarcodeListTable extends StatelessWidget {
                 width: 120,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    "L. ${entry.price}",
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: AppColors.primary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  child: Builder(
+                    builder: (context) {
+                      String formattedPrice = entry.price;
+                      final numPrice = double.tryParse(entry.price);
+                      if (numPrice != null) {
+                        formattedPrice = numPrice.toStringAsFixed(2);
+                      }
+                      return Text(
+                        "L. $formattedPrice",
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: AppColors.primary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      );
+                    }
                   ),
                 ),
               ),
