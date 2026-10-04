@@ -33,9 +33,11 @@ class BarcodeListTable extends StatelessWidget {
         final filteredCodes = allCodesRaw.where((e) {
           final matchesType = selectedFilter == 'Todos'
               ? true
-              : (selectedFilter == 'Original'
-                    ? e.hasOriginalCode
-                    : !e.hasOriginalCode);
+              : (selectedFilter == 'Pendiente'
+                  ? !e.enInventario
+                  : (selectedFilter == 'Original'
+                        ? e.hasOriginalCode
+                        : !e.hasOriginalCode));
           final matchesText =
               query.isEmpty ||
               e.name.toLowerCase().contains(query) ||
@@ -256,6 +258,12 @@ class BarcodeListTable extends StatelessWidget {
                 isSelected: selectedFilter == 'Original',
                 onTap: () => onFilterChanged('Original'),
               ),
+              _buildGmailTab(
+                title: 'Pendiente',
+                icon: Icons.hourglass_bottom,
+                isSelected: selectedFilter == 'Pendiente',
+                onTap: () => onFilterChanged('Pendiente'),
+              ),
             ],
           ),
         ],
@@ -282,6 +290,7 @@ class BarcodeListTable extends StatelessWidget {
                 ),
               ),
               Expanded(
+                flex: 3,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -293,6 +302,8 @@ class BarcodeListTable extends StatelessWidget {
                     children: [
                       Text(
                         entry.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: AppColors.onSurface,
                           fontSize: 14,
@@ -393,6 +404,39 @@ class BarcodeListTable extends StatelessWidget {
                   ),
                 ),
               ),
+              const Spacer(flex: 1),
+              SizedBox(
+                width: 100,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        entry.enInventario
+                            ? Icons.check_circle
+                            : Icons.hourglass_bottom,
+                        color: entry.enInventario
+                            ? const Color(0xFF10B981)
+                            : AppColors.outlineVariant,
+                        size: 20,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        entry.enInventario ? "En Inventario" : "Pendiente",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: entry.enInventario
+                              ? const Color(0xFF10B981)
+                              : AppColors.outlineVariant,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         );
@@ -434,7 +478,33 @@ class BarcodeListTable extends StatelessWidget {
                           height: 100,
                         ),
                       ),
-                      sliverList,
+                      if (entries.isEmpty)
+                        SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.inventory_2_outlined,
+                                  size: 48,
+                                  color: AppColors.outlineVariant,
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  "No hay Artículos",
+                                  style: TextStyle(
+                                    color: AppColors.outlineVariant,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      else
+                        sliverList,
                     ],
                   ),
                 ),

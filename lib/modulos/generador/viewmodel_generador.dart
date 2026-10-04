@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'modelos_generador.dart';
 import 'servicio_generador.dart';
+import '../inventario/inventario_view_model.dart';
 
 class ViewModelGenerador extends Notifier<int> {
   final ServicioGenerador _servicio = ServicioGenerador();
@@ -68,9 +69,13 @@ class ViewModelGenerador extends Notifier<int> {
 
   void _listenToFirebase() {
     _codigosSub = _servicio.listenToCodigos().listen((codigos) {
+      final inventarioState = ref.read(inventarioViewModelProvider);
+      
       generatedCodes.clear();
       reprintCodes.clear();
       for (var c in codigos) {
+        c.enInventario = inventarioState.articulos.any((a) => a.productos.isNotEmpty && a.productos.first.codigoBarra == c.barcode);
+        
         if (c.hasOriginalCode) {
           reprintCodes.add(c);
         } else {
@@ -78,6 +83,27 @@ class ViewModelGenerador extends Notifier<int> {
         }
       }
       notifyListeners();
+    });
+
+    ref.listen(inventarioViewModelProvider, (previous, next) {
+      bool changed = false;
+      for (var c in generatedCodes) {
+        final newStatus = next.articulos.any((a) => a.productos.isNotEmpty && a.productos.first.codigoBarra == c.barcode);
+        if (c.enInventario != newStatus) {
+          c.enInventario = newStatus;
+          changed = true;
+        }
+      }
+      for (var c in reprintCodes) {
+        final newStatus = next.articulos.any((a) => a.productos.isNotEmpty && a.productos.first.codigoBarra == c.barcode);
+        if (c.enInventario != newStatus) {
+          c.enInventario = newStatus;
+          changed = true;
+        }
+      }
+      if (changed) {
+        notifyListeners();
+      }
     });
   }
 

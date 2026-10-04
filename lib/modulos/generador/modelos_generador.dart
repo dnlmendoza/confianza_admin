@@ -6,6 +6,7 @@ class BarcodeEntry {
   final DateTime createdAt;
   final bool hasOriginalCode;
   bool selectedForPrint;
+  bool enInventario;
 
   BarcodeEntry({
     required this.id,
@@ -15,5 +16,6 @@ class BarcodeEntry {
     required this.createdAt,
     this.hasOriginalCode = false,
     this.selectedForPrint = false,
+    this.enInventario = false,
   });
 }
