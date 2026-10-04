@@ -4,218 +4,287 @@ import 'package:flutter/foundation.dart';
 class ServicioCatalogos {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Streams genéricos para no repetir código
-  Stream<List<MapEntry<String, String>>> _streamColeccion(
-    String collectionPath, {
-    String fieldName = 'Nombre',
-  }) {
-    return _firestore
-        .collection(collectionPath)
-        .snapshots()
-        .map((snapshot) {
-          return snapshot.docs.map((doc) {
-            final data = doc.data();
-            final String? nombre = data[fieldName] as String?;
-            final String nameVal = (nombre != null && nombre.isNotEmpty)
-                ? nombre
-                : doc.id;
-            return MapEntry(doc.id, nameVal);
-          }).toList()..sort(
-            (a, b) => a.value.toLowerCase().compareTo(b.value.toLowerCase()),
-          );
-        })
-        .handleError((error) {
-          debugPrint("DEBUG: ERROR en stream $collectionPath: $error");
-          return <MapEntry<String, String>>[];
-        });
+  Stream<DocumentSnapshot<Map<String, dynamic>>> _streamConfiguracion() {
+    debugPrint("DEBUG: _streamConfiguracion escuchando Catalogos/configuracion");
+    return _firestore.collection('Catalogos').doc('configuracion').snapshots();
   }
 
-  // Streams
-  Stream<List<MapEntry<String, String>>> streamCategorias() =>
-      _streamColeccion('Categorias');
-  Stream<List<MapEntry<String, String>>> streamProveedores() =>
-      _streamColeccion('Proveedores');
-
-  // Devuelve la data completa para poder filtrar por el booleano 'mayor'
-  Stream<List<Map<String, dynamic>>> streamUnidadesData() {
-    return _firestore
-        .collection('Unidades')
-        .snapshots()
-        .map((snapshot) {
-          final list = snapshot.docs.map((doc) {
-            final data = doc.data();
-            data['id'] = doc.id;
-            final String? nombre = data['nombre'] as String?;
-            data['nameVal'] = (nombre != null && nombre.isNotEmpty)
-                ? nombre
-                : doc.id;
-            return data;
-          }).toList();
-          list.sort(
-            (a, b) => (a['nameVal'] as String).toLowerCase().compareTo(
-              (b['nameVal'] as String).toLowerCase(),
-            ),
-          );
-          return list;
-        })
-        .handleError((error) {
-          debugPrint("DEBUG: ERROR en stream Unidades: $error");
-          return <Map<String, dynamic>>[];
-        });
-  }
-
-  // Operaciones genéricas
-  Future<void> _addDoc(
-    String collectionPath,
-    String nombre, {
-    String fieldName = 'Nombre',
-  }) async {
-    try {
-      if (nombre.trim().isEmpty) return;
-      // Usamos .add() para generar un ID aleatorio y guardamos el nombre en el documento
-      await _firestore.collection(collectionPath).add({
-        fieldName: nombre.trim(),
-        'fecha_creacion': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      debugPrint("DEBUG: Error al agregar a $collectionPath: $e");
-      rethrow;
-    }
-  }
-
-  Future<void> _deleteDoc(
-    String collectionPath,
-    String nombre, {
-    String fieldName = 'Nombre',
-  }) async {
-    try {
-      // Buscamos el documento por su campo 'Nombre' o 'Tipo'
-      final snapshot = await _firestore
-          .collection(collectionPath)
-          .where(fieldName, isEqualTo: nombre)
-          .get();
-      for (var doc in snapshot.docs) {
-        await doc.reference.delete();
+  // Categóricas
+  Stream<List<MapEntry<String, String>>> streamCategorias() {
+    return _streamConfiguracion().map((snapshot) {
+      if (!snapshot.exists || snapshot.data() == null) {
+        debugPrint("DEBUG: Catalogos/configuracion NO EXISTE o data es null (categorias)");
+        return <MapEntry<String, String>>[];
       }
-
-      // Fallback por si acaso fue creado usando el nombre como ID directamente
-      final docById = await _firestore
-          .collection(collectionPath)
-          .doc(nombre)
-          .get();
-      if (docById.exists) {
-        await docById.reference.delete();
-      }
-    } catch (e) {
-      debugPrint("DEBUG: Error al eliminar de $collectionPath: $e");
-      rethrow;
-    }
-  }
-
-  Future<void> _renameDoc(
-    String collectionPath,
-    String oldName,
-    String newName, {
-    String fieldName = 'Nombre',
-  }) async {
-    try {
-      if (newName.trim().isEmpty || oldName == newName) return;
-
-      // Buscamos el documento por su antiguo valor
-      final snapshot = await _firestore
-          .collection(collectionPath)
-          .where(fieldName, isEqualTo: oldName)
-          .get();
-      bool updated = false;
-
-      for (var doc in snapshot.docs) {
-        await doc.reference.update({fieldName: newName.trim()});
-        updated = true;
-      }
-
-      // Fallback
-      if (!updated) {
-        final docById = await _firestore
-            .collection(collectionPath)
-            .doc(oldName)
-            .get();
-        if (docById.exists) {
-          // Si el ID era el nombre, creamos uno nuevo con ID aleatorio para migrarlo
-          await _firestore.collection(collectionPath).add({
-            fieldName: newName.trim(),
-            'fecha_creacion': FieldValue.serverTimestamp(),
-          });
-          await docById.reference.delete();
-        }
-      }
-    } catch (e) {
-      debugPrint("DEBUG: Error al renombrar en $collectionPath: $e");
-      rethrow;
-    }
-  }
-
-  // Categorías
-  Future<void> addCategoria(String nombre) => _addDoc('Categorias', nombre);
-  Future<void> deleteCategoria(String nombre) async {
-    await _updateInventoryField('categoria', nombre, 'General');
-    await _deleteDoc('Categorias', nombre);
-  }
-
-  Future<void> renameCategoria(String oldName, String newName) async {
-    await _renameDoc('Categorias', oldName, newName);
-    await _updateInventoryField('categoria', oldName, newName);
+      final data = snapshot.data()!;
+      final categoriasRaw = data['categorias'] as List<dynamic>? ?? [];
+      debugPrint("DEBUG: categoriasRaw length: ${categoriasRaw.length}");
+      
+      final result = categoriasRaw.map((item) {
+        final map = item as Map<String, dynamic>? ?? {};
+        final id = map['id']?.toString() ?? '';
+        final nombre = map['nombre']?.toString() ?? '';
+        return MapEntry(id, nombre.isEmpty ? id : nombre);
+      }).toList();
+      
+      result.sort((a, b) => a.value.toLowerCase().compareTo(b.value.toLowerCase()));
+      return result;
+    });
   }
 
   // Proveedores
-  Future<void> addProveedor(String nombre) => _addDoc('Proveedores', nombre);
+  Stream<List<MapEntry<String, String>>> streamProveedores() {
+    return _streamConfiguracion().map((snapshot) {
+      if (!snapshot.exists || snapshot.data() == null) {
+        debugPrint("DEBUG: Catalogos/configuracion NO EXISTE (proveedores)");
+        return <MapEntry<String, String>>[];
+      }
+      final data = snapshot.data()!;
+      final proveedoresRaw = data['proveedores'] as List<dynamic>? ?? [];
+      debugPrint("DEBUG: proveedoresRaw length: ${proveedoresRaw.length}");
+      
+      final result = proveedoresRaw.map((item) {
+        final map = item as Map<String, dynamic>? ?? {};
+        final id = map['id']?.toString() ?? '';
+        final nombre = map['nombre']?.toString() ?? '';
+        return MapEntry(id, nombre.isEmpty ? id : nombre);
+      }).toList();
+      
+      result.sort((a, b) => a.value.toLowerCase().compareTo(b.value.toLowerCase()));
+      return result;
+    });
+  }
+
+  // Unidades
+  Stream<List<Map<String, dynamic>>> streamUnidadesData() {
+    return _streamConfiguracion().map((snapshot) {
+      if (!snapshot.exists || snapshot.data() == null) {
+        debugPrint("DEBUG: Catalogos/configuracion NO EXISTE (unidades)");
+        return <Map<String, dynamic>>[];
+      }
+      final data = snapshot.data()!;
+      final unidadesRaw = data['unidades'] as List<dynamic>? ?? [];
+      debugPrint("DEBUG: unidadesRaw length: ${unidadesRaw.length}");
+      
+      final list = unidadesRaw.map((item) {
+        final map = Map<String, dynamic>.from(item as Map);
+        final nombre = map['nombre']?.toString() ?? '';
+        map['nameVal'] = nombre;
+        map['id'] = map['id']?.toString() ?? '';
+        return map;
+      }).toList();
+      
+      list.sort((a, b) => (a['nameVal'] as String).toLowerCase().compareTo((b['nameVal'] as String).toLowerCase()));
+      return list;
+    });
+  }
+
+  // Helper para generar IDs aleatorios si no los manda el backend (simula comportamiento de .add)
+  String _generateId() {
+    return _firestore.collection('_dummy_').doc().id;
+  }
+
+  // Categorías
+  Future<void> addCategoria(String nombre) async {
+    if (nombre.trim().isEmpty) return;
+    final docRef = _firestore.collection('Catalogos').doc('configuracion');
+    await docRef.update({
+      'categorias': FieldValue.arrayUnion([{
+        'id': _generateId(),
+        'nombre': nombre.trim()
+      }])
+    });
+  }
+
+  Future<void> deleteCategoria(String nombre) async {
+    // 1. Update Inventario (solo si es necesario, pero como ahora leemos de configuracion, igual lo hacemos)
+    await _updateInventoryField('categoria', nombre, 'General');
+    
+    // 2. Remove from Array
+    final docRef = _firestore.collection('Catalogos').doc('configuracion');
+    final doc = await docRef.get();
+    if (!doc.exists) return;
+    
+    final data = doc.data()!;
+    final categorias = List<dynamic>.from(data['categorias'] ?? []);
+    final itemToRemove = categorias.firstWhere((c) => c['nombre'] == nombre, orElse: () => null);
+    
+    if (itemToRemove != null) {
+      await docRef.update({
+        'categorias': FieldValue.arrayRemove([itemToRemove])
+      });
+    }
+  }
+
+  Future<void> renameCategoria(String oldName, String newName) async {
+    if (newName.trim().isEmpty || oldName == newName) return;
+    
+    final docRef = _firestore.collection('Catalogos').doc('configuracion');
+    final doc = await docRef.get();
+    if (!doc.exists) return;
+    
+    final data = doc.data()!;
+    final categorias = List<dynamic>.from(data['categorias'] ?? []);
+    
+    bool updated = false;
+    for (int i = 0; i < categorias.length; i++) {
+      if (categorias[i]['nombre'] == oldName) {
+        categorias[i]['nombre'] = newName.trim();
+        updated = true;
+      }
+    }
+    
+    if (updated) {
+      await docRef.update({'categorias': categorias});
+      await _updateInventoryField('categoria', oldName, newName);
+    }
+  }
+
+  // Proveedores
+  Future<void> addProveedor(String nombre) async {
+    if (nombre.trim().isEmpty) return;
+    final docRef = _firestore.collection('Catalogos').doc('configuracion');
+    await docRef.update({
+      'proveedores': FieldValue.arrayUnion([{
+        'id': _generateId(),
+        'nombre': nombre.trim()
+      }])
+    });
+  }
+
   Future<void> deleteProveedor(String nombre) async {
     await _updateInventoryField('proveedor', nombre, 'Bodega');
-    await _deleteDoc('Proveedores', nombre);
+    
+    final docRef = _firestore.collection('Catalogos').doc('configuracion');
+    final doc = await docRef.get();
+    if (!doc.exists) return;
+    
+    final data = doc.data()!;
+    final proveedores = List<dynamic>.from(data['proveedores'] ?? []);
+    final itemToRemove = proveedores.firstWhere((p) => p['nombre'] == nombre, orElse: () => null);
+    
+    if (itemToRemove != null) {
+      await docRef.update({
+        'proveedores': FieldValue.arrayRemove([itemToRemove])
+      });
+    }
   }
 
   Future<void> renameProveedor(String oldName, String newName) async {
-    await _renameDoc('Proveedores', oldName, newName);
-    await _updateInventoryField('proveedor', oldName, newName);
+    if (newName.trim().isEmpty || oldName == newName) return;
+    
+    final docRef = _firestore.collection('Catalogos').doc('configuracion');
+    final doc = await docRef.get();
+    if (!doc.exists) return;
+    
+    final data = doc.data()!;
+    final proveedores = List<dynamic>.from(data['proveedores'] ?? []);
+    
+    bool updated = false;
+    for (int i = 0; i < proveedores.length; i++) {
+      if (proveedores[i]['nombre'] == oldName) {
+        proveedores[i]['nombre'] = newName.trim();
+        updated = true;
+      }
+    }
+    
+    if (updated) {
+      await docRef.update({'proveedores': proveedores});
+      await _updateInventoryField('proveedor', oldName, newName);
+    }
   }
 
-  Future<void> _updateInventoryField(
-    String fieldName,
-    String oldName,
-    String newName,
-  ) async {
+  // Unidades
+  // Nota: Unidades ya no tiene 'tipo'. Ahora tiene 'abreviado'.
+  Future<void> addUnidad(String nombre, String abreviado, bool menorMayor) async {
+    if (nombre.trim().isEmpty) return;
+    final docRef = _firestore.collection('Catalogos').doc('configuracion');
+    await docRef.update({
+      'unidades': FieldValue.arrayUnion([{
+        'id': _generateId(),
+        'nombre': nombre.trim(),
+        'abreviado': abreviado.trim(),
+        'menor_mayor': menorMayor,
+      }])
+    });
+  }
+
+  Future<void> updateUnidad(String id, String nombre, String abreviado, bool menorMayor) async {
+    if (nombre.trim().isEmpty) return;
+    final docRef = _firestore.collection('Catalogos').doc('configuracion');
+    final doc = await docRef.get();
+    if (!doc.exists) return;
+    
+    final data = doc.data()!;
+    final unidades = List<dynamic>.from(data['unidades'] ?? []);
+    
+    bool updated = false;
+    for (int i = 0; i < unidades.length; i++) {
+      if (unidades[i]['id'] == id) {
+        unidades[i]['nombre'] = nombre.trim();
+        unidades[i]['abreviado'] = abreviado.trim();
+        unidades[i]['menor_mayor'] = menorMayor;
+        updated = true;
+        break;
+      }
+    }
+    
+    if (updated) {
+      await docRef.update({'unidades': unidades});
+    }
+  }
+
+  Future<void> deleteUnidad(String nombre) async {
+    final docRef = _firestore.collection('Catalogos').doc('configuracion');
+    final doc = await docRef.get();
+    if (!doc.exists) return;
+    
+    final data = doc.data()!;
+    final unidades = List<dynamic>.from(data['unidades'] ?? []);
+    final itemToRemove = unidades.firstWhere((u) => u['nombre'] == nombre, orElse: () => null);
+    
+    if (itemToRemove != null) {
+      await docRef.update({
+        'unidades': FieldValue.arrayRemove([itemToRemove])
+      });
+    }
+  }
+
+  Future<void> renameUnidad(String oldName, String newName) async {
+    if (newName.trim().isEmpty || oldName == newName) return;
+    final docRef = _firestore.collection('Catalogos').doc('configuracion');
+    final doc = await docRef.get();
+    if (!doc.exists) return;
+    
+    final data = doc.data()!;
+    final unidades = List<dynamic>.from(data['unidades'] ?? []);
+    
+    bool updated = false;
+    for (int i = 0; i < unidades.length; i++) {
+      if (unidades[i]['nombre'] == oldName) {
+        unidades[i]['nombre'] = newName.trim();
+        updated = true;
+      }
+    }
+    
+    if (updated) {
+      await docRef.update({'unidades': unidades});
+    }
+  }
+
+  // Update Inventory Field
+  Future<void> _updateInventoryField(String fieldName, String oldName, String newName) async {
     try {
-      final snapshot = await _firestore
-          .collection('Inventario')
-          .where(fieldName, isEqualTo: oldName)
-          .get();
+      final snapshot = await _firestore.collection('Inventario').where(fieldName, isEqualTo: oldName).get();
       if (snapshot.docs.isEmpty) return;
 
       WriteBatch batch = _firestore.batch();
       int count = 0;
 
       for (var doc in snapshot.docs) {
-        final data = doc.data();
-        final updates = <String, dynamic>{fieldName: newName};
-
-        // Update inside 'productos' array as well
-        if (data.containsKey('productos') && data['productos'] is List) {
-          final productos = List<Map<String, dynamic>>.from(data['productos']);
-          bool changed = false;
-          for (var p in productos) {
-            if (p[fieldName] == oldName) {
-              p[fieldName] = newName;
-              changed = true;
-            }
-          }
-          if (changed) {
-            updates['productos'] = productos;
-          }
-        }
-
-        batch.update(doc.reference, updates);
+        batch.update(doc.reference, {fieldName: newName});
         count++;
 
-        // Firebase limits batch to 500
         if (count == 490) {
           await batch.commit();
           batch = _firestore.batch();
@@ -230,45 +299,4 @@ class ServicioCatalogos {
       debugPrint("DEBUG: Error al actualizar inventario para $fieldName: $e");
     }
   }
-
-  // Unidades
-  Future<void> addUnidad(String nombre, String tipo, bool menorMayor) async {
-    try {
-      if (nombre.trim().isEmpty) return;
-      await _firestore.collection('Unidades').add({
-        'nombre': nombre.trim(),
-        'tipo': tipo.trim(),
-        'mayor': menorMayor,
-        'fecha_creacion': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      debugPrint("DEBUG: Error al agregar a Unidades: $e");
-      rethrow;
-    }
-  }
-
-  Future<void> updateUnidad(
-    String id,
-    String nombre,
-    String tipo,
-    bool menorMayor,
-  ) async {
-    try {
-      if (nombre.trim().isEmpty) return;
-      await _firestore.collection('Unidades').doc(id).update({
-        'nombre': nombre.trim(),
-        'tipo': tipo.trim(),
-        'mayor': menorMayor,
-      });
-    } catch (e) {
-      debugPrint("DEBUG: Error al actualizar Unidad: $e");
-      rethrow;
-    }
-  }
-
-  Future<void> deleteUnidad(String nombre) =>
-      _deleteDoc('Unidades', nombre, fieldName: 'nombre');
-  // Se mantiene renameUnidad por si acaso hay referencias, pero updateUnidad es la preferida ahora
-  Future<void> renameUnidad(String oldName, String newName) =>
-      _renameDoc('Unidades', oldName, newName, fieldName: 'nombre');
 }

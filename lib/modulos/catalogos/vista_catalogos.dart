@@ -22,11 +22,39 @@ class _VistaCatalogosState extends State<VistaCatalogos> {
   final Map<String, int> _usageCountCache = {};
   final Map<String, List<Map<String, dynamic>>> _usageItemsCache = {};
 
-  QuerySnapshot<Map<String, dynamic>>? _cachedLotes;
+  List<DocumentSnapshot<Map<String, dynamic>>>? _cachedLotes;
 
-  Future<QuerySnapshot<Map<String, dynamic>>> _getLotes() async {
-    _cachedLotes ??= await FirebaseFirestore.instance.collectionGroup('lote').get();
-    return _cachedLotes!;
+  Future<List<DocumentSnapshot<Map<String, dynamic>>>> _getLotes() async {
+    if (_cachedLotes != null) return _cachedLotes!;
+    
+    try {
+      final snap = await FirebaseFirestore.instance.collectionGroup('lote').get();
+      _cachedLotes = snap.docs;
+      return _cachedLotes!;
+    } catch (e) {
+      debugPrint("Error collectionGroup('lote'): $e. Usando fallback...");
+      final invSnap = await FirebaseFirestore.instance.collection('Inventario').get();
+      final List<DocumentSnapshot<Map<String, dynamic>>> allLotes = [];
+      
+      // Batch the queries to avoid hanging the browser (max 20 concurrent)
+      for (var i = 0; i < invSnap.docs.length; i += 20) {
+        final end = (i + 20 < invSnap.docs.length) ? i + 20 : invSnap.docs.length;
+        final batch = invSnap.docs.sublist(i, end);
+        
+        final List<Future<QuerySnapshot<Map<String, dynamic>>>> futures = [];
+        for (var doc in batch) {
+          futures.add(doc.reference.collection('lote').get());
+        }
+        
+        final snaps = await Future.wait(futures);
+        for (var snap in snaps) {
+          allLotes.addAll(snap.docs);
+        }
+      }
+      
+      _cachedLotes = allLotes;
+      return _cachedLotes!;
+    }
   }
 
   late final VMCatalogos _vmCatalogos;
@@ -88,47 +116,39 @@ class _VistaCatalogosState extends State<VistaCatalogos> {
     try {
       final firestore = FirebaseFirestore.instance;
       if (tabIndex == 0) {
-        final catSnap = await firestore
-            .collection('Categorias')
-            .where('Nombre', isEqualTo: item)
-            .get();
-        int count = 0;
-        for (var doc in catSnap.docs) {
-          final snapId = await firestore
-              .collection('Inventario')
-              .where('categoria', isEqualTo: doc.id)
-              .count()
-              .get();
-          count += (snapId.count ?? 0);
-        }
-        final snapStr = await firestore
+        final String? catId = _vmCatalogos.categoriasMap.entries
+            .where((e) => e.value == item)
+            .map((e) => e.key)
+            .firstOrNull;
+        
+        final List<String> searchIds = [item];
+        if (catId != null) searchIds.add(catId);
+
+        final snap = await firestore
             .collection('Inventario')
-            .where('categoria', isEqualTo: item)
+            .where('categoria', whereIn: searchIds)
             .count()
             .get();
-        final result = count + (snapStr.count ?? 0);
+            
+        final result = snap.count ?? 0;
         _usageCountCache[cacheKey] = result;
         return result;
       } else if (tabIndex == 1) {
-        final provSnap = await firestore
-            .collection('Proveedores')
-            .where('Nombre', isEqualTo: item)
-            .get();
-        int count = 0;
-        for (var doc in provSnap.docs) {
-          final snapId = await firestore
-              .collection('Inventario')
-              .where('proveedor', isEqualTo: doc.id)
-              .count()
-              .get();
-          count += (snapId.count ?? 0);
-        }
-        final snapStr = await firestore
+        final String? provId = _vmCatalogos.proveedoresMap.entries
+            .where((e) => e.value == item)
+            .map((e) => e.key)
+            .firstOrNull;
+            
+        final List<String> searchIds = [item];
+        if (provId != null) searchIds.add(provId);
+
+        final snap = await firestore
             .collection('Inventario')
-            .where('proveedor', isEqualTo: item)
+            .where('proveedor', whereIn: searchIds)
             .count()
             .get();
-        final result = count + (snapStr.count ?? 0);
+            
+        final result = snap.count ?? 0;
         _usageCountCache[cacheKey] = result;
         return result;
       } else {
@@ -143,8 +163,8 @@ class _VistaCatalogosState extends State<VistaCatalogos> {
           if (unitData['id'] != null) {
             possibleValues.add(unitData['id']);
           }
-          if (unitData['tipo'] != null) {
-            possibleValues.add(unitData['tipo']);
+          if (unitData['abreviado'] != null) {
+            possibleValues.add(unitData['abreviado']);
           }
           if (unitData['nombre'] != null) {
             possibleValues.add(unitData['nombre']);
@@ -154,8 +174,8 @@ class _VistaCatalogosState extends State<VistaCatalogos> {
         final lotesRef = await _getLotes();
         Set<String> invIds = {};
 
-        for (var loteDoc in lotesRef.docs) {
-          final data = loteDoc.data();
+        for (var loteDoc in lotesRef) {
+          final data = loteDoc.data() ?? <String, dynamic>{};
           final unVal = data['unidades']?.toString().trim();
           final unValMayor = data['unidades_mayor']?.toString().trim();
 
@@ -206,12 +226,13 @@ class _VistaCatalogosState extends State<VistaCatalogos> {
       final firestore = FirebaseFirestore.instance;
       if (tabIndex == 0) {
         // Categorías
-        final catSnap = await firestore
-            .collection('Categorias')
-            .where('Nombre', isEqualTo: item)
-            .get();
-        final List<String> catIds = catSnap.docs.map((d) => d.id).toList();
-        catIds.add(item);
+        final String? catId = _vmCatalogos.categoriasMap.entries
+            .where((e) => e.value == item)
+            .map((e) => e.key)
+            .firstOrNull;
+            
+        final List<String> catIds = [item];
+        if (catId != null) catIds.add(catId);
 
         final invSnap = await firestore
             .collection('Inventario')
@@ -229,12 +250,13 @@ class _VistaCatalogosState extends State<VistaCatalogos> {
         }
       } else if (tabIndex == 1) {
         // Proveedores
-        final provSnap = await firestore
-            .collection('Proveedores')
-            .where('Nombre', isEqualTo: item)
-            .get();
-        final List<String> provIds = provSnap.docs.map((d) => d.id).toList();
-        provIds.add(item);
+        final String? provId = _vmCatalogos.proveedoresMap.entries
+            .where((e) => e.value == item)
+            .map((e) => e.key)
+            .firstOrNull;
+            
+        final List<String> provIds = [item];
+        if (provId != null) provIds.add(provId);
 
         final invSnap = await firestore
             .collection('Inventario')
@@ -262,8 +284,8 @@ class _VistaCatalogosState extends State<VistaCatalogos> {
           if (unitData['id'] != null) {
             possibleValues.add(unitData['id']);
           }
-          if (unitData['tipo'] != null) {
-            possibleValues.add(unitData['tipo']);
+          if (unitData['abreviado'] != null) {
+            possibleValues.add(unitData['abreviado']);
           }
           if (unitData['nombre'] != null) {
             possibleValues.add(unitData['nombre']);
@@ -273,8 +295,8 @@ class _VistaCatalogosState extends State<VistaCatalogos> {
         final lotesRef = await _getLotes();
         Set<String> invIds = {};
 
-        for (var loteDoc in lotesRef.docs) {
-          final data = loteDoc.data();
+        for (var loteDoc in lotesRef) {
+          final data = loteDoc.data() ?? <String, dynamic>{};
           final unVal = data['unidades']?.toString().trim();
           final unValMayor = data['unidades_mayor']?.toString().trim();
 
@@ -438,18 +460,37 @@ class _VistaCatalogosState extends State<VistaCatalogos> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  onPressed: () {
+                  onPressed: () async {
                     final val = nameController.text.trim();
                     if (val.isNotEmpty) {
-                      if (tabIndex == 0 && !_categories.contains(val)) {
-                        _vmCatalogos.addCategoria(val);
-                      } else if (tabIndex == 1 && !_providers.contains(val)) {
-                        _vmCatalogos.addProveedor(val);
-                      } else if (tabIndex == 2 && !_units.contains(val)) {
-                        final tipo = typeController.text.trim();
-                        _vmCatalogos.addUnidad(val, tipo, menorMayor);
+                      try {
+                      if (tabIndex == 0) {
+                        if (!_categories.contains(val)) {
+                          await _vmCatalogos.addCategoria(val);
+                          if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(backgroundColor: Colors.green, content: Text('Categoría "$val" guardada.')));
+                        } else {
+                          if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(backgroundColor: Colors.orange, content: Text('La categoría "$val" ya existe.')));
+                        }
+                      } else if (tabIndex == 1) {
+                        if (!_providers.contains(val)) {
+                          await _vmCatalogos.addProveedor(val);
+                          if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(backgroundColor: Colors.green, content: Text('Proveedor "$val" guardado.')));
+                        } else {
+                          if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(backgroundColor: Colors.orange, content: Text('El proveedor "$val" ya existe.')));
+                        }
+                      } else if (tabIndex == 2) {
+                        if (!_units.contains(val)) {
+                          final abreviado = typeController.text.trim();
+                          await _vmCatalogos.addUnidad(val, abreviado, menorMayor);
+                          if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(backgroundColor: Colors.green, content: Text('Unidad "$val" guardada.')));
+                        } else {
+                          if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(backgroundColor: Colors.orange, content: Text('La unidad "$val" ya existe.')));
+                        }
                       }
-                      Navigator.pop(context);
+                      if (context.mounted) Navigator.pop(context);
+                      } catch (e) {
+                        if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(backgroundColor: Colors.red, content: Text('Error al guardar: $e')));
+                      }
                     }
                   },
                   child: const Text("Guardar"),
@@ -557,10 +598,13 @@ class _VistaCatalogosState extends State<VistaCatalogos> {
               onPressed: () {
                 if (tabIndex == 0) {
                   _deleteCategory(item);
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Categoría eliminada.')));
                 } else if (tabIndex == 1) {
                   _deleteProvider(item);
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Proveedor eliminado.')));
                 } else {
                   _deleteUnit(item);
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Unidad eliminada.')));
                 }
                 Navigator.pop(context);
               },
@@ -594,7 +638,7 @@ class _VistaCatalogosState extends State<VistaCatalogos> {
       if (unitData.isNotEmpty) {
         unitId = unitData['id'] as String?;
         nameController.text = unitData['nombre'] as String? ?? item;
-        typeController.text = unitData['tipo'] as String? ?? '';
+        typeController.text = unitData['abreviado'] as String? ?? '';
         menorMayor = unitData['mayor'] as bool? ?? false;
       }
     }
@@ -692,19 +736,22 @@ class _VistaCatalogosState extends State<VistaCatalogos> {
                     if (val.isNotEmpty) {
                       if (tabIndex == 0 && val != item) {
                         _renameCategory(item, val);
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Categoría actualizada.')));
                       } else if (tabIndex == 1 && val != item) {
                         _renameProvider(item, val);
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Proveedor actualizado.')));
                       } else if (tabIndex == 2 && unitId != null) {
-                        final tipo = typeController.text.trim();
+                        final abreviado = typeController.text.trim();
                         _vmCatalogos.updateUnidad(
                           unitId,
                           val,
-                          tipo,
+                          abreviado,
                           menorMayor,
                         );
                         setState(() {
                           _selectedItem = val;
                         });
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Unidad actualizada.')));
                       }
                       Navigator.pop(context);
                     }
@@ -1072,7 +1119,7 @@ class _VistaCatalogosState extends State<VistaCatalogos> {
                                                     <String, dynamic>{},
                                               );
                                           if (unitData.isNotEmpty) {
-                                            abreviado = unitData['tipo'] ?? "-";
+                                            abreviado = unitData['abreviado'] ?? "-";
                                             if (abreviado.isEmpty) {
                                               abreviado = "-";
                                             }

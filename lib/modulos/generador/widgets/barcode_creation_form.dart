@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:confianza_admin/core/theme/app_colors.dart';
 
 class BarcodeCreationForm extends StatelessWidget {
@@ -244,7 +245,10 @@ class BarcodeCreationForm extends StatelessWidget {
                           height: 40,
                           child: TextField(
                             controller: priceController,
-                            keyboardType: TextInputType.number,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                            ],
                             style: const TextStyle(fontSize: 13),
                             decoration: InputDecoration(
                               prefixIcon: const Padding(

@@ -24,7 +24,7 @@ class ProductoArticulo {
   String categoria;
   String proveedor;
   int cantidadMinima;
-  String tipoProducto;
+  bool pesado;
   String tipoVenta;
   String fechaIngresado;
   String estado;
@@ -40,7 +40,7 @@ class ProductoArticulo {
     this.categoria = 'General',
     this.proveedor = '',
     this.cantidadMinima = 1,
-    this.tipoProducto = 'Normal',
+    this.pesado = false,
     this.tipoVenta = 'Menor',
     this.fechaIngresado = '',
     this.estado = 'Activo',
@@ -60,7 +60,7 @@ class ProductoArticulo {
     'categoria': categoria,
     'proveedor': proveedor,
     'cantidadMinima': cantidadMinima,
-    'tipo_producto': tipoProducto,
+    'pesado': pesado,
     'tipo_venta': tipoVenta,
     'menor_mayor': tipoVenta == 'Ambos' || tipoVenta == 'Mayor',
     'fechaIngresado': fechaIngresado,
@@ -85,7 +85,7 @@ class ProductoArticulo {
       categoria: map['categoria'] ?? 'General',
       proveedor: map['proveedor'] ?? '',
       cantidadMinima: map['cantidadMinima'] ?? 1,
-      tipoProducto: map['tipoProducto'] ?? 'Normal',
+      pesado: map['pesado'] == true,
       tipoVenta: (map['menor_mayor'] == true) ? 'Ambos' : (map['tipoVenta'] ?? map['tipo_venta'] ?? 'Menor'),
       fechaIngresado: map['fechaIngresado'] ?? map['fecha_ingreso'] ?? map['fecha'] ?? '',
       estado: map['estado'] ?? 'Activo',
@@ -271,7 +271,7 @@ class ArticuloInventario {
               categoria: map['categoria'] ?? 'General',
               proveedor: map['proveedor'] ?? '',
               cantidadMinima: map['cantidadMinima'] ?? map['cantidad_minima'] ?? 1,
-              tipoProducto: map['tipoProducto'] ?? map['tipo_producto'] ?? 'Normal',
+              pesado: map['pesado'] == true,
               tipoVenta: (map['menor_mayor'] == true) ? 'Ambos' : (map['tipoVenta'] ?? map['tipo_venta'] ?? 'Menor'),
               fechaIngresado: map['fechaIngresado'] ?? map['fecha_ingreso'] ?? map['fecha'] ?? '',
               estado: map['estado'] ?? 'Activo',

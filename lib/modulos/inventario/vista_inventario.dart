@@ -1035,6 +1035,7 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
                           duration: const Duration(seconds: 4),
                         ),
                       );
+                      rethrow;
                     }
                   },
                   onNext: () {
@@ -1084,6 +1085,7 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
                           duration: const Duration(seconds: 4),
                         ),
                       );
+                      rethrow;
                     }
                   },
                 )
@@ -1297,7 +1299,7 @@ class _VistaInventarioState extends ConsumerState<VistaInventario> {
                                   categoria: '',
                                   proveedor: '',
                                   cantidadMinima: 0,
-                                  tipoProducto: 'Normal',
+                                  pesado: false,
                                   tipoVenta: 'Menor',
                                   fechaIngresado: nowStr,
                                   estado: 'Activo',

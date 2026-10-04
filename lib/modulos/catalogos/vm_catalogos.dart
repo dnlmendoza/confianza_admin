@@ -78,8 +78,8 @@ class VMCatalogos extends ChangeNotifier {
   Future<void> deleteProveedor(String nombre) => _servicio.deleteProveedor(nombre);
   Future<void> renameProveedor(String oldName, String newName) => _servicio.renameProveedor(oldName, newName);
 
-  Future<void> addUnidad(String nombre, String tipo, bool menorMayor) => _servicio.addUnidad(nombre, tipo, menorMayor);
-  Future<void> updateUnidad(String id, String nombre, String tipo, bool menorMayor) => _servicio.updateUnidad(id, nombre, tipo, menorMayor);
+  Future<void> addUnidad(String nombre, String abreviado, bool menorMayor) => _servicio.addUnidad(nombre, abreviado, menorMayor);
+  Future<void> updateUnidad(String id, String nombre, String abreviado, bool menorMayor) => _servicio.updateUnidad(id, nombre, abreviado, menorMayor);
   Future<void> deleteUnidad(String nombre) => _servicio.deleteUnidad(nombre);
   Future<void> renameUnidad(String oldName, String newName) => _servicio.renameUnidad(oldName, newName);
 }

@@ -403,28 +403,9 @@ class _InventoryTabLoteState extends State<InventoryTabLote> {
                     onPressed: () async {
                       if (widget.onSave != null) {
                         try {
-                          if (!showMayor) {
-                            lote.stockMayor = 0;
-                            lote.costoMayor = 0;
-                            lote.precioVentaMayor = 0;
-                            lote.unidadesMayor = '';
-                          }
                           await widget.onSave!(lote);
-                          if (!context.mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text("Artículo guardado correctamente.", style: GoogleFonts.outfit()),
-                              backgroundColor: Colors.green,
-                            ),
-                          );
                         } catch (e) {
-                          if (!context.mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text("Error al guardar: $e", style: GoogleFonts.outfit()),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
+                          // Parent handles error UI
                         }
                       }
                     },
@@ -454,31 +435,13 @@ class _InventoryTabLoteState extends State<InventoryTabLote> {
                           onPressed: () async {
                             if (widget.onSave != null) {
                               try {
-                                if (!showMayor) {
-                                  lote.stockMayor = 0;
-                                  lote.costoMayor = 0;
-                                  lote.precioVentaMayor = 0;
-                                  lote.unidadesMayor = '';
-                                }
                                 await widget.onSave!(lote);
                                 if (!context.mounted) return;
                                 setState(() {
                                   _captureOriginalState();
                                 });
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text("Lote actualizado en Firestore", style: GoogleFonts.outfit()),
-                                    backgroundColor: Colors.green,
-                                  ),
-                                );
                               } catch (e) {
-                                if (!context.mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text("Error al actualizar: $e", style: GoogleFonts.outfit()),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
+                                // Parent handles error UI
                               }
                             }
                           },
@@ -673,6 +636,7 @@ class _InventoryTabLoteState extends State<InventoryTabLote> {
         SizedBox(
           height: 38,
           child: TextFormField(
+            key: ValueKey(value),
             initialValue: value,
             readOnly: true,
             style: GoogleFonts.outfit(

@@ -48,14 +48,14 @@ class _InventoryTabArticlesState extends State<InventoryTabArticles> {
   void _captureOriginalState() {
     if (widget.articulo.productos.isNotEmpty) {
       final prod = widget.articulo.productos.first;
-      _originalStateStr = "${prod.nombre}|${prod.descripcion}|${prod.codigoBarra}|${prod.fechaIngresado}|${prod.tipoProducto}|${prod.tipoVenta}|${prod.cantidadMinima}|${prod.categoria}|${prod.proveedor}|${prod.estado}";
+      _originalStateStr = "${prod.nombre}|${prod.descripcion}|${prod.codigoBarra}|${prod.fechaIngresado}|${prod.pesado}|${prod.tipoVenta}|${prod.cantidadMinima}|${prod.categoria}|${prod.proveedor}|${prod.estado}";
     }
   }
 
   bool get isDirty {
     if (widget.articulo.productos.isEmpty) return false;
     final prod = widget.articulo.productos.first;
-    final currentStr = "${prod.nombre}|${prod.descripcion}|${prod.codigoBarra}|${prod.fechaIngresado}|${prod.tipoProducto}|${prod.tipoVenta}|${prod.cantidadMinima}|${prod.categoria}|${prod.proveedor}|${prod.estado}";
+    final currentStr = "${prod.nombre}|${prod.descripcion}|${prod.codigoBarra}|${prod.fechaIngresado}|${prod.pesado}|${prod.tipoVenta}|${prod.cantidadMinima}|${prod.categoria}|${prod.proveedor}|${prod.estado}";
     return currentStr != _originalStateStr;
   }
 
@@ -206,7 +206,7 @@ class _InventoryTabArticlesState extends State<InventoryTabArticles> {
                               GestureDetector(
                                 onTap: () {
                                   setState(() {
-                                    prod.tipoProducto = (prod.tipoProducto == "Pesado") ? "Normal" : "Pesado";
+                                    prod.pesado = !prod.pesado;
                                   });
                                   widget.onUpdate();
                                 },
@@ -214,12 +214,12 @@ class _InventoryTabArticlesState extends State<InventoryTabArticles> {
                                   duration: const Duration(milliseconds: 200),
                                   height: 38,
                                   decoration: BoxDecoration(
-                                    color: prod.tipoProducto == "Normal" 
+                                    color: !prod.pesado 
                                         ? AppColors.surfaceContainerLow.withValues(alpha: 0.3)
                                         : AppColors.primary.withValues(alpha: 0.15),
                                     borderRadius: BorderRadius.circular(10),
                                     border: Border.all(
-                                      color: prod.tipoProducto == "Normal" 
+                                      color: !prod.pesado 
                                           ? AppColors.outlineVariant.withValues(alpha: 0.4)
                                           : AppColors.primary.withValues(alpha: 0.3),
                                     ),
@@ -230,13 +230,13 @@ class _InventoryTabArticlesState extends State<InventoryTabArticles> {
                                       AnimatedAlign(
                                         duration: const Duration(milliseconds: 200),
                                         curve: Curves.easeInOut,
-                                        alignment: prod.tipoProducto == "Normal" ? Alignment.centerLeft : Alignment.centerRight,
+                                        alignment: !prod.pesado ? Alignment.centerLeft : Alignment.centerRight,
                                         child: FractionallySizedBox(
                                           widthFactor: 0.5,
                                           child: AnimatedContainer(
                                             duration: const Duration(milliseconds: 200),
                                             decoration: BoxDecoration(
-                                              color: prod.tipoProducto == "Normal" 
+                                              color: !prod.pesado 
                                                   ? AppColors.outlineVariant.withValues(alpha: 0.8) 
                                                   : AppColors.primary,
                                               borderRadius: BorderRadius.circular(8),
@@ -341,89 +341,15 @@ class _InventoryTabArticlesState extends State<InventoryTabArticles> {
                           ],
                         ),
                         const SizedBox(height: 6),
+                        const SizedBox(height: 6),
                         SizedBox(
                           height: 38,
-                          child: TextFormField(
-                            key: ValueKey('$keyPrefix-minQty'),
-                            initialValue: prod.cantidadMinima.toString(),
-                            keyboardType: TextInputType.number,
-                            textAlign: TextAlign.center,
-                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                            onChanged: (val) {
-                              final parsed = int.tryParse(val) ?? 1;
-                              prod.cantidadMinima = parsed;
+                          child: _QuantityCounter(
+                            initialValue: prod.cantidadMinima,
+                            onChanged: (newVal) {
+                              prod.cantidadMinima = newVal;
                               widget.onUpdate();
                             },
-                            style: GoogleFonts.outfit(
-                              fontSize: 13,
-                              color: AppColors.onSurface,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            decoration: InputDecoration(
-                              prefixIcon: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTap: () {
-                                  if (prod.cantidadMinima > 1) {
-                                    setState(() {
-                                      prod.cantidadMinima--;
-                                    });
-                                    widget.onUpdate();
-                                  }
-                                },
-                                child: Icon(
-                                  Icons.remove,
-                                  size: 16,
-                                  color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
-                                ),
-                              ),
-                              suffixIcon: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTap: () {
-                                  setState(() {
-                                    prod.cantidadMinima++;
-                                  });
-                                  widget.onUpdate();
-                                },
-                                child: Icon(
-                                  Icons.add,
-                                  size: 16,
-                                  color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
-                                ),
-                              ),
-                              prefixIconConstraints: const BoxConstraints(
-                                minWidth: 36,
-                                minHeight: 38,
-                              ),
-                              suffixIconConstraints: const BoxConstraints(
-                                minWidth: 36,
-                                minHeight: 38,
-                              ),
-                              filled: true,
-                              fillColor: AppColors.surfaceContainerLow.withValues(alpha: 0.3),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 0,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(
-                                  color: AppColors.outlineVariant.withValues(alpha: 0.4),
-                                ),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(
-                                  color: AppColors.outlineVariant.withValues(alpha: 0.4),
-                                ),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: const BorderSide(
-                                  color: AppColors.primary,
-                                  width: 1.5,
-                                ),
-                              ),
-                            ),
                           ),
                         ),
                       ],
@@ -518,20 +444,8 @@ class _InventoryTabArticlesState extends State<InventoryTabArticles> {
                           setState(() {
                             _captureOriginalState();
                           });
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text("Artículo actualizado en Firestore", style: GoogleFonts.outfit()),
-                              backgroundColor: Colors.green,
-                            ),
-                          );
                         } catch (e) {
-                          if (!context.mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text("Error al actualizar: $e", style: GoogleFonts.outfit()),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
+                          // Parent handles error UI
                         }
                       }
                     },
@@ -557,6 +471,137 @@ class _InventoryTabArticlesState extends State<InventoryTabArticles> {
         Icons.image_outlined,
         size: 36,
         color: AppColors.onSurfaceVariant.withValues(alpha: 0.4),
+      ),
+    );
+  }
+}
+
+class _QuantityCounter extends StatefulWidget {
+  final int initialValue;
+  final ValueChanged<int> onChanged;
+
+  const _QuantityCounter({
+    required this.initialValue,
+    required this.onChanged,
+  });
+
+  @override
+  State<_QuantityCounter> createState() => _QuantityCounterState();
+}
+
+class _QuantityCounterState extends State<_QuantityCounter> {
+  late TextEditingController _controller;
+  int _currentValue = 1;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentValue = widget.initialValue;
+    _controller = TextEditingController(text: _currentValue.toString());
+  }
+
+  @override
+  void didUpdateWidget(covariant _QuantityCounter oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialValue != oldWidget.initialValue && widget.initialValue != _currentValue) {
+      _currentValue = widget.initialValue;
+      _controller.text = _currentValue.toString();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _increment() {
+    setState(() {
+      _currentValue++;
+      _controller.text = _currentValue.toString();
+    });
+    widget.onChanged(_currentValue);
+  }
+
+  void _decrement() {
+    if (_currentValue > 1) {
+      setState(() {
+        _currentValue--;
+        _controller.text = _currentValue.toString();
+      });
+      widget.onChanged(_currentValue);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      controller: _controller,
+      keyboardType: TextInputType.number,
+      textAlign: TextAlign.center,
+      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+      onChanged: (val) {
+        final parsed = int.tryParse(val) ?? 1;
+        _currentValue = parsed;
+        widget.onChanged(parsed);
+      },
+      style: GoogleFonts.outfit(
+        fontSize: 13,
+        color: AppColors.onSurface,
+        fontWeight: FontWeight.bold,
+      ),
+      decoration: InputDecoration(
+        prefixIcon: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _decrement,
+          child: Icon(
+            Icons.remove,
+            size: 16,
+            color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
+          ),
+        ),
+        suffixIcon: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _increment,
+          child: Icon(
+            Icons.add,
+            size: 16,
+            color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
+          ),
+        ),
+        prefixIconConstraints: const BoxConstraints(
+          minWidth: 36,
+          minHeight: 38,
+        ),
+        suffixIconConstraints: const BoxConstraints(
+          minWidth: 36,
+          minHeight: 38,
+        ),
+        filled: true,
+        fillColor: AppColors.surfaceContainerLow.withValues(alpha: 0.3),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 8,
+          vertical: 0,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(
+            color: AppColors.outlineVariant.withValues(alpha: 0.4),
+          ),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(
+            color: AppColors.outlineVariant.withValues(alpha: 0.4),
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(
+            color: AppColors.primary,
+            width: 1.5,
+          ),
+        ),
       ),
     );
   }

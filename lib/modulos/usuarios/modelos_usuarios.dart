@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+
 
 /// Modelo de datos para un Usuario
 class UserModel {
@@ -9,6 +9,9 @@ class UserModel {
   final String status; // "Active", "Offline", "Suspended"
   final String lastAccess;
   final String imageUrl;
+  final String telefono;
+  final String idDispositivo;
+  final Map<String, bool> permisos;
 
   const UserModel({
     required this.id,
@@ -18,6 +21,9 @@ class UserModel {
     required this.status,
     required this.lastAccess,
     required this.imageUrl,
+    this.telefono = '',
+    this.idDispositivo = '',
+    this.permisos = const {},
   });
 
   UserModel copyWith({
@@ -27,6 +33,9 @@ class UserModel {
     String? status,
     String? lastAccess,
     String? imageUrl,
+    String? telefono,
+    String? idDispositivo,
+    Map<String, bool>? permisos,
   }) {
     return UserModel(
       id: id,
@@ -36,6 +45,9 @@ class UserModel {
       status: status ?? this.status,
       lastAccess: lastAccess ?? this.lastAccess,
       imageUrl: imageUrl ?? this.imageUrl,
+      telefono: telefono ?? this.telefono,
+      idDispositivo: idDispositivo ?? this.idDispositivo,
+      permisos: permisos ?? this.permisos,
     );
   }
 
@@ -48,9 +60,6 @@ class UserModel {
     
     final String name = '$primerNombre $primerApellido'.trim();
     
-    // Imprimir llaves del documento para depuración del desarrollador
-    debugPrint("Firestore Keys for user '$name': ${json.keys.toList()}");
-    
     // Buscar el primer valor que no sea nulo entre variantes comunes de nombres de campo
     final Object? possibleUrl = json['FotoUrl'] ?? 
                                 json['fotoUrl'] ?? 
@@ -61,6 +70,16 @@ class UserModel {
                                 
     final String rawUrl = possibleUrl?.toString().trim() ?? '';
     
+    final dynamic rawPermisos = json['permisos'];
+    final Map<String, bool> parsedPermisos = {};
+    if (rawPermisos is Map) {
+      rawPermisos.forEach((key, value) {
+        if (key is String && value is bool) {
+          parsedPermisos[key] = value;
+        }
+      });
+    }
+    
     return UserModel(
       id: id,
       name: name.isEmpty ? 'Sin nombre' : name,
@@ -69,6 +88,9 @@ class UserModel {
       status: json['Estado'] as String? ?? (isRequest ? 'Pendiente' : 'Activo'),
       lastAccess: json['Fecha'] as String? ?? '',
       imageUrl: rawUrl,
+      telefono: json['Telefono']?.toString() ?? '',
+      idDispositivo: json['IdDispositivo']?.toString() ?? '',
+      permisos: parsedPermisos,
     );
   }
 }

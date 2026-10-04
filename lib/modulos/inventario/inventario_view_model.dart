@@ -154,15 +154,7 @@ class InventarioViewModel extends Notifier<InventarioState> {
       data['estado'] = prod.estado;
       data['imagen'] = prod.imagen;
       data['cantidad_minima'] = prod.cantidadMinima;
-      data['tipo_producto'] = prod.tipoProducto;
-      // Prevenir inconsistencias: Si hay lotes con datos al por mayor, forzar a Ambos
-      final bool hasWholesale = articulo.lotes.any(
-        (l) => l.stockMayor > 0 || l.costoMayor > 0 || l.precioVentaMayor > 0,
-      );
-      if (hasWholesale && prod.tipoVenta == 'Menor') {
-        prod.tipoVenta = 'Ambos';
-      }
-
+      data['pesado'] = prod.pesado;
       data['menor_mayor'] =
           prod.tipoVenta == 'Ambos' || prod.tipoVenta == 'Mayor';
       data['fecha'] = prod.fechaIngresado.isNotEmpty
@@ -210,16 +202,7 @@ class InventarioViewModel extends Notifier<InventarioState> {
       data['estado'] = 'Activo'; // Siempre Activo para nuevos
       data['imagen'] = prod.imagen;
       data['cantidad_minima'] = prod.cantidadMinima;
-      data['tipo_producto'] = prod.tipoProducto;
-      // Prevenir inconsistencias al crear: Si el lote inicial tiene datos al por mayor, forzar a Ambos
-      final bool hasWholesale =
-          lote.stockMayor > 0 ||
-          lote.costoMayor > 0 ||
-          lote.precioVentaMayor > 0;
-      if (hasWholesale && prod.tipoVenta == 'Menor') {
-        prod.tipoVenta = 'Ambos';
-      }
-
+      data['pesado'] = prod.pesado;
       data['menor_mayor'] =
           prod.tipoVenta == 'Ambos' || prod.tipoVenta == 'Mayor';
       data['fecha'] = prod.fechaIngresado.isNotEmpty
