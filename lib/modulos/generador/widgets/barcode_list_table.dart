@@ -465,47 +465,49 @@ class BarcodeListTable extends StatelessWidget {
                   behavior: ScrollConfiguration.of(
                     context,
                   ).copyWith(scrollbars: false),
-                  child: CustomScrollView(
-                    physics: isBounded
-                        ? const AlwaysScrollableScrollPhysics()
-                        : const NeverScrollableScrollPhysics(),
-                    shrinkWrap: !isBounded,
-                    slivers: [
-                      SliverPersistentHeader(
-                        pinned: true,
-                        delegate: _StickyHeaderDelegate(
-                          child: headerRow,
-                          height: 100,
-                        ),
-                      ),
-                      if (entries.isEmpty)
-                        SliverFillRemaining(
-                          hasScrollBody: false,
-                          child: Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.inventory_2_outlined,
-                                  size: 48,
-                                  color: AppColors.outlineVariant,
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  "No hay Artículos",
-                                  style: TextStyle(
-                                    color: AppColors.outlineVariant,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
+                  child: SelectionArea(
+                    child: CustomScrollView(
+                      physics: isBounded
+                          ? const AlwaysScrollableScrollPhysics()
+                          : const NeverScrollableScrollPhysics(),
+                      shrinkWrap: !isBounded,
+                      slivers: [
+                        SliverPersistentHeader(
+                          pinned: true,
+                          delegate: _StickyHeaderDelegate(
+                            child: headerRow,
+                            height: 100,
                           ),
-                        )
-                      else
-                        sliverList,
-                    ],
+                        ),
+                        if (entries.isEmpty)
+                          SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.inventory_2_outlined,
+                                    size: 48,
+                                    color: AppColors.outlineVariant,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    "No hay Artículos",
+                                    style: TextStyle(
+                                      color: AppColors.outlineVariant,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        else
+                          sliverList,
+                      ],
+                    ),
                   ),
                 ),
               ),
