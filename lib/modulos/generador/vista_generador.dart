@@ -15,6 +15,7 @@ import 'widgets/barcode_preview_card.dart';
 import 'widgets/barcode_list_table.dart';
 import 'widgets/print_queue_panel.dart';
 import 'widgets/barcode_utils.dart';
+import 'package:intl/intl.dart';
 
 class VistaGenerador extends ConsumerStatefulWidget {
   const VistaGenerador({super.key});
@@ -849,6 +850,7 @@ class _VistaGeneradorState extends ConsumerState<VistaGenerador>
     final modeStr = entry.hasOriginalCode ? 'ORIGINAL' : 'GENERADO';
     final pVal = double.tryParse(entry.price.replaceAll(',', '')) ?? 0;
     final hasPrice = pVal > 0;
+    final formattedPrice = NumberFormat.currency(symbol: "L. ", decimalDigits: 2).format(pVal);
 
     return FittedBox(
       fit: BoxFit.contain,
@@ -883,7 +885,7 @@ class _VistaGeneradorState extends ConsumerState<VistaGenerador>
                 if (_showPrice && hasPrice) ...[
                   const SizedBox(width: 8),
                   Text(
-                    "L. ${entry.price}",
+                    formattedPrice,
                     style: const TextStyle(
                       color: Colors.black,
                       fontSize: 20,
@@ -1031,6 +1033,7 @@ class _VistaGeneradorState extends ConsumerState<VistaGenerador>
                                 ) ??
                                 0;
                             final hasPrice = pVal > 0;
+                            final formattedPdfPrice = NumberFormat.currency(symbol: "L. ", decimalDigits: 2).format(pVal);
 
                             return pw.Container(
                               width: 130.8,
@@ -1069,7 +1072,7 @@ class _VistaGeneradorState extends ConsumerState<VistaGenerador>
                                       if (_showPrice && hasPrice) ...[
                                         pw.SizedBox(width: 4),
                                         pw.Text(
-                                          "L. ${entry.price}",
+                                          formattedPdfPrice,
                                           style: pw.TextStyle(
                                             color: PdfColors.black,
                                             fontSize: 6.0,

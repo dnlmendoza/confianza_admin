@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:confianza_admin/core/theme/app_colors.dart';
 import '../modelos_generador.dart';
 
@@ -232,7 +233,9 @@ class PrintQueuePanel extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          "L. ${entry.price}",
+                          NumberFormat.currency(symbol: "L. ", decimalDigits: 2).format(
+                            double.tryParse(entry.price.replaceAll(',', '')) ?? 0
+                          ),
                           style: const TextStyle(
                             color: AppColors.primary,
                             fontWeight: FontWeight.bold,

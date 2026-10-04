@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:confianza_admin/core/theme/app_colors.dart';
 import 'barcode_utils.dart';
 
@@ -29,9 +30,9 @@ class BarcodePreviewCard extends StatelessWidget {
     final now = DateTime.now();
     final dateStr =
         "${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}";
-    final displayPrice = priceController.text.isNotEmpty
-        ? priceController.text
-        : "0.00";
+    final rawPrice = priceController.text.isNotEmpty ? priceController.text : "0";
+    final pVal = double.tryParse(rawPrice.replaceAll(',', '')) ?? 0;
+    final displayPrice = NumberFormat.currency(symbol: "L. ", decimalDigits: 2).format(pVal);
 
     return Column(
       children: [
@@ -102,7 +103,7 @@ class BarcodePreviewCard extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
                                 Text(
-                                  "L. $displayPrice",
+                                  displayPrice,
                                   style: const TextStyle(
                                     color: Colors.black,
                                     fontSize: 20,
