@@ -71,10 +71,14 @@ class ViewModelUsuarios extends Notifier<int> {
     notifyListeners();
   }
 
+  String? _pendingRoleIdToSelect;
+
   Future<void> loadProfiles() async {
     try {
       _profiles = await _servicio.getRoles();
-      if (_profiles.isNotEmpty && _selectedProfileIndex >= _profiles.length) {
+      if (_pendingRoleIdToSelect != null) {
+        selectProfileByRole(_pendingRoleIdToSelect!);
+      } else if (_profiles.isNotEmpty && _selectedProfileIndex >= _profiles.length) {
         _selectedProfileIndex = 0;
       }
       notifyListeners();
@@ -100,10 +104,17 @@ class ViewModelUsuarios extends Notifier<int> {
           : null;
 
   UserModel? get currentUser {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return null;
+    final authUser = FirebaseAuth.instance.currentUser;
+    if (authUser == null) return null;
     try {
-      return _allUsers.firstWhere((u) => u.id == uid);
+      return _allUsers.firstWhere(
+        (u) =>
+            u.id == authUser.uid ||
+            (authUser.email != null &&
+                authUser.email!.isNotEmpty &&
+                u.email.trim().toLowerCase() ==
+                    authUser.email!.trim().toLowerCase()),
+      );
     } catch (_) {
       return null;
     }
@@ -117,7 +128,11 @@ class ViewModelUsuarios extends Notifier<int> {
 
   List<UserProfileConfig> get assignableRoles {
     if (isCurrentUserAdminMaster) return _profiles;
-    return _profiles.where((p) => p.id != RoleConstants.adminMasterId).toList();
+    return _profiles
+        .where((p) =>
+            p.id != RoleConstants.adminMasterId &&
+            p.name.trim().toLowerCase() != 'admin master')
+        .toList();
   }
 
   String getRoleName(String roleId) {
@@ -184,6 +199,27 @@ class ViewModelUsuarios extends Notifier<int> {
   void setSelectedProfileIndex(int index) {
     _selectedProfileIndex = index;
     notifyListeners();
+  }
+
+  void selectProfileByRole(String role) {
+    if (role.isEmpty) return;
+    _pendingRoleIdToSelect = role;
+    if (_profiles.isEmpty) return;
+
+    // 1. Buscar coincidencia exacta por ID
+    int index = _profiles.indexWhere((p) => p.id == role);
+
+    // 2. Si no coincide por ID, buscar coincidencia por nombre (ignorando mayúsculas)
+    if (index == -1) {
+      index = _profiles.indexWhere(
+        (p) => p.name.trim().toLowerCase() == role.trim().toLowerCase(),
+      );
+    }
+
+    if (index != -1) {
+      _selectedProfileIndex = index;
+      notifyListeners();
+    }
   }
 
   // Acciones de Negocio
@@ -282,15 +318,20 @@ class ViewModelUsuarios extends Notifier<int> {
   Future<void> updateUser(String userId, {String? roleId, String? status}) async {
     try {
       if (roleId != null && roleId == RoleConstants.adminMasterId) {
-         // Verificamos si ya es el Admin Master (no hacemos nada si no cambia)
-         final userToUpdate = _allUsers.firstWhere((u) => u.id == userId);
-         if (userToUpdate.role != RoleConstants.adminMasterId) {
-            await transferAdminMaster(userId);
-            // Solo retornamos si no hay cambios de estado pendientes
-            if (status == null || status == userToUpdate.status) {
-               return; 
-            }
-         }
+        if (!isCurrentUserAdminMaster) {
+          throw Exception(
+            "Solo el Admin Master actual tiene la potestad de transferir el rol de Admin Master.",
+          );
+        }
+        // Verificamos si ya es el Admin Master (no hacemos nada si no cambia)
+        final userToUpdate = _allUsers.firstWhere((u) => u.id == userId);
+        if (userToUpdate.role != RoleConstants.adminMasterId) {
+          await transferAdminMaster(userId);
+          // Solo retornamos si no hay cambios de estado pendientes
+          if (status == null || status == userToUpdate.status) {
+            return; 
+          }
+        }
       }
       await _servicio.updateUser(userId, roleId: roleId, status: status);
     } catch (e) {
@@ -305,6 +346,11 @@ class ViewModelUsuarios extends Notifier<int> {
     required String roleId,
     required String status,
   }) async {
+    if (roleId == RoleConstants.adminMasterId) {
+      throw Exception(
+        "No se puede crear un nuevo usuario directamente como Admin Master.",
+      );
+    }
     final email = '${lastName.trim().toLowerCase()}${name.trim().toLowerCase()}@laconfianza.hn';
     try {
       await _servicio.createUser(

@@ -519,53 +519,43 @@ class _VistaGeneradorState extends ConsumerState<VistaGenerador>
         if (c.maxWidth >= 950) {
           return Padding(
             padding: const EdgeInsets.all(24),
-            child: Center(
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 1400),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      flex: 4,
-                      child: CustomScrollView(
-                        slivers: [
-                          SliverToBoxAdapter(
-                            child: _buildLivePreviewCanvas(),
-                          ),
-                          const SliverToBoxAdapter(
-                            child: SizedBox(height: 24),
-                          ),
-                          SliverFillRemaining(
-                            hasScrollBody: false,
-                            child: _buildConfigForm(),
-                          ),
-                        ],
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  flex: 4,
+                  child: CustomScrollView(
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: _buildLivePreviewCanvas(),
                       ),
-                    ),
-                    const SizedBox(width: 24),
-                    Expanded(flex: 7, child: _buildGeneratedCodesSection()),
-                  ],
+                      const SliverToBoxAdapter(
+                        child: SizedBox(height: 24),
+                      ),
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: _buildConfigForm(),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+                const SizedBox(width: 24),
+                Expanded(flex: 7, child: _buildGeneratedCodesSection()),
+              ],
             ),
           );
         }
         return SingleChildScrollView(
           padding: const EdgeInsets.all(24),
-          child: Center(
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 1400),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildLivePreviewCanvas(),
-                  const SizedBox(height: 24),
-                  _buildConfigForm(),
-                  const SizedBox(height: 28),
-                  _buildGeneratedCodesSection(),
-                ],
-              ),
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildLivePreviewCanvas(),
+              const SizedBox(height: 24),
+              _buildConfigForm(),
+              const SizedBox(height: 28),
+              _buildGeneratedCodesSection(),
+            ],
           ),
         );
       },

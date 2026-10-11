@@ -123,7 +123,7 @@ class ServicioUsuarios {
       final Map<String, bool> permissionsMap = {};
 
       final Map<String, List<String>> structure = {
-        "Inventario": ["Ver datos", "Crear dañados"],
+        "Inventario": ["Ver datos", "Carrito", "Crear dañados"],
         "Nuevo Artículo": ["Guardar datos"],
         "Modificar Artículo": ["Modificar datos"],
         "Ventas": ["Crear venta", "Crear oferta", "Modificar ventas"],
@@ -166,7 +166,26 @@ class ServicioUsuarios {
       if (isNew) {
         await docRef.set(dataToSave);
       } else {
-        await docRef.set(dataToSave, SetOptions(merge: true));
+        // Run as a batch to update the role and synchronize all users with this role
+        final WriteBatch batch = _firestore.batch();
+        batch.set(docRef, dataToSave, SetOptions(merge: true));
+
+        // Query all users that have this specific role
+        final QuerySnapshot usersWithRole = await _firestore
+            .collection('Usuarios')
+            .where('Rol', isEqualTo: docRef.id)
+            .get();
+
+        // Update the 'permisos' field for each matching user
+        for (var userDoc in usersWithRole.docs) {
+          batch.update(userDoc.reference, {
+            'permisos': permissionsMap,
+            'fecha_actualizacion': DateTime.now().toIso8601String(),
+          });
+        }
+
+        await batch.commit();
+        debugPrint("DEBUG: Synchronized permissions for ${usersWithRole.docs.length} users.");
       }
 
       debugPrint(
@@ -181,8 +200,8 @@ class ServicioUsuarios {
   }
 
   Future<void> deleteRole(String id) async {
-    if (id == RoleConstants.adminMasterId || id == RoleConstants.adminId) {
-      throw Exception('Los roles "Admin" y "Admin Master" son del sistema y no pueden ser eliminados.');
+    if (id == RoleConstants.adminMasterId) {
+      throw Exception('El rol "Admin Master" es del sistema y no puede ser eliminado.');
     }
     await _firestore.collection('Roles').doc(id).delete();
   }

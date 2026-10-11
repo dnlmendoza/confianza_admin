@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../viewmodel_usuarios.dart';
+import 'package:confianza_admin/core/config/role_constants.dart';
 
 class CrearUsuarioDialog extends ConsumerStatefulWidget {
   const CrearUsuarioDialog({super.key});
@@ -72,7 +73,11 @@ class _CrearUsuarioDialogState extends ConsumerState<CrearUsuarioDialog> {
   Widget build(BuildContext context) {
     final _ = ref.watch(usuariosViewModelProvider);
     final viewModel = ref.read(usuariosViewModelProvider.notifier);
-    final roles = viewModel.profiles;
+    final roles = viewModel.assignableRoles
+        .where((r) =>
+            r.id != RoleConstants.adminMasterId &&
+            r.name.trim().toLowerCase() != 'admin master')
+        .toList();
 
     return AlertDialog(
       backgroundColor: Colors.white,

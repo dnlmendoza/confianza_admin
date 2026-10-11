@@ -80,13 +80,32 @@ class UserModel {
       });
     }
     
+    final dynamic rawFecha = json['Fecha'] ?? json['fecha'];
+    String parsedFecha = '';
+    if (rawFecha is String) {
+      parsedFecha = rawFecha;
+    } else if (rawFecha is int) {
+      try {
+        parsedFecha = DateTime.fromMillisecondsSinceEpoch(rawFecha).toIso8601String();
+      } catch (_) {
+        parsedFecha = rawFecha.toString();
+      }
+    } else if (rawFecha != null) {
+      try {
+        final dynamic dt = (rawFecha as dynamic).toDate();
+        parsedFecha = dt.toString();
+      } catch (_) {
+        parsedFecha = rawFecha.toString();
+      }
+    }
+
     return UserModel(
       id: id,
       name: name.isEmpty ? 'Sin nombre' : name,
       email: json['Idcorreo'] as String? ?? json['Correo'] as String? ?? '',
       role: json['Rol'] as String? ?? (isRequest ? 'Pendiente' : 'Sin Rol'),
       status: json['Estado'] as String? ?? (isRequest ? 'Pendiente' : 'Activo'),
-      lastAccess: json['Fecha'] as String? ?? '',
+      lastAccess: parsedFecha,
       imageUrl: rawUrl,
       telefono: json['Telefono']?.toString() ?? '',
       idDispositivo: json['IdDispositivo']?.toString() ?? '',

@@ -109,6 +109,8 @@ class LoteArticulo {
   String unidadesMayor;
   double costoMayor;
   double precioVentaMayor;
+  double gananciaUnidad;
+  double gananciaLote;
 
   LoteArticulo({
     required this.codigo,
@@ -125,7 +127,11 @@ class LoteArticulo {
     this.unidadesMayor = '',
     this.costoMayor = 0.0,
     this.precioVentaMayor = 0.0,
-  }) : costoLote = costoLote ?? (costo * stock);
+    double? gananciaUnidad,
+    double? gananciaLote,
+  }) : costoLote = costoLote ?? 0.0,
+       gananciaUnidad = gananciaUnidad ?? 0.0,
+       gananciaLote = gananciaLote ?? 0.0;
 
   Map<String, dynamic> toMap() => {
     'codigo': codigo,
@@ -142,8 +148,8 @@ class LoteArticulo {
     'unidades_mayor': unidadesMayor,
     'costo_mayor': costoMayor,
     'venta_mayor': precioVentaMayor,
-    'ganancia_unidad': precioVenta - costo,
-    'ganancia_lote': (precioVenta - costo) * stock,
+    'ganancia_unidad': gananciaUnidad,
+    'ganancia_lote': gananciaLote,
   };
 
   DateTime get parsedFechaIngreso {
@@ -167,13 +173,15 @@ class LoteArticulo {
       costo: c,
       precioVenta: (map['precioVenta'] as num?)?.toDouble() ?? (map['precio_venta'] as num?)?.toDouble() ?? 0.0,
       unidades: map['unidades'] ?? '',
-      costoLote: (map['costoLote'] as num?)?.toDouble() ?? (c * s),
-      impuestoCompra: (map['impuestoCompra'] as num?)?.toDouble() ?? 15.0,
-      impuestoVenta: (map['impuestoVenta'] as num?)?.toDouble() ?? 15.0,
+      costoLote: (map['costo_lote'] as num?)?.toDouble() ?? (map['costoLote'] as num?)?.toDouble() ?? 0.0,
+      impuestoCompra: (map['impuesto_compra'] as num?)?.toDouble() ?? (map['impuestoCompra'] as num?)?.toDouble() ?? 0.0,
+      impuestoVenta: (map['impuesto_venta'] as num?)?.toDouble() ?? (map['impuestoVenta'] as num?)?.toDouble() ?? 0.0,
       stockMayor: map['stockMayor'] ?? map['stock_mayor'] ?? map['cantidad_mayor'] ?? map['cantidadMayor'] ?? 0,
       unidadesMayor: map['unidadesMayor'] ?? map['unidades_mayor'] ?? '',
       costoMayor: (map['costoMayor'] as num?)?.toDouble() ?? (map['costo_mayor'] as num?)?.toDouble() ?? 0.0,
       precioVentaMayor: (map['precioVentaMayor'] as num?)?.toDouble() ?? (map['venta_mayor'] as num?)?.toDouble() ?? 0.0,
+      gananciaUnidad: (map['ganancia_unidad'] as num?)?.toDouble() ?? (map['gananciaUnidad'] as num?)?.toDouble() ?? 0.0,
+      gananciaLote: (map['ganancia_lote'] as num?)?.toDouble() ?? (map['gananciaLote'] as num?)?.toDouble() ?? 0.0,
     );
   }
 }

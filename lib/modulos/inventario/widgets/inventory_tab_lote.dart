@@ -302,9 +302,8 @@ class _InventoryTabLoteState extends State<InventoryTabLote> {
                     ),
                     const SizedBox(height: 8),
                     _buildGananciaCard(
-                      gananciaUnidad: lote.precioVenta - lote.costo,
-                      gananciaLote:
-                          (lote.precioVenta - lote.costo) * lote.stock,
+                      gananciaUnidad: lote.gananciaUnidad,
+                      gananciaLote: lote.gananciaLote,
                       costo: lote.costo,
                     ),
                   ],

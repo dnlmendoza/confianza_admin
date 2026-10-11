@@ -22,11 +22,52 @@ class _VistaUsuariosState extends ConsumerState<VistaUsuarios> {
   static const Color colorSurfaceContainerLowest = Color(0xFFFFFFFF);
   static const Color colorSurfaceContainerLow = Color(0xFFF1F4FA);
 
+  static const Map<String, List<String>> _modulosPermisos = {
+    "Inventario": ["Ver datos", "Carrito", "Crear dañados"],
+    "Nuevo Artículo": ["Guardar datos"],
+    "Modificar Artículo": ["Modificar datos"],
+    "Ventas": ["Crear venta", "Crear oferta", "Modificar ventas"],
+    "Notificaciones": ["Visualizar datos"],
+    "Cierre": [
+      "Visualizar datos",
+      "Crear Egresos",
+      "Editar datos",
+      "Crear cierre del dia",
+    ],
+  };
+
+  IconData _getModuleIcon(String module) {
+    switch (module) {
+      case "Inventario":
+        return Icons.inventory_outlined;
+      case "Nuevo Artículo":
+        return Icons.add_box_outlined;
+      case "Modificar Artículo":
+        return Icons.edit_note_outlined;
+      case "Ventas":
+        return Icons.shopping_cart_outlined;
+      case "Notificaciones":
+        return Icons.notifications_active_outlined;
+      case "Cierre":
+        return Icons.point_of_sale;
+      default:
+        return Icons.security_outlined;
+    }
+  }
+
   ViewModelUsuarios get _viewModel =>
       ref.read(usuariosViewModelProvider.notifier);
 
+  UserModel? _selectedUser;
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _profileNameController = TextEditingController();
+
+  void _selectUser(UserModel user) {
+    setState(() {
+      _selectedUser = user;
+    });
+    _viewModel.selectProfileByRole(user.role);
+  }
 
   @override
   void initState() {
@@ -36,6 +77,16 @@ class _VistaUsuariosState extends ConsumerState<VistaUsuarios> {
           .read(usuariosViewModelProvider.notifier)
           .setSearchQuery(_searchController.text);
     });
+  }
+
+  String? _currentEditName;
+  String? _currentEditProfileId;
+
+  String _getActiveName(UserProfileConfig profile) {
+    if (_currentEditProfileId == profile.id && _currentEditName != null) {
+      return _currentEditName!;
+    }
+    return profile.name;
   }
 
   @override
@@ -56,42 +107,10 @@ class _VistaUsuariosState extends ConsumerState<VistaUsuarios> {
       activeRoute: '/usuarios',
       title: 'Usuarios',
       notifications: const [],
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isDesktop = constraints.maxWidth >= 1024;
-          return SingleChildScrollView(
-            padding: EdgeInsets.all(isDesktop ? 24.0 : 16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Bento Grid de Métricas
-                _buildBentoStatsGrid(context, constraints),
-                const SizedBox(height: 24),
-
-                // Tabla de Datos Principal
-                _buildDataTableCard(context),
-                const SizedBox(height: 24),
-
-                // Sección de Roles y Permisos Inferior
-                _buildPermissionsGuideCard(),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildBentoStatsGrid(
-    BuildContext context,
-    BoxConstraints constraints,
-  ) {
-    final isMobile = constraints.maxWidth < 600;
-
-    if (isMobile) {
-      return Column(
+      centerWidget: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          _buildBentoStatCard(
+          _buildHeaderStatCard(
             title: "Total Usuarios",
             value: "${_viewModel.users.length}",
             subtitle: "Nuevos este mes",
@@ -101,8 +120,8 @@ class _VistaUsuariosState extends ConsumerState<VistaUsuarios> {
             subtitleColor: const Color(0xFF10B981),
             isTrend: true,
           ),
-          const SizedBox(height: 12),
-          _buildBentoStatCard(
+          const SizedBox(width: 12),
+          _buildHeaderStatCard(
             title: "Sesiones Activas",
             value: "0",
             subtitle: "Tiempo real",
@@ -111,72 +130,62 @@ class _VistaUsuariosState extends ConsumerState<VistaUsuarios> {
             iconBgColor: const Color(0xFFD1E4FB),
             subtitleColor: colorOnSurfaceVariant,
           ),
-          const SizedBox(height: 12),
-          _buildBentoStatCard(
-            title: "Solicitudes",
-            value:
-                "${_viewModel.users.where((u) => u.status == 'Pendiente' || u.status == 'Aprobado').length}",
-            subtitle: "Pendientes de aprobación",
-            icon: Icons.person_add_alt_1,
-            iconColor: const Color(0xFF8E6A00),
-            iconBgColor: const Color(0xFFFFEDC8),
-            subtitleColor: colorOnSurfaceVariant,
-          ),
-          const SizedBox(height: 12),
-          _buildSecurityAuditCard(context),
         ],
-      );
-    }
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isMobile = constraints.maxWidth < 900;
+          final listWidth = constraints.maxWidth * 0.3 < 350
+              ? 350.0
+              : constraints.maxWidth * 0.3;
 
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: _buildBentoStatCard(
-              title: "Total Usuarios",
-              value: "${_viewModel.users.length}",
-              subtitle: "Nuevos este mes",
-              icon: Icons.group,
-              iconColor: colorPrimary,
-              iconBgColor: const Color(0xFFCCE5FF),
-              subtitleColor: const Color(0xFF10B981),
-              isTrend: true,
+          if (isMobile) {
+            return Column(
+              children: [
+                Expanded(
+                  child: _buildDataTableCard(context, constraints.maxWidth),
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  flex: 2,
+                  child: _buildPermissionsGuideCard(constraints.maxWidth),
+                ),
+              ],
+            );
+          }
+
+          return Padding(
+            padding: const EdgeInsets.only(
+              left: 0,
+              right: 12,
+              top: 0,
+              bottom: 8,
             ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: _buildBentoStatCard(
-              title: "Sesiones Activas",
-              value: "0",
-              subtitle: "Tiempo real",
-              icon: Icons.bolt,
-              iconColor: const Color(0xFF4E6073),
-              iconBgColor: const Color(0xFFD1E4FB),
-              subtitleColor: colorOnSurfaceVariant,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  width: listWidth,
+                  child: _buildDataTableCard(context, listWidth),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: _buildPermissionsGuideCard(
+                      constraints.maxWidth - listWidth - 24,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: _buildBentoStatCard(
-              title: "Solicitudes",
-              value:
-                  "${_viewModel.users.where((u) => u.status == 'Pendiente' || u.status == 'Aprobado').length}",
-              subtitle: "Pendientes de aprobación",
-              icon: Icons.person_add_alt_1,
-              iconColor: const Color(0xFF8E6A00),
-              iconBgColor: const Color(0xFFFFEDC8),
-              subtitleColor: colorOnSurfaceVariant,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(child: _buildSecurityAuditCard(context)),
-        ],
+          );
+        },
       ),
     );
   }
 
-  Widget _buildBentoStatCard({
+  Widget _buildHeaderStatCard({
     required String title,
     required String value,
     required String subtitle,
@@ -187,70 +196,65 @@ class _VistaUsuariosState extends ConsumerState<VistaUsuarios> {
     bool isTrend = false,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      height: 42,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        color: colorSurfaceContainerLowest,
-        borderRadius: BorderRadius.circular(12),
+        color: colorSurfaceContainerLow,
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: colorOutlineVariant.withValues(alpha: 0.5)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.01),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Container(
+            padding: const EdgeInsets.all(5),
+            decoration: BoxDecoration(
+              color: iconBgColor,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(icon, color: iconColor, size: 16),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 title.toUpperCase(),
                 style: const TextStyle(
                   color: colorOnSurfaceVariant,
-                  fontSize: 11,
+                  fontSize: 9,
                   fontWeight: FontWeight.bold,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: iconBgColor,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, color: iconColor, size: 18),
-              ),
-            ],
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style: const TextStyle(
-                  color: colorOnSurface,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: -1,
+                  letterSpacing: 0.4,
+                  height: 1.1,
                 ),
               ),
               const SizedBox(height: 2),
               Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      color: colorOnSurface,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      height: 1.0,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
                   if (isTrend) ...[
-                    Icon(Icons.trending_up, color: subtitleColor, size: 14),
-                    const SizedBox(width: 4),
+                    Icon(Icons.trending_up, color: subtitleColor, size: 11),
+                    const SizedBox(width: 2),
                   ],
                   Text(
                     subtitle,
                     style: TextStyle(
                       color: subtitleColor,
-                      fontSize: 11,
+                      fontSize: 9.5,
                       fontWeight: FontWeight.w500,
+                      height: 1.0,
                     ),
                   ),
                 ],
@@ -262,89 +266,97 @@ class _VistaUsuariosState extends ConsumerState<VistaUsuarios> {
     );
   }
 
-  Widget _buildDataTableCard(BuildContext context) {
-    final allFiltered = _viewModel.filteredUsers;
-    final totalPages =
-        (allFiltered.length / _viewModel.itemsPerPage).ceil() == 0
-        ? 1
-        : (allFiltered.length / _viewModel.itemsPerPage).ceil();
+  Widget _buildTabButton(int mode, String label) {
+    final isSelected = _viewModel.selectedViewMode == mode;
+    return GestureDetector(
+      onTap: () {
+        _viewModel.setSelectedViewMode(mode);
+      },
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? colorOutlineVariant.withValues(alpha: 0.25)
+              : colorOutlineVariant.withValues(alpha: 0.1),
+          border: Border(
+            bottom: BorderSide(
+              color: isSelected ? colorPrimary : Colors.transparent,
+              width: 3.0,
+            ),
+          ),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: isSelected ? colorPrimary : colorOnSurfaceVariant,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+              fontSize: 14.0,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
-    final int startIndex = _viewModel.currentPage * _viewModel.itemsPerPage;
-    final int endIndex =
-        (startIndex + _viewModel.itemsPerPage < allFiltered.length)
-        ? startIndex + _viewModel.itemsPerPage
-        : allFiltered.length;
-    final filtered = allFiltered.isEmpty
-        ? <UserModel>[]
-        : allFiltered.sublist(startIndex, endIndex);
+  Widget _buildDataTableCard(BuildContext context, double cardWidth) {
+    final allFiltered = _viewModel.filteredUsers;
 
     return Container(
       decoration: BoxDecoration(
-        color: colorSurfaceContainerLowest,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colorOutlineVariant.withValues(alpha: 0.5)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.01),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+        border: Border(
+          right: BorderSide(
+            color: colorOutlineVariant.withValues(alpha: 0.5),
+            width: 1,
           ),
-        ],
+        ),
       ),
-      clipBehavior: Clip.antiAlias,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Pestañas (estilo idéntico a vista cierre)
           Container(
             decoration: BoxDecoration(
-              color: colorSurfaceContainerLow.withValues(alpha: 0.3),
               border: Border(
                 bottom: BorderSide(
-                  color: colorOutlineVariant.withValues(alpha: 0.5),
+                  color: colorOutlineVariant.withValues(alpha: 0.3),
                   width: 1,
                 ),
               ),
             ),
             child: Row(
               children: [
-                Expanded(
-                  child: _buildTableTabItem(
-                    "Usuarios Activos",
-                    0,
-                    _viewModel.users.where((u) => u.status == 'Activo').length,
-                  ),
-                ),
-
-                Expanded(
-                  child: _buildTableTabItem(
-                    "Usuarios Suspendidos",
-                    2,
-                    _viewModel.users
-                        .where((u) => u.status == 'suspendido')
-                        .length,
-                  ),
-                ),
+                Expanded(child: _buildTabButton(0, "Activos")),
+                Expanded(child: _buildTabButton(2, "Suspendidos")),
               ],
             ),
           ),
+
+          // Buscador integrado
           Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 12.0,
+              vertical: 8.0,
+            ),
             child: Row(
               children: [
                 Expanded(
                   child: Container(
-                    height: 40,
+                    height: 38,
                     decoration: BoxDecoration(
                       color: colorSurfaceContainerLow,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: TextField(
                       controller: _searchController,
+                      style: const TextStyle(fontSize: 13),
                       decoration: const InputDecoration(
-                        hintText: "Buscar por nombre o correo...",
+                        hintText: "Buscar usuario...",
                         hintStyle: TextStyle(
                           color: colorOnSurfaceVariant,
-                          fontSize: 13,
+                          fontSize: 12,
                         ),
                         prefixIcon: Icon(
                           Icons.search,
@@ -352,215 +364,244 @@ class _VistaUsuariosState extends ConsumerState<VistaUsuarios> {
                           color: colorOnSurfaceVariant,
                         ),
                         border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(vertical: 11),
+                        contentPadding: EdgeInsets.symmetric(vertical: 9),
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
-                ElevatedButton.icon(
+                const SizedBox(width: 8),
+                IconButton(
                   onPressed: () => showDialog(
                     context: context,
                     builder: (c) => const CrearUsuarioDialog(),
                   ),
-                  icon: const Icon(Icons.person_add, size: 18),
-                  label: const Text(
-                    "Crear Usuario",
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                  tooltip: "Crear Usuario",
+                  icon: const Icon(
+                    Icons.person_add,
+                    color: colorPrimary,
+                    size: 20,
                   ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: colorPrimary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
+                  style: IconButton.styleFrom(
+                    backgroundColor: colorSurfaceContainerLow,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    elevation: 0,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                PopupMenuButton<String>(
-                  tooltip: "Filtrar por Rol",
-                  onSelected: (val) => _viewModel.setRoleFilter(val),
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: "Todos",
-                      child: Text("Todos los Roles"),
-                    ),
-                    ..._viewModel.profiles.map(
-                      (p) => PopupMenuItem(value: p.id, child: Text(p.name)),
-                    ),
-                  ],
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: colorOutlineVariant),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.filter_list,
-                          size: 16,
-                          color: colorOnSurfaceVariant,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          _viewModel.selectedRoleFilter == "Todos"
-                              ? "Filtrar"
-                              : _viewModel.getRoleName(
-                                  _viewModel.selectedRoleFilter,
-                                ),
-                          style: const TextStyle(
-                            color: colorOnSurfaceVariant,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
                 ),
               ],
             ),
           ),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final tableWidth = constraints.maxWidth > 850.0
-                  ? constraints.maxWidth
-                  : 850.0;
-              return SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: SizedBox(
-                  width: tableWidth,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Table(
-                        columnWidths: const {
-                          0: FlexColumnWidth(2.5),
-                          1: FlexColumnWidth(1.4),
-                          2: FlexColumnWidth(1.2),
-                          3: FlexColumnWidth(1.5),
-                          4: FlexColumnWidth(2.1),
-                        },
-                        children: [
-                          TableRow(
-                            decoration: const BoxDecoration(
-                              color: colorSurfaceContainerLow,
-                              border: Border(
-                                bottom: BorderSide(
-                                  color: colorOutlineVariant,
-                                  width: 0.5,
-                                ),
-                              ),
-                            ),
-                            children: [
-                              _buildTableHeaderCell("USUARIO"),
-                              _buildTableHeaderCell("ROL"),
-                              _buildTableHeaderCell("ESTADO"),
-                              _buildTableHeaderCell("ÚLTIMO ACCESO"),
-                              _buildTableHeaderCell(
-                                "ACCIONES",
-                                alignRight: true,
-                              ),
-                            ],
+
+          // Lista de usuarios en tarjetas
+          Expanded(
+            child: allFiltered.isEmpty
+                ? _buildEmptyState()
+                : ListView.separated(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    itemCount: allFiltered.length,
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: 6),
+                    itemBuilder: (context, index) {
+                      final item = allFiltered[index];
+                      final isSelected = _selectedUser?.id == item.id;
+
+                      return Container(
+                        clipBehavior: Clip.antiAlias,
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? colorPrimary.withValues(alpha: 0.08)
+                              : colorSurfaceContainerLowest,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isSelected
+                                ? colorPrimary
+                                : colorOutlineVariant.withValues(alpha: 0.5),
+                            width: isSelected ? 1.5 : 1.0,
                           ),
-                          if (filtered.isNotEmpty)
-                            ...filtered.map(
-                              (item) => TableRow(
-                                decoration: const BoxDecoration(
-                                  border: Border(
-                                    bottom: BorderSide(
-                                      color: colorOutlineVariant,
-                                      width: 0.5,
-                                    ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(
+                                alpha: isSelected ? 0.04 : 0.02,
+                              ),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(10),
+                            onTap: () => _selectUser(item),
+                            onDoubleTap: () {
+                              _selectUser(item);
+                              _showEditUserDialog(context, item);
+                            },
+                            onLongPress: () {
+                              _selectUser(item);
+                              _showEditUserDialog(context, item);
+                            },
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 10,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 38,
+                                        height: 38,
+                                        decoration: const BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: colorPrimary,
+                                        ),
+                                        clipBehavior: Clip.antiAlias,
+                                        child: item.imageUrl.isNotEmpty
+                                            ? Image.network(
+                                                item.imageUrl,
+                                                fit: BoxFit.cover,
+                                                errorBuilder:
+                                                    (
+                                                      context,
+                                                      error,
+                                                      stackTrace,
+                                                    ) =>
+                                                        _buildAvatarPlaceholder(
+                                                          item,
+                                                        ),
+                                              )
+                                            : _buildAvatarPlaceholder(item),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              item.name,
+                                              style: TextStyle(
+                                                color: isSelected
+                                                    ? colorPrimary
+                                                    : colorOnSurface,
+                                                fontSize: 13.5,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              item.email,
+                                              style: const TextStyle(
+                                                color: colorOnSurfaceVariant,
+                                                fontSize: 11.5,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      SizedBox(
+                                        width: 28,
+                                        height: 28,
+                                        child: IconButton(
+                                          padding: EdgeInsets.zero,
+                                          visualDensity: VisualDensity.compact,
+                                          icon: const Icon(
+                                            Icons.edit_outlined,
+                                            size: 16,
+                                            color: colorOnSurfaceVariant,
+                                          ),
+                                          tooltip: "Editar Usuario",
+                                          onPressed: () {
+                                            _selectUser(item);
+                                            _showEditUserDialog(context, item);
+                                          },
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                children: [
-                                  _buildUserCell(item),
-                                  _buildRoleCell(item),
-                                  _buildStatusCell(item),
-                                  _buildLastAccessCell(item),
-                                  _buildActionsCell(item),
-                                ],
-                              ),
+                                Divider(
+                                  height: 1,
+                                  thickness: 1,
+                                  color: colorOutlineVariant.withValues(
+                                    alpha: 0.35,
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: _getRoleBgColor(item.role),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          _viewModel.getRoleName(item.role),
+                                          style: TextStyle(
+                                            color: _getRoleTextColor(item.role),
+                                            fontSize: 9.5,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Container(
+                                            width: 6,
+                                            height: 6,
+                                            decoration: const BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color: Color(0xFF10B981),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            _formatFechaIngreso(
+                                              item.lastAccess,
+                                            ),
+                                            style: const TextStyle(
+                                              color: colorOnSurfaceVariant,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
-                        ],
-                      ),
-                      if (filtered.isEmpty) _buildEmptyState(),
-                    ],
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                ),
-              );
-            },
-          ),
-          _buildPaginationFooter(
-            allFiltered.length,
-            totalPages,
-            startIndex,
-            endIndex,
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildUserCell(UserModel item) {
-    return TableCell(
-      verticalAlignment: TableCellVerticalAlignment.middle,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-        child: Row(
-          children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: colorPrimary,
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: item.imageUrl.isNotEmpty
-                  ? Image.network(
-                      item.imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) =>
-                          _buildAvatarPlaceholder(item),
-                    )
-                  : _buildAvatarPlaceholder(item),
-            ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.name,
-                  style: const TextStyle(
-                    color: colorOnSurface,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  item.email,
-                  style: const TextStyle(
-                    color: colorOnSurfaceVariant,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -572,152 +613,6 @@ class _VistaUsuariosState extends ConsumerState<VistaUsuarios> {
         style: const TextStyle(
           color: Colors.white,
           fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRoleCell(UserModel item) {
-    return TableCell(
-      verticalAlignment: TableCellVerticalAlignment.middle,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        child: UnconstrainedBox(
-          alignment: Alignment.centerLeft,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: _getRoleBgColor(item.role),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              _viewModel.getRoleName(item.role),
-              style: TextStyle(
-                color: _getRoleTextColor(item.role),
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatusCell(UserModel item) {
-    return TableCell(
-      verticalAlignment: TableCellVerticalAlignment.middle,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        child: Row(
-          children: [
-            Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: _getStatusColor(item.status),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              item.status,
-              style: TextStyle(
-                color: item.status == "Eliminado"
-                    ? const Color(0xFFBA1A1A)
-                    : colorOnSurface,
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLastAccessCell(UserModel item) {
-    return TableCell(
-      verticalAlignment: TableCellVerticalAlignment.middle,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        child: Text(
-          item.lastAccess,
-          style: const TextStyle(
-            fontFamily: 'monospace',
-            color: colorOnSurfaceVariant,
-            fontSize: 13,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActionsCell(UserModel item) {
-    return TableCell(
-      verticalAlignment: TableCellVerticalAlignment.middle,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        child: Align(
-          alignment: Alignment.centerRight,
-          child: _viewModel.selectedViewMode == 1
-              ? (item.status == "Aprobado"
-                    ? const SizedBox(
-                        height: 24,
-                        width: 24,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(
-                              Icons.cancel_outlined,
-                              color: Color(0xFFBA1A1A),
-                              size: 20,
-                            ),
-                            onPressed: () => _viewModel.rejectUser(item.id),
-                            tooltip: "Rechazar",
-                          ),
-                          const SizedBox(width: 8),
-                          ElevatedButton.icon(
-                            onPressed: () =>
-                                _showApproveRequestDialog(context, item),
-                            icon: const Icon(Icons.check, size: 14),
-                            label: const Text("Aprobar"),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF10B981),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              minimumSize: const Size(0, 32),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ))
-              : ElevatedButton(
-                  onPressed: () => _showEditUserDialog(context, item),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFCFE2F9),
-                    foregroundColor: const Color(0xFF526478),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 6,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                  child: const Text(
-                    "Editar",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                  ),
-                ),
         ),
       ),
     );
@@ -740,147 +635,7 @@ class _VistaUsuariosState extends ConsumerState<VistaUsuarios> {
     );
   }
 
-  Widget _buildPaginationFooter(
-    int totalRecords,
-    int totalPages,
-    int startIndex,
-    int endIndex,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            totalRecords == 0
-                ? "Sin registros"
-                : "Mostrando ${startIndex + 1}-$endIndex de $totalRecords usuarios",
-            style: const TextStyle(color: colorOnSurfaceVariant, fontSize: 13),
-          ),
-          Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.chevron_left, size: 18),
-                onPressed: _viewModel.currentPage > 0
-                    ? () =>
-                          _viewModel.setCurrentPage(_viewModel.currentPage - 1)
-                    : null,
-              ),
-              ...List.generate(totalPages, (index) {
-                final bool isSelected = index == _viewModel.currentPage;
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 2),
-                  child: isSelected
-                      ? Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: colorPrimary,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            "${index + 1}",
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                            ),
-                          ),
-                        )
-                      : TextButton(
-                          onPressed: () => _viewModel.setCurrentPage(index),
-                          child: Text(
-                            "${index + 1}",
-                            style: const TextStyle(
-                              color: colorOnSurface,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ),
-                );
-              }),
-              IconButton(
-                icon: const Icon(Icons.chevron_right, size: 18),
-                onPressed: _viewModel.currentPage < totalPages - 1
-                    ? () =>
-                          _viewModel.setCurrentPage(_viewModel.currentPage + 1)
-                    : null,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTableTabItem(String label, int mode, int count) {
-    final bool isSelected = _viewModel.selectedViewMode == mode;
-    return InkWell(
-      onTap: () => _viewModel.setSelectedViewMode(mode),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: isSelected ? colorPrimary : Colors.transparent,
-              width: 2,
-            ),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? colorPrimary : colorOnSurfaceVariant,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                fontSize: 14,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? colorPrimary.withValues(alpha: 0.1)
-                    : colorOutlineVariant.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                "$count",
-                style: TextStyle(
-                  color: isSelected ? colorPrimary : colorOnSurfaceVariant,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTableHeaderCell(String label, {bool alignRight = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-      child: Text(
-        label,
-        textAlign: alignRight ? TextAlign.right : TextAlign.left,
-        style: const TextStyle(
-          color: colorOnSurfaceVariant,
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 0.5,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPermissionsGuideCard() {
+  Widget _buildPermissionsGuideCard(double cardWidth) {
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
@@ -888,9 +643,10 @@ class _VistaUsuariosState extends ConsumerState<VistaUsuarios> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: colorOutlineVariant.withValues(alpha: 0.6)),
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isWide = constraints.maxWidth > 900;
+      child: Builder(
+        builder: (context) {
+          final isWide = cardWidth > 450;
+          final rightPanelWidth = isWide ? (cardWidth * 2 / 3) : cardWidth;
           if (isWide) {
             return Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -907,7 +663,7 @@ class _VistaUsuariosState extends ConsumerState<VistaUsuarios> {
                         ),
                       ),
                     ),
-                    child: _buildRightOptionsPanel(),
+                    child: _buildRightOptionsPanel(rightPanelWidth),
                   ),
                 ),
               ],
@@ -916,13 +672,16 @@ class _VistaUsuariosState extends ConsumerState<VistaUsuarios> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _buildLeftProfilePanel(),
+                Expanded(flex: 1, child: _buildLeftProfilePanel()),
                 Divider(
                   height: 1,
                   thickness: 1,
                   color: colorOutlineVariant.withValues(alpha: 0.6),
                 ),
-                _buildRightOptionsPanel(),
+                Expanded(
+                  flex: 2,
+                  child: _buildRightOptionsPanel(rightPanelWidth),
+                ),
               ],
             );
           }
@@ -932,59 +691,12 @@ class _VistaUsuariosState extends ConsumerState<VistaUsuarios> {
   }
 
   Widget _buildLeftProfilePanel() {
-    return Container(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
-            "GESTIÓN DE PERFILES",
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.2,
-              color: colorOnSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _profileNameController,
-            decoration: InputDecoration(
-              labelText: "Nombre del Perfil",
-              hintText: "Ej: Supervisor",
-              isDense: true,
-              filled: true,
-              fillColor: colorSurfaceContainerLow.withValues(alpha: 0.3),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(
-                  color: colorOutlineVariant.withValues(alpha: 0.5),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          ElevatedButton.icon(
-            onPressed: () {
-              final name = _profileNameController.text.trim();
-              if (name.isEmpty) return;
-              _viewModel.addLocalProfile(name);
-              _profileNameController.clear();
-            },
-            icon: const Icon(Icons.add_circle_outline, size: 18),
-            label: const Text("CREAR PERFIL"),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: colorPrimary,
-              foregroundColor: Colors.white,
-              minimumSize: const Size.fromHeight(48),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              elevation: 0,
-            ),
-          ),
-          const SizedBox(height: 32),
           const Text(
             "PERFILES GUARDADOS",
             style: TextStyle(
@@ -1021,6 +733,43 @@ class _VistaUsuariosState extends ConsumerState<VistaUsuarios> {
     );
   }
 
+  void _confirmDeleteProfile(int index) {
+    final profile = _viewModel.profiles[index];
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text("Eliminar Perfil"),
+        content: Text(
+          "¿Estás seguro de que deseas eliminar el perfil '${profile.name}'?",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c),
+            child: const Text("Cancelar"),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(c);
+              await _viewModel.deleteProfile(index);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("Perfil eliminado exitosamente"),
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFBA1A1A),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text("Eliminar"),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildProfileListItem(
     int index,
     String title, {
@@ -1042,11 +791,6 @@ class _VistaUsuariosState extends ConsumerState<VistaUsuarios> {
       child: ListTile(
         dense: true,
         visualDensity: VisualDensity.compact,
-        leading: Icon(
-          Icons.badge_outlined,
-          color: isSelected ? colorPrimary : colorOnSurfaceVariant,
-          size: 18,
-        ),
         title: Text(
           title,
           style: TextStyle(
@@ -1055,93 +799,39 @@ class _VistaUsuariosState extends ConsumerState<VistaUsuarios> {
             fontSize: 14,
           ),
         ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isSelected)
-              const Icon(Icons.check_circle, color: colorPrimary, size: 16),
-            const SizedBox(width: 8),
-            if (_viewModel.profiles[index].id != RoleConstants.adminMasterId &&
-                _viewModel.profiles[index].id != RoleConstants.adminId)
-              IconButton(
+        trailing:
+            isSelected &&
+                _viewModel.profiles[index].id != RoleConstants.adminMasterId
+            ? IconButton(
                 icon: const Icon(
                   Icons.delete_outline,
-                  size: 18,
                   color: Color(0xFFBA1A1A),
+                  size: 20,
                 ),
                 onPressed: () => _confirmDeleteProfile(index),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                splashRadius: 18,
-              ),
-          ],
-        ),
+              )
+            : null,
         onTap: () => _viewModel.setSelectedProfileIndex(index),
       ),
     );
   }
 
-  Future<void> _confirmDeleteProfile(int index) async {
-    final profile = _viewModel.profiles[index];
-    final bool confirm =
-        await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text("Eliminar Perfil"),
-            content: Text(
-              "¿Estás seguro de que deseas eliminar el perfil '${profile.name}'?",
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text("Cancelar"),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text(
-                  "Eliminar",
-                  style: TextStyle(color: Colors.red),
-                ),
-              ),
-            ],
-          ),
-        ) ??
-        false;
-
-    if (confirm) {
-      try {
-        await _viewModel.deleteProfile(index);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Perfil eliminado correctamente")),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Error al eliminar perfil: $e")),
-          );
-        }
-      }
-    }
-  }
-
-  Widget _buildRightOptionsPanel() {
+  Widget _buildRightOptionsPanel(double panelWidth) {
     final profile = _viewModel.currentProfile;
     if (profile == null) {
-      return Container(
+      return SingleChildScrollView(
         padding: const EdgeInsets.all(48),
-        child: const Center(
+        child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
+              const Icon(
                 Icons.admin_panel_settings_outlined,
                 size: 48,
                 color: colorOutlineVariant,
               ),
-              SizedBox(height: 16),
-              Text(
+              const SizedBox(height: 16),
+              const Text(
                 "No hay perfiles",
                 style: TextStyle(
                   fontSize: 16,
@@ -1149,10 +839,31 @@ class _VistaUsuariosState extends ConsumerState<VistaUsuarios> {
                   color: colorOnSurfaceVariant,
                 ),
               ),
-              Text(
-                "Crea un perfil en el panel izquierdo para configurar accesos.",
+              const Text(
+                "No hay perfiles configurados.",
                 style: TextStyle(fontSize: 13, color: colorOnSurfaceVariant),
                 textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: () => _viewModel.addLocalProfile("Nuevo Perfil"),
+                icon: const Icon(Icons.add_circle_outline, size: 18),
+                label: const Text(
+                  "CREAR PERFIL",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: colorPrimary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  elevation: 0,
+                ),
               ),
             ],
           ),
@@ -1160,12 +871,12 @@ class _VistaUsuariosState extends ConsumerState<VistaUsuarios> {
       );
     }
 
-    return Container(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(24),
+          child: Row(
             children: [
               const Icon(
                 Icons.settings_suggest_outlined,
@@ -1174,35 +885,107 @@ class _VistaUsuariosState extends ConsumerState<VistaUsuarios> {
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        "CONFIGURACIÓN: ${profile.name.toUpperCase()}",
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13,
-                          letterSpacing: 1,
-                          color: colorOnSurface,
-                        ),
-                        overflow: TextOverflow.ellipsis,
+                child: TextFormField(
+                  initialValue: profile.name,
+                  key: ValueKey("profile_name_${profile.id}"),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                    letterSpacing: 1,
+                    color: colorOnSurface,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: "Nombre del Perfil",
+                    isDense: true,
+                    filled: true,
+                    fillColor: colorSurfaceContainerLow.withValues(alpha: 0.3),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(
+                        color: colorOutlineVariant.withValues(alpha: 0.5),
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.edit_outlined,
-                        size: 16,
-                        color: colorPrimary,
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(
+                        color: colorOutlineVariant.withValues(alpha: 0.5),
                       ),
-                      onPressed: () =>
-                          _showEditProfileNameDialog(context, profile),
-                      tooltip: "Renombrar Perfil",
                     ),
-                  ],
+                  ),
+                  onChanged: (val) {
+                    _currentEditName = val;
+                    _currentEditProfileId = profile.id;
+                  },
                 ),
               ),
-              TextButton.icon(
+              const SizedBox(width: 12),
+              IconButton(
+                onPressed: () {
+                  final newName = _getActiveName(profile).trim();
+                  if (newName.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("El nombre no puede estar vacío"),
+                      ),
+                    );
+                    return;
+                  }
+                  if (_viewModel.profiles.any(
+                    (p) =>
+                        p.name.toLowerCase() == newName.toLowerCase() &&
+                        p.id != profile.id,
+                  )) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("Ya existe un perfil con ese nombre"),
+                      ),
+                    );
+                    return;
+                  }
+                  _currentEditName = null;
+                  _currentEditProfileId = null;
+                  _viewModel.addLocalProfile(newName);
+                },
+                icon: const Icon(Icons.add_circle_outline, size: 18),
+                style: IconButton.styleFrom(
+                  backgroundColor: colorSurfaceContainerLow,
+                  foregroundColor: colorPrimary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              IconButton(
                 onPressed: () async {
+                  final newName = _getActiveName(profile).trim();
+                  if (newName.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("El nombre no puede estar vacío"),
+                      ),
+                    );
+                    return;
+                  }
+                  if (_viewModel.profiles.any(
+                    (p) =>
+                        p.name.toLowerCase() == newName.toLowerCase() &&
+                        p.id != profile.id,
+                  )) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("Ya existe un perfil con ese nombre"),
+                      ),
+                    );
+                    return;
+                  }
+
+                  profile.name = newName;
+
                   try {
                     await _viewModel.saveProfile(profile);
                     if (mounted) {
@@ -1224,407 +1007,211 @@ class _VistaUsuariosState extends ConsumerState<VistaUsuarios> {
                     }
                   }
                 },
-                icon: const Icon(Icons.save_as_outlined, size: 16),
-                label: const Text(
-                  "Guardar Cambios",
-                  style: TextStyle(fontSize: 13),
-                ),
-              ),
-            ],
-          ),
-          const Divider(height: 24),
-          _buildModularRow(profile, "Inventario", [
-            "Ver datos",
-            "Crear dañados",
-            "busqueda ventas",
-          ]),
-          const Divider(height: 24),
-          _buildModularRow(profile, "Nuevo Artículo", ["Guardar datos"]),
-          const Divider(height: 24),
-          _buildModularRow(profile, "Modificar Artículo", ["Modificar datos"]),
-          const Divider(height: 24),
-          _buildModularRow(profile, "Ventas", [
-            "Crear venta",
-            "Crear oferta",
-            "Modificar ventas",
-          ]),
-          const Divider(height: 24),
-          _buildModularRow(profile, "Notificaciones", ["Visualizar datos"]),
-          const Divider(height: 24),
-          _buildModularRow(profile, "Cierre", [
-            "Visualizar datos",
-            "Crear Egresos",
-            "Editar datos",
-            "Crear cierre del dia",
-          ]),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildModularRow(
-    UserProfileConfig profile,
-    String title,
-    List<String> permissions,
-  ) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isWide = constraints.maxWidth > 650;
-        final moduleHeader = Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 4,
-              height: 18,
-              decoration: BoxDecoration(
-                color: colorPrimary,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              title.toUpperCase(),
-              style: const TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 12,
-                letterSpacing: 0.8,
-                color: colorOnSurface,
-              ),
-            ),
-          ],
-        );
-
-        final wrapPermissions = Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: permissions.map((perm) {
-            final isChecked =
-                profile.permissions[title]?.contains(perm) ?? false;
-            return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: colorOutlineVariant.withValues(alpha: 0.5),
-                ),
-              ),
-              child: InkWell(
-                onTap: () => _viewModel.togglePermission(profile, title, perm),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(
-                      height: 18,
-                      width: 18,
-                      child: Checkbox(
-                        value: isChecked,
-                        onChanged: (val) =>
-                            _viewModel.togglePermission(profile, title, perm),
-                        activeColor: colorPrimary,
-                        visualDensity: VisualDensity.compact,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      perm,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: colorOnSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }).toList(),
-        );
-
-        if (isWide) {
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: 200,
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: moduleHeader,
-                ),
-              ),
-              Expanded(child: wrapPermissions),
-            ],
-          );
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [moduleHeader, const SizedBox(height: 16), wrapPermissions],
-        );
-      },
-    );
-  }
-
-  Widget _buildSecurityAuditCard(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: colorPrimary,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: colorPrimary.withValues(alpha: 0.15),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            right: -10,
-            bottom: -10,
-            child: Icon(
-              Icons.shield_outlined,
-              color: Colors.white.withValues(alpha: 0.08),
-              size: 80,
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Auditoría",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    "Historial de accesos",
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 12,
-                      height: 1.2,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-              ElevatedButton(
-                onPressed: () => _showAuditLogsDialog(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: colorPrimary,
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 8,
-                    horizontal: 12,
-                  ),
+                icon: const Icon(Icons.save_outlined, size: 18),
+                style: IconButton.styleFrom(
+                  backgroundColor: colorPrimary,
+                  foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  elevation: 0,
-                  minimumSize: const Size(0, 32),
-                ),
-                child: const Center(
-                  child: Text(
-                    "Ver Logs",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                  ),
                 ),
               ),
             ],
           ),
+        ),
+        const Divider(height: 1, thickness: 1, color: colorOutlineVariant),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ..._modulosPermisos.entries.map((entry) {
+                  return _buildModulePermissionSection(
+                    profile,
+                    entry.key,
+                    entry.value,
+                  );
+                }),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildModulePermissionSection(
+    UserProfileConfig profile,
+    String moduleTitle,
+    List<String> permissions,
+  ) {
+    final granted = profile.permissions[moduleTitle] ?? <String>{};
+    final activeCount = permissions.where((p) => granted.contains(p)).length;
+    final totalCount = permissions.length;
+
+    // Agrupar permisos de 2 en 2
+    final List<List<String>> pairs = [];
+    for (int i = 0; i < permissions.length; i += 2) {
+      pairs.add(
+        permissions.sublist(
+          i,
+          (i + 2 <= permissions.length) ? i + 2 : permissions.length,
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Encabezado de la categoría / módulo compacto
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.0),
+            decoration: BoxDecoration(
+              color: colorSurfaceContainerLow,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  _getModuleIcon(moduleTitle),
+                  color: colorPrimary,
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    moduleTitle.toUpperCase(),
+                    style: const TextStyle(
+                      color: colorPrimary,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14.0,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2.5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colorPrimary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    "$activeCount de $totalCount activos",
+                    style: const TextStyle(
+                      color: colorPrimary,
+                      fontSize: 12.0,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Lista de permisos organizada de 2 en 2
+          ...pairs.asMap().entries.map((entry) {
+            final idx = entry.key;
+            final pair = entry.value;
+            final isLastPair = idx == pairs.length - 1;
+
+            return Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildPermissionItem(
+                        profile,
+                        moduleTitle,
+                        pair[0],
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: pair.length > 1
+                          ? _buildPermissionItem(profile, moduleTitle, pair[1])
+                          : const SizedBox.shrink(),
+                    ),
+                  ],
+                ),
+                if (!isLastPair)
+                  Divider(
+                    height: 1,
+                    thickness: 0.5,
+                    color: colorOutlineVariant.withValues(alpha: 0.2),
+                    indent: 6,
+                    endIndent: 6,
+                  ),
+              ],
+            );
+          }),
         ],
       ),
     );
   }
 
-  void _showApproveRequestDialog(BuildContext context, UserModel user) {
-    UserProfileConfig? selectedProf;
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              backgroundColor: colorSurfaceContainerLowest,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              title: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFD1FAE5),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.how_to_reg,
-                      color: Color(0xFF10B981),
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Text(
-                    "Aprobar Usuario",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                  ),
-                ],
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Estás a punto de autorizar el acceso de ${user.name} (${user.email}) al sistema.",
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    "ASIGNAR PERFIL:",
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: colorOnSurfaceVariant,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  if (_viewModel.profiles.isEmpty)
-                    const Text(
-                      "No hay perfiles configurados. Crea uno primero.",
-                      style: TextStyle(color: Color(0xFFB91C1C), fontSize: 13),
-                    )
-                  else
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 240),
-                      child: SingleChildScrollView(
-                        child: Column(
-                          children: _viewModel.profiles.map((p) {
-                            final isSelected = selectedProf?.id == p.id;
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: InkWell(
-                                onTap: () =>
-                                    setDialogState(() => selectedProf = p),
-                                borderRadius: BorderRadius.circular(12),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 14,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: isSelected
-                                        ? colorPrimary.withValues(alpha: 0.06)
-                                        : colorSurfaceContainerLow.withValues(
-                                            alpha: 0.5,
-                                          ),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: isSelected
-                                          ? colorPrimary
-                                          : colorOutlineVariant.withValues(
-                                              alpha: 0.4,
-                                            ),
-                                      width: isSelected ? 1.5 : 1.0,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.badge_outlined,
-                                        size: 20,
-                                        color: isSelected
-                                            ? colorPrimary
-                                            : colorOnSurfaceVariant,
-                                      ),
-                                      const SizedBox(width: 16),
-                                      Expanded(
-                                        child: Text(
-                                          p.name,
-                                          style: TextStyle(
-                                            fontWeight: isSelected
-                                                ? FontWeight.bold
-                                                : FontWeight.w500,
-                                            color: isSelected
-                                                ? colorPrimary
-                                                : colorOnSurface,
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                      ),
-                                      if (isSelected)
-                                        const Icon(
-                                          Icons.check_circle,
-                                          color: colorPrimary,
-                                          size: 20,
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("Cancelar"),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF10B981),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  onPressed: selectedProf == null
-                      ? null
-                      : () async {
-                          try {
-                            await _viewModel.approveUser(
-                              user,
-                              selectedProf!.id,
-                            );
-                            if (context.mounted) {
-                              Navigator.pop(context);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text("Usuario aprobado con éxito"),
-                                ),
-                              );
-                            }
-                          } catch (e) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text("Error: $e")),
-                              );
-                            }
-                          }
-                        },
-                  child: const Text("Confirmar Aprobación"),
-                ),
-              ],
-            );
-          },
-        );
+  Widget _buildPermissionItem(
+    UserProfileConfig profile,
+    String moduleTitle,
+    String perm,
+  ) {
+    final granted = profile.permissions[moduleTitle] ?? <String>{};
+    final isChecked = granted.contains(perm);
+
+    return InkWell(
+      onTap: () {
+        _viewModel.togglePermission(profile, moduleTitle, perm);
       },
+      borderRadius: BorderRadius.circular(4),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6.0),
+        child: SizedBox(
+          height: 35,
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  perm,
+                  style: TextStyle(
+                    color: isChecked ? colorOnSurface : colorOnSurfaceVariant,
+                    fontSize: 16.0,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                height: 22,
+                child: FittedBox(
+                  fit: BoxFit.contain,
+                  child: Switch(
+                    value: isChecked,
+                    onChanged: (val) {
+                      _viewModel.togglePermission(profile, moduleTitle, perm);
+                    },
+                    activeThumbColor: Colors.white,
+                    activeTrackColor: colorPrimary,
+                    inactiveThumbColor: Colors.white,
+                    inactiveTrackColor: colorOutlineVariant.withValues(
+                      alpha: 0.4,
+                    ),
+                    trackOutlineColor: WidgetStateProperty.resolveWith(
+                      (states) => Colors.transparent,
+                    ),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -1781,14 +1368,39 @@ class _VistaUsuariosState extends ConsumerState<VistaUsuarios> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    if (user.role == RoleConstants.adminMasterId &&
-                        !_viewModel.isCurrentUserAdminMaster)
-                      const Text(
-                        "Admin Master (Rol bloqueado)",
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: colorPrimary,
+                    if (user.role == RoleConstants.adminMasterId)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 10,
+                          horizontal: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: colorSurfaceContainerLow,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: colorOutlineVariant.withValues(alpha: 0.5),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.lock_outline,
+                              color: colorPrimary,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                selectedProf?.name ??
+                                    "Admin Master (Rol protegido)",
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: colorPrimary,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       )
                     else if (_viewModel.assignableRoles.isEmpty)
@@ -1827,7 +1439,7 @@ class _VistaUsuariosState extends ConsumerState<VistaUsuarios> {
                           if (val != null) {
                             setDialogState(() {
                               selectedProf = _viewModel.assignableRoles
-                                  .firstWhere((p) => p.id == val);
+                                   .firstWhere((p) => p.id == val);
                             });
                           }
                         },
@@ -1851,8 +1463,7 @@ class _VistaUsuariosState extends ConsumerState<VistaUsuarios> {
                   onPressed:
                       (selectedProf?.id == user.role &&
                               selectedStatus == user.status) ||
-                          (user.role == RoleConstants.adminMasterId &&
-                              !_viewModel.isCurrentUserAdminMaster)
+                          user.role == RoleConstants.adminMasterId
                       ? null
                       : () async {
                           if (selectedProf?.id == RoleConstants.adminMasterId &&
@@ -1897,6 +1508,15 @@ class _VistaUsuariosState extends ConsumerState<VistaUsuarios> {
                             );
                             if (context.mounted) {
                               Navigator.pop(context);
+                              if (_selectedUser?.id == user.id &&
+                                  selectedProf?.id != null) {
+                                _selectUser(
+                                  user.copyWith(
+                                    role: selectedProf!.id,
+                                    status: selectedStatus,
+                                  ),
+                                );
+                              }
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text(
@@ -1921,87 +1541,6 @@ class _VistaUsuariosState extends ConsumerState<VistaUsuarios> {
         );
       },
     );
-  }
-
-  Future<void> _showEditProfileNameDialog(
-    BuildContext context,
-    UserProfileConfig profile,
-  ) async {
-    final TextEditingController nameController = TextEditingController(
-      text: profile.name,
-    );
-    final formKey = GlobalKey<FormState>();
-
-    final bool? confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text("Renombrar Perfil"),
-          content: Form(
-            key: formKey,
-            child: TextFormField(
-              controller: nameController,
-              decoration: const InputDecoration(labelText: "Nuevo Nombre"),
-              validator: (val) {
-                if (val == null || val.trim().isEmpty) {
-                  return "El nombre no puede estar vacío";
-                }
-                return null;
-              },
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text("Cancelar"),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: colorPrimary,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: () {
-                if (formKey.currentState?.validate() ?? false) {
-                  Navigator.pop(context, true);
-                }
-              },
-              child: const Text("Guardar"),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirm == true) {
-      final newName = nameController.text.trim();
-      if (newName != profile.name) {
-        profile.name = newName;
-        try {
-          await _viewModel.saveProfile(profile);
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text("Perfil renombrado con éxito"),
-                backgroundColor: Color(0xFF10B981),
-              ),
-            );
-          }
-        } catch (e) {
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text("Error al renombrar: $e"),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-        }
-      }
-    }
-  }
-
-  void _showAuditLogsDialog(BuildContext context) {
-    // Implementación simplificada o pendiente de refactor
   }
 
   // Helpers de colores (se mantienen igual o se mueven a un tema)
@@ -2050,5 +1589,30 @@ class _VistaUsuariosState extends ConsumerState<VistaUsuarios> {
       default:
         return Colors.grey;
     }
+  }
+
+  String _formatFechaIngreso(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return "Sin fecha";
+    try {
+      final dt = DateTime.tryParse(trimmed);
+      if (dt != null) {
+        return "${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}";
+      }
+    } catch (_) {}
+    if (trimmed.contains('T')) {
+      final parts = trimmed.split('T').first.split('-');
+      if (parts.length == 3) {
+        return "${parts[2]}/${parts[1]}/${parts[0]}";
+      }
+    }
+    if (trimmed.contains(' ')) {
+      final datePart = trimmed.split(' ').first;
+      final parts = datePart.split('-');
+      if (parts.length == 3) {
+        return "${parts[2]}/${parts[1]}/${parts[0]}";
+      }
+    }
+    return trimmed;
   }
 }
