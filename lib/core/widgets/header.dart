@@ -228,24 +228,18 @@ class Header extends StatelessWidget {
                   Container(
                     width: 36,
                     height: 36,
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
+                      color: AppColors.primary,
                       shape: BoxShape.circle,
-                      border: Border.all(
-                        color: AppColors.primaryContainer,
-                        width: 2,
-                      ),
                     ),
                     clipBehavior: Clip.antiAlias,
-                    child: user?.photoURL != null 
-                      ? Image.network(user!.photoURL!, fit: BoxFit.cover)
-                      : Container(
-                          color: AppColors.primary,
-                          child: const Icon(
+                    child: user?.photoURL != null
+                        ? Image.network(user!.photoURL!, fit: BoxFit.cover)
+                        : const Icon(
                             Icons.person,
                             color: Colors.white,
-                            size: 18,
+                            size: 20,
                           ),
-                        ),
                   ),
                 ],
               ),

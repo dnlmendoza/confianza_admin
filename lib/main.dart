@@ -12,7 +12,7 @@ import 'package:confianza_admin/core/enrutador.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  
+
   // Habilitar Persistencia Offline y Caché (Fundamental para Web y Móvil)
   // Esto hace que la segunda carga sea instantánea desde IndexedDB y
   // solo consuma lecturas de la red para los documentos que hayan cambiado.
@@ -107,7 +107,7 @@ class _InactivitySignOutListenerState extends State<InactivitySignOutListener> {
   void _signOutUser() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      // Magia de Riverpod: Al hacer signOut, el authStateProvider cambia,
+      // Riverpod: Al hacer signOut, el authStateProvider cambia,
       // y el GoRouter detecta el cambio expulsando al usuario al '/' instantáneamente.
       await FirebaseAuth.instance.signOut();
     }
